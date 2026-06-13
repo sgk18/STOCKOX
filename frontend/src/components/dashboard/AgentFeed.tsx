@@ -226,6 +226,7 @@ export default function AgentFeed() {
   const agentIcons = {
     research: Database,
     news: Globe,
+    sentiment: Globe,
     technical: LineChart,
     risk: ShieldCheck,
     committee: Cpu,
@@ -234,6 +235,7 @@ export default function AgentFeed() {
   const agentColorClasses = {
     research: "bg-[#2563EB] text-white border-[#1D4ED8]",
     news: "bg-[#FACC15] text-black border-black",
+    sentiment: "bg-[#FACC15] text-black border-black",
     technical: "bg-[#60A5FA] text-black border-[#2563EB]",
     risk: "bg-[#EF4444] text-white border-black",
     committee: "bg-purple-600 text-white border-black",
@@ -257,7 +259,8 @@ export default function AgentFeed() {
       <div className="flex-grow p-4 overflow-y-auto bg-[#F8FAFC] flex flex-col gap-3.5">
         <AnimatePresence initial={false}>
           {messages.map((msg) => {
-            const IconComp = agentIcons[msg.agentId];
+            const IconComp = agentIcons[msg.agentId] || Bot;
+            const colorClass = agentColorClasses[msg.agentId] || "bg-[#F8FAFC] text-black border-black";
             return (
               <motion.div
                 key={msg.id}
@@ -266,7 +269,7 @@ export default function AgentFeed() {
                 className="flex items-start gap-3 bg-white p-3 border-2 border-black rounded-xl shadow-[2px_2px_0px_#000000]"
               >
                 {/* Agent Icon Badge */}
-                <div className={`p-2 rounded-lg border-2 flex-shrink-0 ${agentColorClasses[msg.agentId]}`}>
+                <div className={`p-2 rounded-lg border-2 flex-shrink-0 ${colorClass}`}>
                   <IconComp className="w-4 h-4" />
                 </div>
                 
