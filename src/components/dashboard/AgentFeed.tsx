@@ -91,7 +91,7 @@ export default function AgentFeed() {
                 ...prev,
                 {
                   id: `ws-${Date.now()}-${Math.random()}`,
-                  agentId: payload.agent_id as any,
+                  agentId: payload.agent_id as "research" | "news" | "technical" | "risk" | "committee",
                   agentName: payload.agent_name,
                   message: msgText,
                   timestamp: time,
@@ -101,7 +101,7 @@ export default function AgentFeed() {
 
             // Update status in global Zustand store
             try {
-              let storeStatus: any = "Idle";
+              let storeStatus: "Idle" | "Thinking" | "Researching" | "Complete" | "Fetching News" | "Monitoring" = "Idle";
               if (data.type === "agent_started" || data.type === "agent_message") {
                 if (payload.agent_id === "research") storeStatus = "Researching";
                 else if (payload.agent_id === "news") storeStatus = "Fetching News";
