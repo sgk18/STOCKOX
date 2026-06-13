@@ -2,34 +2,35 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Search, History, TrendingUp, Sparkles, X } from "lucide-react";
-import { useAnalysisStore, StockDetails } from "@/lib/analysisStore";
+import { useSearchStore, SearchStockResult } from "@/lib/searchStore";
 import { useAuth } from "@clerk/nextjs";
 
 interface SearchBarProps {
-  onSelect: (stock: StockDetails) => void;
+  onSelect: (stock: SearchStockResult) => void;
 }
 
 export default function SearchBar({ onSelect }: SearchBarProps) {
   const { getToken } = useAuth();
-  const searchQuery = useAnalysisStore((state) => state.searchQuery);
-  const setSearchQuery = useAnalysisStore((state) => state.setSearchQuery);
-  const searchResults = useAnalysisStore((state) => state.searchResults);
-  const setSearchResults = useAnalysisStore((state) => state.setSearchResults);
-  const searchHistory = useAnalysisStore((state) => state.searchHistory);
-  const loadSearchHistory = useAnalysisStore((state) => state.loadSearchHistory);
-  const addToSearchHistory = useAnalysisStore((state) => state.addToSearchHistory);
-  const clearSearchHistory = useAnalysisStore((state) => state.clearSearchHistory);
+  const searchQuery = useSearchStore((state) => state.searchQuery);
+  const setSearchQuery = useSearchStore((state) => state.setSearchQuery);
+  const searchResults = useSearchStore((state) => state.searchResults);
+  const setSearchResults = useSearchStore((state) => state.setSearchResults);
+  const searchStocks = useSearchStore((state) => state.searchStocks);
+  const searchHistory = useSearchStore((state) => state.searchHistory);
+  const loadSearchHistory = useSearchStore((state) => state.loadSearchHistory);
+  const addToSearchHistory = useSearchStore((state) => state.addToSearchHistory);
+  const clearSearchHistory = useSearchStore((state) => state.clearSearchHistory);
+  const isLoadingSearch = useSearchStore((state) => state.isLoadingSearch);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const trendingStocks = [
-    { ticker: "NVDA", name: "NVIDIA Corp.", score: 92 },
+    { ticker: "NVDA", name: "NVIDIA Corporation", score: 92 },
     { ticker: "AAPL", name: "Apple Inc.", score: 82 },
     { ticker: "TSLA", name: "Tesla Inc.", score: 64 },
-    { ticker: "MSFT", name: "Microsoft Corp.", score: 88 },
+    { ticker: "MSFT", name: "Microsoft Corporation", score: 88 },
     { ticker: "AMD", name: "Advanced Micro Devices", score: 71 },
   ];
 
@@ -54,44 +55,27 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.trim().length === 0) {
         setSearchResults([]);
-        setIsLoading(false);
         return;
       }
-      setIsLoading(true);
-      try {
-        const token = await getToken();
-        const headers: HeadersInit = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch(`/api/v1/stocks/search?q=${encodeURIComponent(searchQuery)}`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data);
-        }
-      } catch (err) {
-        console.error("Autocomplete failed:", err);
-      } finally {
-        setIsLoading(false);
-      }
+      const token = await getToken();
+      await searchStocks(searchQuery, token);
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, getToken, setSearchResults]);
+  }, [searchQuery, getToken, searchStocks, setSearchResults]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim() === "") return;
 
-    // If there is an exact autocomplete match or matching elements, choose the first
     if (searchResults.length > 0) {
       handleStockSelect(searchResults[0]);
     } else {
-      // Fallback matching logic on query keyword if API didn't return (already matches natural language in Go)
       alert("No exact advisory stock matches. Try 'NVDA', 'AAPL', or 'TSLA'.");
     }
   };
 
-  const handleStockSelect = (stock: StockDetails) => {
+  const handleStockSelect = (stock: SearchStockResult) => {
     addToSearchHistory(stock.ticker);
     onSelect(stock);
     setSearchQuery("");
@@ -100,18 +84,29 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
   };
 
   const handleTrendingClick = async (ticker: string) => {
+    const token = await getToken();
     try {
-      const token = await getToken();
-      const headers: HeadersInit = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`/api/v1/stocks/${ticker}`, { headers });
+      const res = await fetch(`/api/v1/stocks/${ticker}`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
-        handleStockSelect(data);
+        handleStockSelect({
+          ticker: data.ticker || ticker,
+          name: data.name || data.company_name || ticker,
+          exchange: data.exchange || "US Exchange",
+          industry: data.industry || "Equities",
+        });
       }
     } catch (err) {
-      console.error("Failed to load details for " + ticker, err);
+      console.error("Failed to load details for trending ticker:", err);
+      // Fallback
+      handleStockSelect({
+        ticker,
+        name: ticker,
+        exchange: "NASDAQ",
+        industry: "Technology",
+      });
     }
   };
 
@@ -131,8 +126,8 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
             setIsOpen(true);
           }}
           onBlur={() => setIsFocused(false)}
-          placeholder="Search stocks, companies, sectors, ETFs (e.g. 'Should I invest in NVIDIA?')..."
-          className={`w-full bg-white border-4 border-black text-[#0F172A] font-black text-md md:text-lg placeholder:text-black/40 rounded-2xl py-4.5 pl-14 pr-12 shadow-[4px_4px_0px_#000000] focus:outline-none transition-all duration-200 ${
+          placeholder="Search stocks, companies, sectors..."
+          className={`w-full bg-white border-4 border-black text-[#0F172A] font-black text-sm md:text-base placeholder:text-black/45 rounded-2xl py-4.5 pl-14 pr-12 shadow-[4px_4px_0px_#000000] focus:outline-none transition-all duration-200 ${
             isFocused ? "shadow-[6px_6px_0px_#000000] -translate-y-0.5" : ""
           }`}
         />
@@ -145,29 +140,28 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
               setSearchQuery("");
               setSearchResults([]);
             }}
-            className="p-1 hover:bg-black/10 rounded-lg absolute right-4 transition-colors"
+            className="p-1 hover:bg-black/10 rounded-lg absolute right-4 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5 text-black" />
           </button>
         )}
       </form>
 
-      {/* Autocomplete & Suggestions Dropdown Panel */}
+      {/* Autocomplete Suggestions Panel */}
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-3 bg-white border-4 border-black rounded-2xl shadow-[6px_6px_0px_#000000] overflow-hidden z-50">
           
-          {/* Autocomplete search results */}
-          {isLoading && (
-            <div className="p-4 text-center font-mono text-xs text-black/50 uppercase tracking-widest flex items-center justify-center gap-2">
+          {isLoadingSearch && (
+            <div className="p-4 text-center font-mono text-xs text-black/50 uppercase tracking-widest flex items-center justify-center gap-2 bg-[#F8FAFC]">
               <Sparkles className="w-4 h-4 text-[#2563EB] animate-spin" />
-              <span>Consulting advisory index...</span>
+              <span>Fetching live market database...</span>
             </div>
           )}
 
-          {!isLoading && searchResults.length > 0 && (
+          {!isLoadingSearch && searchResults.length > 0 && (
             <div className="border-b-3 border-black">
-              <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[10px] font-black uppercase text-black/40 tracking-wider">
-                Advisory Matches
+              <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[9px] font-black uppercase text-black/40 tracking-wider">
+                Live API Matches
               </div>
               <div className="max-h-60 overflow-y-auto">
                 {searchResults.map((stock) => (
@@ -175,33 +169,20 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
                     key={stock.ticker}
                     type="button"
                     onClick={() => handleStockSelect(stock)}
-                    className="w-full flex items-center justify-between px-5 py-3.5 border-b border-black/10 last:border-b-0 hover:bg-[#2563EB]/10 text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-5 py-3 border-b border-black/10 last:border-b-0 hover:bg-[#2563EB]/10 text-left transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="font-mono font-black text-sm bg-black text-[#FACC15] px-2 py-0.5 rounded border border-black shadow-[1.5px_1.5px_0px_#000000]">
+                      <span className="font-mono font-black text-xs bg-black text-[#FACC15] px-2 py-0.5 rounded border border-black shadow-[1.5px_1.5px_0px_#000000]">
                         {stock.ticker}
                       </span>
                       <div>
-                        <span className="font-extrabold text-[#0F172A] block text-sm leading-tight">
-                          {stock.company_name}
+                        <span className="font-extrabold text-[#0F172A] block text-xs md:text-sm leading-tight">
+                          {stock.name}
                         </span>
-                        <span className="text-[10px] font-bold text-black/40 uppercase">
-                          {stock.sector} • {stock.industry}
+                        <span className="text-[9px] font-bold text-black/45 uppercase">
+                          {stock.exchange} • {stock.industry}
                         </span>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-black text-sm block">
-                        ${stock.current_price.toFixed(2)}
-                      </span>
-                      <span
-                        className={`text-[10px] font-black uppercase ${
-                          stock.daily_change >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"
-                        }`}
-                      >
-                        {stock.daily_change >= 0 ? "+" : ""}
-                        {stock.daily_change_pct.toFixed(2)}%
-                      </span>
                     </div>
                   </button>
                 ))}
@@ -212,12 +193,12 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
           {/* Recent Searches */}
           {searchHistory.length > 0 && (
             <div className="border-b-3 border-black">
-              <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[10px] font-black uppercase text-black/40 tracking-wider flex items-center justify-between">
+              <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[9px] font-black uppercase text-black/40 tracking-wider flex items-center justify-between">
                 <span>Recent Advisory Lookups</span>
                 <button
                   type="button"
                   onClick={clearSearchHistory}
-                  className="text-[9px] hover:text-[#EF4444] transition-colors"
+                  className="text-[9px] hover:text-[#EF4444] transition-colors cursor-pointer"
                 >
                   Clear History
                 </button>
@@ -240,8 +221,8 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
 
           {/* Trending & Suggestions */}
           <div>
-            <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[10px] font-black uppercase text-black/40 tracking-wider">
-              Trending Advisory Coverage
+            <div className="p-3 bg-[#F8FAFC] border-b-2 border-black text-[9px] font-black uppercase text-black/40 tracking-wider">
+              Trending Coverage
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white">
               {trendingStocks.map((stock) => (
@@ -260,9 +241,6 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
                       <span className="font-extrabold text-xs text-[#0F172A]">{stock.name}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black bg-[#22C55E]/10 border border-[#22C55E]/40 text-[#22C55E] px-1.5 py-0.5 rounded">
-                    Score: {stock.score}
-                  </span>
                 </button>
               ))}
             </div>

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Star } from "lucide-react";
-import { useAnalysisStore } from "@/lib/analysisStore";
+import { useWatchlistStore } from "@/lib/watchlistStore";
 import { useAuth } from "@clerk/nextjs";
 import Button from "../../ui/Button";
 
@@ -13,8 +13,8 @@ interface WatchlistButtonProps {
 
 export default function WatchlistButton({ ticker, companyName }: WatchlistButtonProps) {
   const { getToken } = useAuth();
-  const watchlist = useAnalysisStore((state) => state.watchlist);
-  const toggleWatchlistItem = useAnalysisStore((state) => state.toggleWatchlistItem);
+  const watchlist = useWatchlistStore((state) => state.watchlist);
+  const toggleWatchlistItem = useWatchlistStore((state) => state.toggleWatchlistItem);
   
   const [isPending, setIsPending] = useState(false);
   const isWatchlisted = watchlist.some((w) => w.ticker === ticker);
@@ -43,7 +43,7 @@ export default function WatchlistButton({ ticker, companyName }: WatchlistButton
           }`}
         />
       }
-      className={`text-xs py-2 px-4 border-2 shadow-[2px_2px_0px_#000000] font-black uppercase tracking-wider rounded-xl select-none ${
+      className={`text-xs py-2 px-4 border-2 shadow-[2px_2px_0px_#000000] font-black uppercase tracking-wider rounded-xl select-none cursor-pointer ${
         isWatchlisted ? "bg-[#FACC15] hover:bg-[#E2B80D]" : "bg-white hover:bg-black/5"
       }`}
     >

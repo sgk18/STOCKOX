@@ -1,10 +1,18 @@
 "use client";
 
 import React from "react";
-import { AnalysisSessionState } from "@/lib/analysisStore";
 import { motion } from "framer-motion";
 import { Sparkles, TrendingUp, ShieldAlert, Award, ChevronUp } from "lucide-react";
 import Button from "../../ui/Button";
+
+export interface AnalysisSessionState {
+  status: string;
+  recommendation?: "BUY" | "SELL" | "HOLD";
+  confidenceScore: number;
+  targetPrice: number;
+  riskLevel: string;
+  summary: string;
+}
 
 interface RecommendationPanelProps {
   session: AnalysisSessionState;

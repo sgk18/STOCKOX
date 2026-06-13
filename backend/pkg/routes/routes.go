@@ -7,6 +7,7 @@ import (
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
+	marketController "stockox-backend/internal/market/controller"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +19,7 @@ func SetupRoutes(
 	healthCtrl *health.HealthController,
 	syncCtrl *auth.SyncController,
 	v1Ctrl *analysis.V1Controller,
+	marketCtrl *marketController.MarketController,
 	wsHub *websocket.Hub,
 	jwtSecret string,
 	rateLimitRPS float64,
@@ -70,8 +72,12 @@ func SetupRoutes(
 		// V1 Endpoints
 		v1 := api.Group("/v1")
 		{
-			v1.GET("/stocks/search", v1Ctrl.SearchStocks)
-			v1.GET("/stocks/:ticker", v1Ctrl.GetStockDetails)
+			v1.GET("/stocks/search", marketCtrl.SearchStocks)
+			v1.GET("/stocks/:ticker", marketCtrl.GetStockDetails)
+			v1.GET("/stocks/:ticker/metrics", marketCtrl.GetMetrics)
+			v1.GET("/stocks/:ticker/history", marketCtrl.GetHistory)
+			v1.GET("/stocks/:ticker/news", marketCtrl.GetNews)
+
 			v1.POST("/analysis/start", v1Ctrl.StartAnalysis)
 			v1.GET("/analysis/:id", v1Ctrl.GetAnalysisDetails)
 			v1.GET("/analysis/:id/agents", v1Ctrl.GetAgentMessages)

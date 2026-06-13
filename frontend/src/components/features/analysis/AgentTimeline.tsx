@@ -1,9 +1,16 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { AgentTimelineMessage } from "@/lib/analysisStore";
 import { Terminal, ShieldAlert, Cpu, Sparkles, MessageSquareDot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+export interface AgentTimelineMessage {
+  id: string;
+  agentName: string;
+  message: string;
+  type: string;
+  timestamp: string;
+}
 
 interface AgentTimelineProps {
   messages: AgentTimelineMessage[];

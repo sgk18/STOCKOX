@@ -12,6 +12,10 @@ import (
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/websocket"
+	marketCache "stockox-backend/internal/market/cache"
+	marketController "stockox-backend/internal/market/controller"
+	marketProviders "stockox-backend/internal/market/providers"
+	marketService "stockox-backend/internal/market/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,6 +56,12 @@ func init() {
 	wsHub := websocket.NewHub()
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 
+	// Market Controllers
+	providerFactory := marketProviders.NewProviderFactory(cfg)
+	marketRedisCache := marketCache.NewMarketCache(nil) // redis disabled in serverless
+	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+	marketCtrl := marketController.NewMarketController(marketSrv)
+
 	// 7. Setup Gin Engine
 	gin.SetMode(gin.ReleaseMode)
 	ginEngine = gin.New()
@@ -63,6 +73,7 @@ func init() {
 		healthCtrl,
 		syncCtrl,
 		v1Ctrl,
+		marketCtrl,
 		wsHub,
 		cfg.JWT.Secret,
 		100.0, // RPS limit

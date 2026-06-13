@@ -15,6 +15,10 @@ import (
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/websocket"
+	marketCache "stockox-backend/internal/market/cache"
+	marketController "stockox-backend/internal/market/controller"
+	marketProviders "stockox-backend/internal/market/providers"
+	marketService "stockox-backend/internal/market/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -84,6 +88,12 @@ func main() {
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 
+	// Market Controllers
+	providerFactory := marketProviders.NewProviderFactory(cfg)
+	marketRedisCache := marketCache.NewMarketCache(rdb)
+	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+	marketCtrl := marketController.NewMarketController(marketSrv)
+
 	// 8. Create Gin Engine (gin.New is used because custom recovery/logger middlewares are registered in SetupRoutes)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -95,6 +105,7 @@ func main() {
 		healthCtrl,
 		syncCtrl,
 		v1Ctrl,
+		marketCtrl,
 		wsHub,
 		cfg.JWT.Secret,
 		10.0, // rate limiter RPS

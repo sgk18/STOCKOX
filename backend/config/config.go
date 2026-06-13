@@ -41,6 +41,11 @@ type Config struct {
 		AIMLAPIKey        string
 		FeatherlessAPIKey string
 	}
+	Market struct {
+		FinnhubAPIKey      string
+		AlphaVantageAPIKey string
+		PolygonAPIKey      string
+	}
 	FrontendURL string
 }
 
@@ -86,6 +91,11 @@ func LoadConfig() *Config {
 	// AI APIs
 	cfg.AI.AIMLAPIKey = getEnv("AIML_API_KEY", "")
 	cfg.AI.FeatherlessAPIKey = getEnv("FEATHERLESS_API_KEY", "")
+
+	// Market
+	cfg.Market.FinnhubAPIKey = getEnv("FINNHUB_API_KEY", "")
+	cfg.Market.AlphaVantageAPIKey = getEnv("ALPHA_VANTAGE_API_KEY", "")
+	cfg.Market.PolygonAPIKey = getEnv("POLYGON_API_KEY", "")
 
 	// Frontend
 	cfg.FrontendURL = getEnv("FRONTEND_URL", "http://localhost:3000")
