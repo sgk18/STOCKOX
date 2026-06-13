@@ -80,7 +80,34 @@ export default function DashboardPage() {
         }
       });
       if (!res.ok) throw new Error("Failed to fetch watchlist API");
-      return res.json();
+      const rawData = await res.json();
+
+      const stockProfiles: Record<string, Omit<WatchlistItem, "ticker" | "name">> = {
+        NVDA: { price: 187.20, changePercent: 4.20, aiScore: 92, risk: "Low", recommendation: "BUY" },
+        AAPL: { price: 178.45, changePercent: 1.15, aiScore: 82, risk: "Low", recommendation: "BUY" },
+        TSLA: { price: 210.80, changePercent: -2.40, aiScore: 64, risk: "High", recommendation: "HOLD" },
+        MSFT: { price: 415.50, changePercent: 0.85, aiScore: 88, risk: "Low", recommendation: "BUY" },
+        AMD: { price: 162.30, changePercent: -1.95, aiScore: 71, risk: "Medium", recommendation: "HOLD" },
+      };
+
+      return rawData.map((item: any) => {
+        const profile = stockProfiles[item.ticker] || {
+          price: 150.00,
+          changePercent: 1.5,
+          aiScore: 75,
+          risk: "Medium",
+          recommendation: "HOLD",
+        };
+        return {
+          ticker: item.ticker,
+          name: item.company_name || item.ticker,
+          price: profile.price,
+          changePercent: profile.changePercent,
+          aiScore: profile.aiScore,
+          risk: profile.risk,
+          recommendation: profile.recommendation,
+        };
+      });
     },
     refetchInterval: 15000, // Sync every 15 seconds
     enabled: isSignedIn && isSynced,
@@ -97,7 +124,24 @@ export default function DashboardPage() {
         }
       });
       if (!res.ok) throw new Error("Failed to fetch market overview API");
-      return res.json();
+      const rawData = await res.json();
+      return rawData.map((item: any) => {
+        const val = item.price || 0;
+        const chg = item.change || 0;
+        const history = [
+          { time: "10:00", value: val - chg * 0.8 },
+          { time: "11:00", value: val - chg * 0.5 },
+          { time: "12:00", value: val - chg * 0.6 },
+          { time: "13:00", value: val - chg * 0.2 },
+          { time: "14:00", value: val },
+        ];
+        return {
+          name: item.name,
+          value: val,
+          changePercent: item.change_percent || 0,
+          history: history,
+        };
+      });
     },
     refetchInterval: 20000,
     enabled: isSignedIn && isSynced,
