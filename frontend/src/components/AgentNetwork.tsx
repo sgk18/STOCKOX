@@ -131,8 +131,7 @@ export default function AgentNetwork() {
       
       {/* Header section with massive editorial typography */}
       <div className="relative z-10 max-w-3xl mt-0">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border-2 border-black bg-[#FACC15] font-black uppercase text-xs tracking-wider shadow-[2px_2px_0px_#000000] mb-6">
-          <Sparkles className="w-4 h-4" />
+        <div className="inline-flex items-center px-3.5 py-1.5 rounded-lg border-2 border-black bg-[#FACC15] font-black uppercase text-xs tracking-wider shadow-[2px_2px_0px_#000000] mb-6">
           <span>AI-Native Investment Engine</span>
         </div>
         

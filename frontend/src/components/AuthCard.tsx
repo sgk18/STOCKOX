@@ -25,6 +25,7 @@ export default function AuthCard() {
       identityPreviewText: "font-bold text-sm text-black",
       identityPreviewEditButtonIcon: "text-[#2563EB]",
       formResendCodeLink: "font-black text-xs uppercase text-[#2563EB] hover:underline",
+      footerAttribution: "hidden",
     }
   };
 
