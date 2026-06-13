@@ -4,33 +4,16 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
-import { Eye, EyeOff, ShieldCheck, Mail, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, Mail, ArrowRight, Bot } from "lucide-react";
 
-// Stockox Logo Component
+// Redesigned Brutalist Stockox Logo
 const StockoxLogo = () => (
   <div className="flex items-center gap-3 select-none">
-    <div className="relative w-11 h-11 flex items-center justify-center">
-      {/* Node circle background */}
-      <div className="absolute inset-0 bg-primary/15 rounded-full brutal-border border-primary flex items-center justify-center">
-        {/* Central node */}
-        <div className="w-2.5 h-2.5 bg-primary-light rounded-full shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
-      </div>
-      {/* Surrounding connected nodes */}
-      <div className="absolute top-[6px] left-[10px] w-2 h-2 bg-positive rounded-full animate-pulse-slow" />
-      <div className="absolute bottom-[6px] right-[10px] w-2 h-2 bg-warning rounded-full animate-pulse-slow" style={{ animationDelay: "1s" }} />
-      <div className="absolute top-[10px] right-[6px] w-2 h-2 bg-primary-light rounded-full animate-pulse-slow" style={{ animationDelay: "0.5s" }} />
-      <div className="absolute bottom-[10px] left-[6px] w-2 h-2 bg-negative rounded-full animate-pulse-slow" style={{ animationDelay: "1.5s" }} />
-      
-      {/* SVG Connecting lines in logo */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 44 44">
-        <line x1="22" y1="22" x2="14" y2="10" stroke="rgba(96, 165, 250, 0.4)" strokeWidth="1.5" />
-        <line x1="22" y1="22" x2="34" y2="14" stroke="rgba(96, 165, 250, 0.4)" strokeWidth="1.5" />
-        <line x1="22" y1="22" x2="30" y2="34" stroke="rgba(96, 165, 250, 0.4)" strokeWidth="1.5" />
-        <line x1="22" y1="22" x2="10" y2="30" stroke="rgba(96, 165, 250, 0.4)" strokeWidth="1.5" />
-      </svg>
+    <div className="w-10 h-10 bg-[#FACC15] border-3 border-black rounded-lg flex items-center justify-center shadow-[3px_3px_0px_#000000] rotate-[-2deg]">
+      <Bot className="w-5 h-5 text-black" />
     </div>
-    <span className="text-2xl font-extrabold tracking-widest text-white font-mono">
-      STOCK<span className="text-primary-light font-black">OX</span>
+    <span className="text-2xl font-black tracking-tight text-[#0F172A] font-sans">
+      STOCK<span className="text-[#2563EB]">OX</span>
     </span>
   </div>
 );
@@ -54,6 +37,13 @@ const GoogleIcon = () => (
       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
       fill="#EA4335"
     />
+  </svg>
+);
+
+// Custom GitHub Icon
+const GitHubIcon = () => (
+  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
   </svg>
 );
 
@@ -99,8 +89,8 @@ export default function AuthCard() {
       setLoading(false);
       setSuccessMsg(
         isSignUp
-          ? "Account created! Setting up investment committee..."
-          : "Welcome back to Stockox. Redirecting..."
+          ? "Account successfully created. Welcome aboard!"
+          : "Credentials verified. Access granted."
       );
     }, 2000);
   };
@@ -110,39 +100,38 @@ export default function AuthCard() {
     setSuccessMsg(`Authorizing secure session with ${provider}...`);
     setTimeout(() => {
       setLoading(false);
-      setSuccessMsg(`Welcome back to Stockox!`);
+      setSuccessMsg(`OAuth verification success. Welcome back!`);
     }, 1800);
   };
 
   return (
-    <div className="w-full max-w-[480px] mx-auto p-1.5 md:p-3 relative">
-      {/* Brutalist card border and glass combination */}
-      <div className="relative backdrop-blur-[24px] bg-slate-950/40 border-[3px] border-primary rounded-[28px] p-8 md:p-10 text-white shadow-brutal-card">
+    <div className="w-full max-w-[460px] mx-auto p-2 relative">
+      {/* Brutalist card border and shadow */}
+      <div className="relative bg-white border-4 border-black rounded-2xl p-6 md:p-8 text-[#0F172A] shadow-[8px_8px_0px_#000000] overflow-hidden">
         
-        {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl pointer-events-none -z-10" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-positive/10 rounded-full blur-3xl pointer-events-none -z-10" />
+        {/* Decorative corner visual */}
+        <div className="absolute top-0 right-0 w-16 h-16 bg-[#FACC15]/10 border-b-2 border-l-2 border-black/5 rounded-bl-3xl pointer-events-none" />
 
         {/* Logo and Header */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-5">
           <StockoxLogo />
           
           <AnimatePresence mode="wait">
             <motion.div
               key={isSignUp ? "signup-title" : "signin-title"}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="text-center mt-6"
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.15 }}
+              className="text-center mt-4"
             >
-              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white mb-2">
+              <h2 className="text-3xl font-black uppercase tracking-tight text-[#0F172A] mb-2 font-sans">
                 {isSignUp ? "Create Account" : "Welcome Back"}
               </h2>
-              <p className="text-sm text-text-muted font-medium">
+              <p className="text-sm text-black/60 font-bold uppercase tracking-wider">
                 {isSignUp 
-                  ? "Initialize your multi-agent investment engine" 
-                  : "Sign in to access your AI investment committee."}
+                  ? "Access your AI investment committee" 
+                  : "Access your AI investment committee."}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -152,63 +141,75 @@ export default function AuthCard() {
         <AnimatePresence>
           {successMsg && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="absolute inset-[3px] bg-slate-950/95 rounded-[25px] flex flex-col items-center justify-center p-8 text-center z-50 backdrop-blur-md"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              className="absolute inset-0 bg-[#22C55E] border-4 border-black rounded-xl flex flex-col items-center justify-center p-8 text-center z-50 shadow-[4px_4px_0px_#000000]"
             >
-              <div className="p-4 bg-positive/15 border-3 border-positive rounded-full text-positive mb-4 animate-bounce">
-                <ShieldCheck className="w-8 h-8" />
+              <div className="p-4 bg-white border-3 border-black rounded-xl text-black mb-4 shadow-[3px_3px_0px_#000000] rotate-[-2deg]">
+                <ShieldCheck className="w-10 h-10 text-black" />
               </div>
-              <h3 className="text-xl font-extrabold mb-2 uppercase text-white">Authentication Verified</h3>
-              <p className="text-text-secondary text-sm max-w-xs leading-relaxed font-semibold">
+              <h3 className="text-2xl font-black mb-2 uppercase text-black tracking-tight">ACCESS GRANTED</h3>
+              <p className="text-black font-bold text-sm max-w-xs leading-snug">
                 {successMsg}
               </p>
-              <div className="mt-8 flex items-center gap-2 text-primary-light font-mono text-xs animate-pulse">
-                <span>Connecting to Secure Terminal</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-primary-light animate-ping" />
+              <div className="mt-8 flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest bg-white/25 border-2 border-black/20 px-3 py-1.5 rounded-lg">
+                <span>Connecting to Terminal</span>
+                <span className="w-2 h-2 rounded-full bg-black animate-ping" />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Auth Forms */}
-        <div className="flex flex-col gap-6">
-          {/* Primary Social Auth (Google only) */}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleSocialSubmit("Google")}
-            disabled={loading}
-            className="w-full bg-white/[0.02] border-[3px] border-slate-800 hover:border-slate-600 rounded-[20px] py-4 text-white text-base font-bold shadow-sm"
-            leftIcon={<GoogleIcon />}
-          >
-            Continue with Google
-          </Button>
+        <div className="flex flex-col gap-4">
+          {/* Primary Social Auth */}
+          <div className="grid grid-cols-2 gap-3.5">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => handleSocialSubmit("Google")}
+              disabled={loading}
+              className="w-full py-3.5 text-sm font-black uppercase text-black"
+              leftIcon={<GoogleIcon />}
+            >
+              Google
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => handleSocialSubmit("GitHub")}
+              disabled={loading}
+              className="w-full py-3.5 text-sm font-black uppercase text-black"
+              leftIcon={<GitHubIcon />}
+            >
+              GitHub
+            </Button>
+          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-4 py-1">
-            <div className="h-[2px] flex-grow bg-slate-800" />
-            <span className="text-xs uppercase font-extrabold text-text-muted tracking-wider">
-              or continue with email
+            <div className="h-[3px] flex-grow bg-black" />
+            <span className="text-[10px] uppercase font-black text-black/60 tracking-widest">
+              OR EMAIL SECURE
             </span>
-            <div className="h-[2px] flex-grow bg-slate-800" />
+            <div className="h-[3px] flex-grow bg-black" />
           </div>
 
           {/* Email Login Form */}
-          <form onSubmit={handleEmailSubmit} className="flex flex-col gap-5">
+          <form onSubmit={handleEmailSubmit} className="flex flex-col gap-4">
             <AnimatePresence initial={false}>
               {isSignUp && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.15 }}
                   className="overflow-hidden"
                 >
                   <Input
                     label="Full Name"
-                    placeholder="Enter your name"
+                    placeholder="John Doe"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     error={errors.name}
@@ -221,14 +222,14 @@ export default function AuthCard() {
             <Input
               label="Email Address"
               type="email"
-              placeholder="name@institution.com"
+              placeholder="name@firm.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
               disabled={loading}
             />
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="relative">
                 <Input
                   label="Password"
@@ -242,23 +243,23 @@ export default function AuthCard() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-5 top-[47px] text-text-muted hover:text-white transition-colors duration-200"
+                  className="absolute right-4 top-[43px] text-black/60 hover:text-black transition-colors duration-150"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
               
               {!isSignUp && (
-                <div className="flex justify-end px-1 mt-1">
+                <div className="flex justify-end mt-1 px-1">
                   <a
                     href="#forgot"
                     onClick={(e) => {
                       e.preventDefault();
-                      alert("Password recovery dispatch active. Check your email.");
+                      alert("Password reset terminal link dispatched to your secure inbox.");
                     }}
-                    className="text-xs font-bold text-primary-light hover:text-white transition-colors duration-200"
+                    className="text-xs font-black text-[#2563EB] hover:underline uppercase tracking-wider"
                   >
-                    Forgot Password?
+                    Forgot?
                   </a>
                 </div>
               )}
@@ -267,18 +268,18 @@ export default function AuthCard() {
             {/* Submit Button */}
             <Button
               type="submit"
-              variant={isSignUp ? "success" : "primary"}
+              variant={isSignUp ? "accent" : "primary"}
               isLoading={loading}
-              className="w-full py-4 mt-2"
+              className="w-full py-3.5 mt-2 font-black uppercase text-base"
               leftIcon={!loading && <Mail className="w-5 h-5" />}
             >
-              {isSignUp ? "Initialize Account" : "Access Terminal"}
+              {isSignUp ? "Initialize Committee" : "Access Terminal"}
             </Button>
           </form>
 
           {/* Toggle Login/Sign Up */}
-          <div className="text-center mt-4 pt-4 border-t border-slate-800">
-            <p className="text-sm text-text-muted font-semibold">
+          <div className="text-center mt-1.5 pt-3 border-t-2 border-black/10">
+            <p className="text-xs text-black/70 font-bold uppercase tracking-wider">
               {isSignUp ? "Already a committee member?" : "New to the platform?"}{" "}
               <button
                 type="button"
@@ -286,10 +287,10 @@ export default function AuthCard() {
                   setIsSignUp(!isSignUp);
                   setErrors({});
                 }}
-                className="text-primary-light font-bold hover:text-white inline-flex items-center gap-1 group transition-colors duration-200"
+                className="text-[#2563EB] font-black hover:underline inline-flex items-center gap-1 group"
               >
-                <span>{isSignUp ? "Sign In" : "Request Access"}</span>
-                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                <span>{isSignUp ? "Sign In" : "Register"}</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-0.5 text-black" strokeWidth={3} />
               </button>
             </p>
           </div>

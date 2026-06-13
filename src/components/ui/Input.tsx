@@ -16,7 +16,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className={cn("flex flex-col gap-2 w-full", containerClassName)}>
         {label && (
-          <label className="text-sm font-semibold text-text-secondary tracking-wide flex justify-between items-center px-1">
+          <label className="text-sm font-black text-[#0F172A] tracking-wider uppercase flex justify-between items-center px-1">
             <span>{label}</span>
           </label>
         )}
@@ -33,27 +33,20 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               props.onBlur?.(e);
             }}
             className={cn(
-              "w-full bg-white/[0.03] backdrop-blur-md text-white text-base font-medium",
-              "px-5 py-4 rounded-[20px] border-[3px] transition-all duration-300 outline-none",
+              "w-full bg-white text-[#0F172A] text-base font-bold",
+              "px-5 py-3 rounded-xl border-3 border-black transition-all duration-150 outline-none",
               focused
-                ? "border-primary shadow-[0_0_20px_rgba(37,99,235,0.25)] bg-white/[0.05]"
+                ? "bg-[#F1F5F9] shadow-[4px_4px_0px_#000000]"
                 : error
-                ? "border-negative shadow-[0_0_15px_rgba(239,68,68,0.15)]"
-                : "border-slate-800 hover:border-slate-700 bg-white/[0.02]",
+                ? "border-[#EF4444] bg-[#FEF2F2] shadow-[2px_2px_0px_#EF4444]"
+                : "hover:bg-[#F8FAFC]",
               className
             )}
             {...props}
           />
-          {/* Subtle bottom line visual hint */}
-          <div
-            className={cn(
-              "absolute bottom-0 left-6 right-6 h-[2px] rounded-full transition-all duration-500 bg-gradient-to-r from-transparent via-primary to-transparent opacity-0 pointer-events-none",
-              focused && "opacity-80 scale-105"
-            )}
-          />
         </div>
         {error && (
-          <span className="text-xs font-semibold text-negative px-1 flex items-center gap-1 animate-pulse-slow">
+          <span className="text-xs font-black text-[#EF4444] px-1 flex items-center gap-1">
             ● {error}
           </span>
         )}

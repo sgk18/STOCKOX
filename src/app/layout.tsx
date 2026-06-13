@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +12,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "Stockox - Secure AI Terminal",
-  description: "Secure access to Stockox, the AI-powered multi-agent investment intelligence platform.",
+  title: "Stockox - AI Investment Committee Terminal",
+  description: "Access your AI-powered multi-agent investment intelligence platform.",
 };
 
 export default function RootLayout({
@@ -25,9 +30,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-bg-deep text-white font-sans">{children}</body>
+      <body className="min-h-full bg-[#F8FAFC] text-[#0F172A] font-sans antialiased">
+        {children}
+      </body>
     </html>
   );
 }
