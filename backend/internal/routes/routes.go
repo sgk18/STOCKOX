@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"stockox-backend/internal/auth"
 	"stockox-backend/internal/dashboard/controller"
 	"stockox-backend/internal/health"
 	"stockox-backend/internal/middleware"
@@ -14,6 +15,7 @@ func SetupRoutes(
 	r *gin.Engine,
 	dbCtrl *controller.DashboardController,
 	healthCtrl *health.HealthController,
+	syncCtrl *auth.SyncController,
 	wsHub *websocket.Hub,
 	jwtSecret string,
 	rateLimitRPS float64,
@@ -44,6 +46,9 @@ func SetupRoutes(
 	api := r.Group("/api")
 	api.Use(middleware.Auth(jwtSecret))
 	{
+		// Clerk Sync Callback
+		api.POST("/auth/sync", syncCtrl.SyncUser)
+
 		api.GET("/dashboard", dbCtrl.GetDashboard)
 		api.GET("/dashboard/portfolio", dbCtrl.GetPortfolioSummary)
 		api.GET("/dashboard/watchlist", dbCtrl.GetWatchlist)

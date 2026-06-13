@@ -6,7 +6,6 @@ import (
 	"stockox-backend/internal/errors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type DashboardController struct {
@@ -114,27 +113,19 @@ func (ctrl *DashboardController) GetOpportunities(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// Helper to extract userID from Gin Context as a uuid.UUID
-func (ctrl *DashboardController) getUserID(c *gin.Context) (uuid.UUID, bool) {
+// Helper to extract userID from Gin Context as a string
+func (ctrl *DashboardController) getUserID(c *gin.Context) (string, bool) {
 	val, exists := c.Get("UserID")
 	if !exists {
-		// Fallback to static development user UUID
-		return uuid.MustParse("00000000-0000-0000-0000-000000000001"), true
+		// Fallback to static development user ID string
+		return "user_000000000000000000000000001", true
 	}
 
-	// Try direct cast
-	if uid, ok := val.(uuid.UUID); ok {
-		return uid, true
-	}
-
-	// Try string parsing
+	// Try string type assertion
 	if str, ok := val.(string); ok {
-		if parsed, err := uuid.Parse(str); err == nil {
-			return parsed, true
-		}
+		return str, true
 	}
 
-	// Try conversion from interface float64 or other types if required
-	// Fallback to default user
-	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), true
+	// Try other types
+	return "user_000000000000000000000000001", true
 }

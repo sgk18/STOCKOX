@@ -8,7 +8,7 @@ import (
 )
 
 type PortfolioRepository interface {
-	GetByUserID(userID uuid.UUID) (*models.Portfolio, error)
+	GetByUserID(userID string) (*models.Portfolio, error)
 	GetHoldings(portfolioID uuid.UUID) ([]models.PortfolioHolding, error)
 	Create(portfolio *models.Portfolio) error
 	Update(portfolio *models.Portfolio) error
@@ -25,7 +25,7 @@ func NewPortfolioRepository(db *gorm.DB) PortfolioRepository {
 	return &sqlPortfolioRepository{db: db}
 }
 
-func (r *sqlPortfolioRepository) GetByUserID(userID uuid.UUID) (*models.Portfolio, error) {
+func (r *sqlPortfolioRepository) GetByUserID(userID string) (*models.Portfolio, error) {
 	var portfolio models.Portfolio
 	err := r.db.First(&portfolio, "user_id = ?", userID).Error
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 
 type Portfolio struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
-	UserID             uuid.UUID      `gorm:"type:uuid;uniqueIndex;not null"`
+	UserID             string         `gorm:"type:varchar(255);uniqueIndex;not null"`
 	User               User           `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	TotalValue         float64        `gorm:"type:decimal(18,2);not null;default:0"`
 	CashBalance        float64        `gorm:"type:decimal(18,2);not null;default:0"`

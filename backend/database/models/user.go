@@ -3,12 +3,11 @@ package models
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type User struct {
-	ID        uuid.UUID      `gorm:"type:uuid;primaryKey"`
+	ID        string         `gorm:"type:varchar(255);primaryKey"`
 	Email     string         `gorm:"type:varchar(255);uniqueIndex;not null"`
 	Name      string         `gorm:"type:varchar(255)"`
 	AvatarURL string         `gorm:"type:varchar(255)"`
@@ -18,10 +17,3 @@ type User struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-// BeforeCreate GORM hook to automatically initialize uuid primary keys
-func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
-	if u.ID == uuid.Nil {
-		u.ID = uuid.New()
-	}
-	return
-}

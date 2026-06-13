@@ -2,12 +2,20 @@
 
 import React, { useState } from "react";
 import { Search, Bell, Bot, Sparkles, User, LogOut } from "lucide-react";
-import { useDashboardStore } from "@/lib/store";
+import { useUser, useClerk } from "@clerk/nextjs";
 
 export default function Navbar() {
-  const user = useDashboardStore((state) => state.user);
+  const { user: clerkUser } = useUser();
+  const { signOut } = useClerk();
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  const user = {
+    name: clerkUser?.fullName || clerkUser?.username || clerkUser?.firstName || "Adviser",
+    email: clerkUser?.primaryEmailAddress?.emailAddress || "",
+    avatar: (clerkUser?.firstName?.charAt(0) || clerkUser?.username?.charAt(0) || "U").toUpperCase(),
+    role: "Lead Investment Advisor",
+  };
 
   return (
     <nav className="h-20 border-b-4 border-black bg-white flex items-center justify-between px-6 sticky top-0 z-50 select-none">
@@ -76,9 +84,9 @@ export default function Navbar() {
               </div>
               <div className="p-1">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setShowProfileDropdown(false);
-                    alert("Dispatching logout call. Redirecting to Terminal...");
+                    await signOut();
                     window.location.href = "/";
                   }}
                   className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#EF4444] hover:bg-red-50 rounded-lg transition-colors"

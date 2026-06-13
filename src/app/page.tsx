@@ -1,10 +1,36 @@
 "use client";
 
-import React from "react";
+import React, { Suspense, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import AgentNetwork from "@/components/AgentNetwork";
 import AuthCard from "@/components/AuthCard";
 
 export default function LoginPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push("/dashboard");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#FACC15] border-4 border-black shadow-[4px_4px_0px_#000000] animate-pulse flex items-center justify-center font-black">
+            SO
+          </div>
+          <span className="font-mono text-xs uppercase tracking-widest text-black/50">
+            Initializing Secure Terminal...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen grid grid-cols-1 lg:grid-cols-[65%_35%] bg-[#F8FAFC] text-[#0F172A] overflow-hidden">
       
@@ -22,7 +48,9 @@ export default function LoginPage() {
         
         {/* Auth form card */}
         <div className="relative z-10 w-full flex items-center justify-center py-6 lg:py-0">
-          <AuthCard />
+          <Suspense fallback={<div className="font-mono text-xs uppercase tracking-widest text-black/45">Loading Auth Terminal...</div>}>
+            <AuthCard />
+          </Suspense>
         </div>
       </section>
 

@@ -38,12 +38,12 @@ func RunMigrations(db *gorm.DB) error {
 func SeedData(db *gorm.DB) {
 	var count int64
 
-	// 1. Seed Default User & Portfolio (Use static UUID to simplify local testing)
-	defaultUserUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	db.Model(&models.User{}).Where("id = ?", defaultUserUUID).Count(&count)
+	// 1. Seed Default User & Portfolio (Use static ID to simplify local testing)
+	defaultUserID := "user_000000000000000000000000001"
+	db.Model(&models.User{}).Where("id = ?", defaultUserID).Count(&count)
 	if count == 0 {
 		user := models.User{
-			ID:        defaultUserUUID,
+			ID:        defaultUserID,
 			Email:     "suryachalam.vm@bsccmh.christuniversity.in",
 			Name:      "Surya",
 			AvatarURL: "https://avatar.vercel.sh/surya",

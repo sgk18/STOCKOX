@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255),
     avatar_url VARCHAR(255),
@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 -- Portfolios Table
 CREATE TABLE IF NOT EXISTS portfolios (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL UNIQUE,
+    user_id VARCHAR(255) NOT NULL UNIQUE,
     total_value DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     cash_balance DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     daily_change DECIMAL(18,2) NOT NULL DEFAULT 0.00,
@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_holdings_deleted_at ON portfolio_holdings(deleted
 -- Watchlists Table
 CREATE TABLE IF NOT EXISTS watchlists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
     ticker VARCHAR(10) NOT NULL,
     company_name VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -69,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user_ticker ON watchlists(user_id, tic
 -- Analysis Sessions Table
 CREATE TABLE IF NOT EXISTS analysis_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
     ticker VARCHAR(10) NOT NULL,
     company_name VARCHAR(255),
     recommendation VARCHAR(10) NOT NULL DEFAULT 'HOLD', -- BUY, HOLD, SELL
@@ -141,12 +141,12 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
 
 -- Insert Default User
 INSERT INTO users (id, email, name, avatar_url, role)
-VALUES ('00000000-0000-0000-0000-000000000001', 'suryachalam.vm@bsccmh.christuniversity.in', 'Surya', 'https://avatar.vercel.sh/surya', 'Lead Investment Advisor')
+VALUES ('user_000000000000000000000000001', 'suryachalam.vm@bsccmh.christuniversity.in', 'Surya', 'https://avatar.vercel.sh/surya', 'Lead Investment Advisor')
 ON CONFLICT (email) DO NOTHING;
 
 -- Insert User Portfolio
 INSERT INTO portfolios (id, user_id, total_value, cash_balance, daily_change, daily_change_percent)
-VALUES ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 125400.00, 12000.00, 5062.00, 4.21)
+VALUES ('11111111-1111-1111-1111-111111111111', 'user_000000000000000000000000001', 125400.00, 12000.00, 5062.00, 4.21)
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Insert Portfolio Holdings

@@ -8,6 +8,7 @@ import (
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/auth"
 	"stockox-backend/internal/dashboard/controller"
 	"stockox-backend/internal/dashboard/service"
 	"stockox-backend/internal/health"
@@ -73,6 +74,7 @@ func main() {
 	// 6. Initialize Controllers
 	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
 	healthCtrl := health.NewHealthController(db, rdb)
+	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
 
 	// 7. Setup WebSockets Hub and Simulator
 	wsHub := websocket.NewHub()
@@ -89,6 +91,7 @@ func main() {
 		r,
 		dashboardCtrl,
 		healthCtrl,
+		syncCtrl,
 		wsHub,
 		cfg.JWT.Secret,
 		10.0, // rate limiter RPS

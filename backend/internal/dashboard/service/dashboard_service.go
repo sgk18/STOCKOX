@@ -16,9 +16,9 @@ import (
 )
 
 type DashboardService interface {
-	GetDashboard(userID uuid.UUID) (*dto.DashboardResponse, error)
-	GetPortfolioSummary(userID uuid.UUID) (*dto.PortfolioResponse, error)
-	GetWatchlist(userID uuid.UUID) ([]dto.WatchlistResponse, error)
+	GetDashboard(userID string) (*dto.DashboardResponse, error)
+	GetPortfolioSummary(userID string) (*dto.PortfolioResponse, error)
+	GetWatchlist(userID string) ([]dto.WatchlistResponse, error)
 	GetMarketOverview() ([]dto.MarketOverviewResponse, error)
 	GetAgentActivity() ([]dto.AgentActivityResponse, error)
 	GetAgentStatuses() ([]dto.AgentStatusResponse, error)
@@ -55,9 +55,9 @@ func NewDashboardService(
 	}
 }
 
-func (s *dashboardService) GetDashboard(userID uuid.UUID) (*dto.DashboardResponse, error) {
+func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, error) {
 	// 1. Try to read from Redis cache
-	cacheKey := fmt.Sprintf("dashboard:%s", userID.String())
+	cacheKey := fmt.Sprintf("dashboard:%s", userID)
 	if s.rdb != nil {
 		if cachedVal, err := s.rdb.Get(s.ctx, cacheKey).Result(); err == nil {
 			var resp dto.DashboardResponse
@@ -126,7 +126,7 @@ func (s *dashboardService) GetDashboard(userID uuid.UUID) (*dto.DashboardRespons
 	return resp, nil
 }
 
-func (s *dashboardService) GetPortfolioSummary(userID uuid.UUID) (*dto.PortfolioResponse, error) {
+func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioResponse, error) {
 	port, err := s.portRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (s *dashboardService) GetPortfolioSummary(userID uuid.UUID) (*dto.Portfolio
 	}, nil
 }
 
-func (s *dashboardService) GetWatchlist(userID uuid.UUID) ([]dto.WatchlistResponse, error) {
+func (s *dashboardService) GetWatchlist(userID string) ([]dto.WatchlistResponse, error) {
 	items, err := s.watchRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err

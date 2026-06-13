@@ -9,7 +9,7 @@ import (
 
 type Watchlist struct {
 	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID `gorm:"type:uuid;index;not null"`
+	UserID      string    `gorm:"type:varchar(255);index;not null"`
 	User        User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Ticker      string    `gorm:"type:varchar(10);index;not null"`
 	CompanyName string    `gorm:"type:varchar(255)"`

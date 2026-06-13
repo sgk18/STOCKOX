@@ -10,9 +10,9 @@ import (
 )
 
 type WatchlistRepository interface {
-	GetByUserID(userID uuid.UUID) ([]models.Watchlist, error)
-	Add(userID uuid.UUID, ticker string, companyName string) (*models.Watchlist, error)
-	Remove(userID uuid.UUID, ticker string) error
+	GetByUserID(userID string) ([]models.Watchlist, error)
+	Add(userID string, ticker string, companyName string) (*models.Watchlist, error)
+	Remove(userID string, ticker string) error
 }
 
 type sqlWatchlistRepository struct {
@@ -23,7 +23,7 @@ func NewWatchlistRepository(db *gorm.DB) WatchlistRepository {
 	return &sqlWatchlistRepository{db: db}
 }
 
-func (r *sqlWatchlistRepository) GetByUserID(userID uuid.UUID) ([]models.Watchlist, error) {
+func (r *sqlWatchlistRepository) GetByUserID(userID string) ([]models.Watchlist, error) {
 	var items []models.Watchlist
 	err := r.db.Find(&items, "user_id = ?", userID).Error
 	if err != nil {
@@ -32,7 +32,7 @@ func (r *sqlWatchlistRepository) GetByUserID(userID uuid.UUID) ([]models.Watchli
 	return items, nil
 }
 
-func (r *sqlWatchlistRepository) Add(userID uuid.UUID, ticker string, companyName string) (*models.Watchlist, error) {
+func (r *sqlWatchlistRepository) Add(userID string, ticker string, companyName string) (*models.Watchlist, error) {
 	item := models.Watchlist{
 		ID:          uuid.New(),
 		UserID:      userID,
@@ -47,6 +47,6 @@ func (r *sqlWatchlistRepository) Add(userID uuid.UUID, ticker string, companyNam
 	return &item, nil
 }
 
-func (r *sqlWatchlistRepository) Remove(userID uuid.UUID, ticker string) error {
+func (r *sqlWatchlistRepository) Remove(userID string, ticker string) error {
 	return r.db.Delete(&models.Watchlist{}, "user_id = ? AND ticker = ?", userID, ticker).Error
 }
