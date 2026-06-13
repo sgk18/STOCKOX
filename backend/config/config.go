@@ -46,10 +46,11 @@ type Config struct {
 
 // LoadConfig reads configuration parameters from environmental variables
 func LoadConfig() *Config {
-	// Load environment variables from files if present
+	// Load environment variables from files if present (in order of precedence: local overrides, then dev)
+	_ = godotenv.Load(".env.local")
 	if err := godotenv.Load(".env.development"); err != nil {
 		if err := godotenv.Load(); err != nil {
-			log.Println("[CONFIG-INFO] No .env.development or .env files found. Relying on system environment.")
+			log.Println("[CONFIG-INFO] No .env.local, .env.development or .env files found. Relying on system environment.")
 		}
 	}
 
