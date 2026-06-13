@@ -56,6 +56,38 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
+			// Check if a user with this email already exists (e.g. mock seeded user)
+			existingUser, err := ctrl.userRepo.GetByEmail(req.Email)
+			if err == nil && existingUser != nil {
+				log.Printf("[SYNC] Linking existing user record (%s) to Clerk user ID (%s)", req.Email, userID)
+				oldID := existingUser.ID
+				
+				// Update user ID in the database
+				if err := ctrl.userRepo.UpdateID(oldID, userID); err != nil {
+					errors.InternalServerError(c, "Failed to link existing user to Clerk ID: "+err.Error())
+					return
+				}
+
+				// Update user details
+				existingUser.ID = userID
+				if req.Name != "" {
+					existingUser.Name = req.Name
+				}
+				if req.AvatarURL != "" {
+					existingUser.AvatarURL = req.AvatarURL
+				}
+				existingUser.UpdatedAt = time.Now()
+				if err := ctrl.userRepo.Update(existingUser); err != nil {
+					log.Printf("[SYNC-WARN] Failed to update user profile details during link: %v", err)
+				}
+
+				c.JSON(http.StatusOK, SyncResponse{
+					Success: true,
+					Message: "User profile linked and synchronized",
+				})
+				return
+			}
+
 			// ===================================================
 			// JIT Provisioning for Brand New Clerk User
 			// ===================================================

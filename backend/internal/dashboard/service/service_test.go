@@ -7,18 +7,16 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-
-	"github.com/google/uuid"
 )
 
 // Define Mocks matching the new repository interfaces
 
 type mockPortfolioRepo struct {
 	repositories.PortfolioRepository
-	getByUserIDFn func(userID uuid.UUID) (*models.Portfolio, error)
+	getByUserIDFn func(userID string) (*models.Portfolio, error)
 }
 
-func (m *mockPortfolioRepo) GetByUserID(userID uuid.UUID) (*models.Portfolio, error) {
+func (m *mockPortfolioRepo) GetByUserID(userID string) (*models.Portfolio, error) {
 	if m.getByUserIDFn != nil {
 		return m.getByUserIDFn(userID)
 	}
@@ -27,10 +25,10 @@ func (m *mockPortfolioRepo) GetByUserID(userID uuid.UUID) (*models.Portfolio, er
 
 type mockWatchlistRepo struct {
 	repositories.WatchlistRepository
-	getByUserIDFn func(userID uuid.UUID) ([]models.Watchlist, error)
+	getByUserIDFn func(userID string) ([]models.Watchlist, error)
 }
 
-func (m *mockWatchlistRepo) GetByUserID(userID uuid.UUID) ([]models.Watchlist, error) {
+func (m *mockWatchlistRepo) GetByUserID(userID string) ([]models.Watchlist, error) {
 	if m.getByUserIDFn != nil {
 		return m.getByUserIDFn(userID)
 	}
@@ -84,20 +82,20 @@ func (m *mockAnalysisRepo) GetRecentAgentMessages(limit int) ([]models.AgentMess
 // Test Suite Executions
 
 func TestGetDashboard_Success(t *testing.T) {
-	defaultUserUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	defaultUserID := "user_000000000000000000000000001"
 	now := time.Now()
 
 	// 1. Mock DB Records
 	mockPort := &models.Portfolio{
-		UserID:             defaultUserUUID,
+		UserID:             defaultUserID,
 		TotalValue:         250000.00,
 		DailyChange:        1500.00,
 		DailyChangePercent: 0.60,
 	}
 
 	mockWatch := []models.Watchlist{
-		{UserID: defaultUserUUID, Ticker: "TSLA", CompanyName: "Tesla Inc.", CreatedAt: now},
-		{UserID: defaultUserUUID, Ticker: "NVDA", CompanyName: "NVIDIA Corp", CreatedAt: now},
+		{UserID: defaultUserID, Ticker: "TSLA", CompanyName: "Tesla Inc.", CreatedAt: now},
+		{UserID: defaultUserID, Ticker: "NVDA", CompanyName: "NVIDIA Corp", CreatedAt: now},
 	}
 
 	mockMarket := []models.MarketSnapshot{
@@ -113,17 +111,17 @@ func TestGetDashboard_Success(t *testing.T) {
 	}
 
 	mockAnalyses := []models.AnalysisSession{
-		{UserID: defaultUserUUID, Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 90, RiskLevel: "Medium", CreatedAt: now},
+		{UserID: defaultUserID, Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 90, RiskLevel: "Medium", CreatedAt: now},
 	}
 
 	// 2. Wire Mocks
 	portRepo := &mockPortfolioRepo{
-		getByUserIDFn: func(userID uuid.UUID) (*models.Portfolio, error) {
+		getByUserIDFn: func(userID string) (*models.Portfolio, error) {
 			return mockPort, nil
 		},
 	}
 	watchRepo := &mockWatchlistRepo{
-		getByUserIDFn: func(userID uuid.UUID) ([]models.Watchlist, error) {
+		getByUserIDFn: func(userID string) ([]models.Watchlist, error) {
 			return mockWatch, nil
 		},
 	}
@@ -150,7 +148,7 @@ func TestGetDashboard_Success(t *testing.T) {
 	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
 
 	// 4. Execute Service Call
-	resp, err := srv.GetDashboard(defaultUserUUID)
+	resp, err := srv.GetDashboard(defaultUserID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -192,16 +190,16 @@ func TestGetDashboard_Success(t *testing.T) {
 }
 
 func TestGetDashboard_RepoError(t *testing.T) {
-	defaultUserUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	defaultUserID := "user_000000000000000000000000001"
 
 	// 1. Mock DB returning error on watchlist query
 	portRepo := &mockPortfolioRepo{
-		getByUserIDFn: func(userID uuid.UUID) (*models.Portfolio, error) {
-			return &models.Portfolio{UserID: defaultUserUUID}, nil
+		getByUserIDFn: func(userID string) (*models.Portfolio, error) {
+			return &models.Portfolio{UserID: defaultUserID}, nil
 		},
 	}
 	watchRepo := &mockWatchlistRepo{
-		getByUserIDFn: func(userID uuid.UUID) ([]models.Watchlist, error) {
+		getByUserIDFn: func(userID string) ([]models.Watchlist, error) {
 			return nil, errors.New("db query failed")
 		},
 	}
@@ -227,7 +225,7 @@ func TestGetDashboard_RepoError(t *testing.T) {
 	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
 
 	// 2. Execute and expect failure
-	_, err := srv.GetDashboard(defaultUserUUID)
+	_, err := srv.GetDashboard(defaultUserID)
 	if err == nil {
 		t.Fatal("Expected error on watchlist repository failure, got nil")
 	}

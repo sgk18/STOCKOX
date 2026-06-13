@@ -1,7 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { useDashboardStore, WatchlistItem, MarketOverview } from "@/lib/store";
 import Navbar from "@/components/dashboard/Navbar";
 import PortfolioCard from "@/components/dashboard/PortfolioCard";
@@ -20,30 +22,104 @@ export default function DashboardPage() {
   const market = useDashboardStore((state) => state.market);
   const agents = useDashboardStore((state) => state.agents);
 
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+  const router = useRouter();
+  const [isSynced, setIsSynced] = useState(false);
+
+  // Redirect if not signed in
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push("/");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // Synchronize User profile with local DB on load
+  useEffect(() => {
+    async function syncProfile() {
+      if (isLoaded && isSignedIn && user) {
+        try {
+          const token = await getToken();
+          const res = await fetch("/api/auth/sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              name: user.fullName || user.username || user.firstName || "Adviser",
+              email: user.primaryEmailAddress?.emailAddress || "",
+              avatar_url: user.imageUrl || "",
+              role: "Lead Investment Advisor"
+            })
+          });
+          if (res.ok) {
+            setIsSynced(true);
+          } else {
+            console.error("[SYNC] Sync endpoint returned error status:", res.status);
+            // Even if sync fails temporarily, let's allow rendering in dev mode
+            setIsSynced(true);
+          }
+        } catch (err) {
+          console.error("[SYNC-ERR] Failed to contact sync endpoint:", err);
+          setIsSynced(true);
+        }
+      }
+    }
+    syncProfile();
+  }, [isLoaded, isSignedIn, user, getToken]);
+
   // TanStack Query to sync watchlist updates from Mock API
   const { data: apiWatchlist } = useQuery<WatchlistItem[]>({
     queryKey: ["watchlist"],
     queryFn: async () => {
-      const res = await fetch("/api/watchlist");
+      const token = await getToken();
+      const res = await fetch("/api/watchlist", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       if (!res.ok) throw new Error("Failed to fetch watchlist API");
       return res.json();
     },
     refetchInterval: 15000, // Sync every 15 seconds
+    enabled: isSignedIn && isSynced,
   });
 
   // TanStack Query to sync indices from Mock API
   const { data: apiMarket } = useQuery<MarketOverview[]>({
     queryKey: ["market-overview"],
     queryFn: async () => {
-      const res = await fetch("/api/market-overview");
+      const token = await getToken();
+      const res = await fetch("/api/market-overview", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       if (!res.ok) throw new Error("Failed to fetch market overview API");
       return res.json();
     },
     refetchInterval: 20000,
+    enabled: isSignedIn && isSynced,
   });
 
   const activeWatchlist = apiWatchlist || storeWatchlist;
   const activeMarket = apiMarket || market;
+
+  if (!isLoaded || (isSignedIn && !isSynced)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#FACC15] border-4 border-black shadow-[4px_4px_0px_#000000] animate-bounce flex items-center justify-center font-black">
+            SO
+          </div>
+          <span className="font-mono text-xs uppercase tracking-widest text-black/50">
+            Syncing advisor credentials...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-16 flex flex-col font-sans text-[#0F172A]">

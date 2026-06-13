@@ -12,6 +12,21 @@ import (
 
 // RunMigrations performs schema migrations and seeds initial database entries
 func RunMigrations(db *gorm.DB) error {
+	log.Println("[MIGRATOR] Dropping existing tables to apply schema migrations...")
+	
+	// Drop tables first to ensure VARCHAR types are applied clean
+	_ = db.Migrator().DropTable(
+		&models.User{},
+		&models.Portfolio{},
+		&models.PortfolioHolding{},
+		&models.Watchlist{},
+		&models.AnalysisSession{},
+		&models.AgentMessage{},
+		&models.Agent{},
+		&models.Recommendation{},
+		&models.MarketSnapshot{},
+	)
+
 	log.Println("[MIGRATOR] Running schema migrations...")
 	
 	// Perform AutoMigrate

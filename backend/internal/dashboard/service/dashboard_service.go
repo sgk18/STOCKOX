@@ -7,11 +7,9 @@ import (
 	"log"
 	"time"
 
-	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/internal/dashboard/dto"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 

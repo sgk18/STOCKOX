@@ -11,6 +11,7 @@ type UserRepository interface {
 	GetByEmail(email string) (*models.User, error)
 	Create(user *models.User) error
 	Update(user *models.User) error
+	UpdateID(oldID, newID string) error
 	Delete(id string) error
 }
 
@@ -50,5 +51,9 @@ func (r *sqlUserRepository) Update(user *models.User) error {
 
 func (r *sqlUserRepository) Delete(id string) error {
 	return r.db.Delete(&models.User{}, "id = ?", id).Error
+}
+
+func (r *sqlUserRepository) UpdateID(oldID, newID string) error {
+	return r.db.Model(&models.User{}).Where("id = ?", oldID).Update("id", newID).Error
 }
 

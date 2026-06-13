@@ -3,10 +3,12 @@
 import React from "react";
 import { TrendingUp, Landmark, Calendar } from "lucide-react";
 import { useDashboardStore } from "@/lib/store";
+import { useUser } from "@clerk/nextjs";
 
 export default function PortfolioCard() {
-  const user = useDashboardStore((state) => state.user);
+  const { user: clerkUser } = useUser();
   const portfolio = useDashboardStore((state) => state.portfolio);
+  const userName = clerkUser?.firstName || "Adviser";
 
   return (
     <div className="bg-white border-4 border-black rounded-2xl p-6 shadow-[6px_6px_0px_#000000] relative overflow-hidden flex flex-col justify-between h-full hover:translate-y-[-4px] hover:shadow-[8px_8px_0px_#000000] transition-all duration-200">
@@ -27,7 +29,7 @@ export default function PortfolioCard() {
         </div>
 
         <h3 className="text-xl font-bold text-black/60 uppercase">
-          Welcome back, <span className="text-black font-black">{user.name}</span>
+          Welcome back, <span className="text-black font-black">{userName}</span>
         </h3>
         <p className="text-xs text-black/40 font-bold uppercase tracking-wide mt-1">
           Authorized Committee Terminal Account

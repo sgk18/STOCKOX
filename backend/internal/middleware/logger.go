@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -40,6 +41,3 @@ func Logger() gin.HandlerFunc {
 			reqID, userIDStr, c.Request.Method, path, statusCode, latency, errStr)
 	}
 }
-
-// Import helper
-import "fmt"
