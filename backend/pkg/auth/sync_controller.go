@@ -7,7 +7,7 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/errors"
+	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

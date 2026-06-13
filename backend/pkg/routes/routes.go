@@ -1,11 +1,11 @@
 package routes
 
 import (
-	"stockox-backend/internal/auth"
-	"stockox-backend/internal/dashboard/controller"
-	"stockox-backend/internal/health"
-	"stockox-backend/internal/middleware"
-	"stockox-backend/internal/websocket"
+	"stockox-backend/pkg/auth"
+	"stockox-backend/pkg/dashboard/controller"
+	"stockox-backend/pkg/health"
+	"stockox-backend/pkg/middleware"
+	"stockox-backend/pkg/websocket"
 
 	"github.com/gin-gonic/gin"
 )

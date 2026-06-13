@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/dashboard/dto"
+	"stockox-backend/pkg/dashboard/dto"
 
 	"github.com/redis/go-redis/v9"
 )

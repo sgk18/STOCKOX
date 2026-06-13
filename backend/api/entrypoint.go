@@ -5,12 +5,12 @@ import (
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/auth"
-	"stockox-backend/internal/dashboard/controller"
-	"stockox-backend/internal/dashboard/service"
-	"stockox-backend/internal/health"
-	"stockox-backend/internal/routes"
-	"stockox-backend/internal/websocket"
+	"stockox-backend/pkg/auth"
+	"stockox-backend/pkg/dashboard/controller"
+	"stockox-backend/pkg/dashboard/service"
+	"stockox-backend/pkg/health"
+	"stockox-backend/pkg/routes"
+	"stockox-backend/pkg/websocket"
 
 	"github.com/gin-gonic/gin"
 )

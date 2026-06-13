@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"stockox-backend/internal/errors"
+	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )

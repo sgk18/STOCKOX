@@ -2,8 +2,8 @@ package controller
 
 import (
 	"net/http"
-	"stockox-backend/internal/dashboard/service"
-	"stockox-backend/internal/errors"
+	"stockox-backend/pkg/dashboard/service"
+	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )
