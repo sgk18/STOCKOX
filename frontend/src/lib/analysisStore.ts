@@ -26,7 +26,8 @@ export const useAnalysisStore = create<AnalysisState>((set) => ({
 	isAnalyzing: false,
 	analysisFinished: false,
 	setAgents: (agents) => set({ agents }),
-	runAnalysis: async (ticker) => {
+	runAnalysis: async (_ticker) => {
+		console.log("Advisory analysis requested for:", _ticker);
 		set({ isAnalyzing: true, analysisFinished: false });
 		// In future modules, this will connect to the real-time agent debate loops.
 	},

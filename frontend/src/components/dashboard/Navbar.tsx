@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Search, Bell, Bot, Sparkles, User, LogOut } from "lucide-react";
+import { Search, Bell, Bot, Sparkles, LogOut } from "lucide-react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 

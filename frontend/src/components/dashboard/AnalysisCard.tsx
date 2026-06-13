@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TrendingUp, FileText, CheckCircle } from "lucide-react";
+import { FileText, CheckCircle } from "lucide-react";
 
 interface Analysis {
   ticker: string;

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, ShieldAlert, Award, ChevronUp } from "lucide-react";
+import { TrendingUp, ShieldAlert, Award } from "lucide-react";
 import Button from "../../ui/Button";
 
 export interface AnalysisSessionState {

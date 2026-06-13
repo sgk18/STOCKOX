@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, Suspense } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 
 // Decentralized Stores
-import { useSearchStore } from "@/lib/searchStore";
+import { useSearchStore, SearchStockResult } from "@/lib/searchStore";
 import { useSelectedStockStore } from "@/lib/selectedStockStore";
 import { useWatchlistStore } from "@/lib/watchlistStore";
 import { useAnalysisStore } from "@/lib/analysisStore";
@@ -19,7 +19,7 @@ import WatchlistButton from "@/components/features/watchlist/WatchlistButton";
 import LightweightChart from "@/components/features/analysis/LightweightChart";
 
 import Button from "@/components/ui/Button";
-import { BarChart3, Bot, Compass, AlertCircle, ArrowUpRight, ArrowDownRight, Newspaper, Calendar, Globe, UserCheck } from "lucide-react";
+import { Bot, Compass, AlertCircle, ArrowUpRight, ArrowDownRight, Newspaper, Calendar, Globe } from "lucide-react";
 
 function AnalysisWorkspaceContent() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -28,17 +28,13 @@ function AnalysisWorkspaceContent() {
   const tickerParam = searchParams.get("ticker");
 
   // Search Store state
-  const searchQuery = useSearchStore((state) => state.searchQuery);
   const setSearchQuery = useSearchStore((state) => state.setSearchQuery);
   const searchResults = useSearchStore((state) => state.searchResults);
   const setSearchResults = useSearchStore((state) => state.setSearchResults);
-  const searchStocks = useSearchStore((state) => state.searchStocks);
-  const loadSearchHistory = useSearchStore((state) => state.loadSearchHistory);
   const addToSearchHistory = useSearchStore((state) => state.addToSearchHistory);
 
   // Selected Stock Store state
   const selectedStock = useSelectedStockStore((state) => state.selectedStock);
-  const setSelectedStock = useSelectedStockStore((state) => state.setSelectedStock);
   const metrics = useSelectedStockStore((state) => state.metrics);
   const history = useSelectedStockStore((state) => state.history);
   const news = useSelectedStockStore((state) => state.news);
@@ -57,8 +53,6 @@ function AnalysisWorkspaceContent() {
   const agents = useAnalysisStore((state) => state.agents);
   const isAnalyzing = useAnalysisStore((state) => state.isAnalyzing);
   const runAnalysis = useAnalysisStore((state) => state.runAnalysis);
-
-  const [activeAnalysisMode, setActiveAnalysisMode] = useState<"quick" | "full" | "risk">("quick");
 
   // Redirect if not signed in
   useEffect(() => {
@@ -97,7 +91,7 @@ function AnalysisWorkspaceContent() {
     loadData();
   }, [tickerParam, getToken, fetchStockDetails, fetchMetrics, fetchHistory, fetchNews, clearSelectedStock]);
 
-  const handleStockSelect = (stock: any) => {
+  const handleStockSelect = (stock: SearchStockResult) => {
     addToSearchHistory(stock.ticker);
     setSearchQuery("");
     setSearchResults([]);
@@ -162,7 +156,7 @@ function AnalysisWorkspaceContent() {
 
         {/* Search Autocomplete Results Board */}
         {!selectedStock && searchResults.length > 0 && (
-          <SearchResults results={searchResults as any} onAnalyze={handleStockSelect} />
+          <SearchResults results={searchResults} onAnalyze={handleStockSelect} />
         )}
 
         {/* Selected Stock details and Workspace */}

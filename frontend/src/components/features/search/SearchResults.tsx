@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Compass, Sparkles } from "lucide-react";
+import { Compass } from "lucide-react";
 import { SearchStockResult } from "@/lib/searchStore";
 import Button from "../../ui/Button";
 

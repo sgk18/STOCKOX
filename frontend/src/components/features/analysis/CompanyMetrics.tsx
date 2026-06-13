@@ -2,7 +2,7 @@
 
 import React from "react";
 import { CompanyProfile, FinancialMetrics } from "@/lib/selectedStockStore";
-import { Landmark, TrendingUp, BarChart4, DollarSign, Wallet, ShieldAlert, Award } from "lucide-react";
+import { Landmark, TrendingUp, DollarSign, Wallet, Award } from "lucide-react";
 
 interface CompanyMetricsProps {
   profile: CompanyProfile;

@@ -97,7 +97,7 @@ export const useSelectedStockStore = create<SelectedStockState>((set) => ({
 			} else {
 				set({ error: `Advisory ticker ${ticker} could not be resolved.` });
 			}
-		} catch (err) {
+		} catch {
 			set({ error: "Failed to connect to advisory index." });
 		} finally {
 			set({ isLoadingStock: false });

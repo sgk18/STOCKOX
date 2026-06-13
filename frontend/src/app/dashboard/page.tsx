@@ -14,7 +14,7 @@ import OpportunityCard from "@/components/dashboard/OpportunityCard";
 import AnalysisCard from "@/components/dashboard/AnalysisCard";
 import AgentStatus from "@/components/dashboard/AgentStatus";
 import QuickActions from "@/components/dashboard/QuickActions";
-import { Sparkles, BarChart2, ShieldCheck, Compass, Bot } from "lucide-react";
+import { BarChart2, ShieldCheck, Compass, Bot } from "lucide-react";
 
 export default function DashboardPage() {
   const storeWatchlist = useDashboardStore((state) => state.watchlist);
@@ -90,7 +90,12 @@ export default function DashboardPage() {
         AMD: { price: 162.30, changePercent: -1.95, aiScore: 71, risk: "Medium", recommendation: "HOLD" },
       };
 
-      return rawData.map((item: any) => {
+      interface RawWatchlistItem {
+        ticker: string;
+        company_name?: string;
+      }
+
+      return rawData.map((item: RawWatchlistItem) => {
         const profile = stockProfiles[item.ticker] || {
           price: 150.00,
           changePercent: 1.5,
@@ -125,7 +130,14 @@ export default function DashboardPage() {
       });
       if (!res.ok) throw new Error("Failed to fetch market overview API");
       const rawData = await res.json();
-      return rawData.map((item: any) => {
+      interface RawMarketOverviewItem {
+        name: string;
+        price?: number;
+        change?: number;
+        change_percent?: number;
+      }
+
+      return rawData.map((item: RawMarketOverviewItem) => {
         const val = item.price || 0;
         const chg = item.change || 0;
         const history = [

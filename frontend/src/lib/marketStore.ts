@@ -31,9 +31,17 @@ export const useMarketStore = create<MarketState>((set) => ({
 			const res = await fetch("/api/market-overview", { headers });
 			if (res.ok) {
 				const data = await res.json();
+				interface MarketOverviewItem {
+					name?: string;
+					symbol?: string;
+					price?: number;
+					value?: number;
+					change_percent?: number;
+					changePercent?: number;
+				}
 				set({
-					indices: data.map((item: any) => ({
-						name: item.name || item.symbol,
+					indices: data.map((item: MarketOverviewItem) => ({
+						name: item.name || item.symbol || "",
 						value: item.price || item.value || 0,
 						changePercent: item.change_percent || item.changePercent || 0,
 					})),

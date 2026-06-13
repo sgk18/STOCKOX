@@ -7,10 +7,7 @@ import {
   Globe, 
   LineChart, 
   ShieldCheck, 
-  Cpu, 
-  Sparkles,
-  Bot,
-  ArrowRight
+  Cpu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

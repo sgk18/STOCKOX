@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Terminal, ShieldAlert, Cpu, Sparkles, MessageSquareDot } from "lucide-react";
+import { Terminal, MessageSquareDot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface AgentTimelineMessage {
@@ -94,7 +94,7 @@ export default function AgentTimeline({ messages }: AgentTimelineProps) {
             <MessageSquareDot className="w-12 h-12 text-white/10 animate-bounce mb-3" />
             <p className="font-mono text-xs text-white/30 uppercase tracking-widest leading-relaxed">
               Awaiting advisory consensus request... <br />
-              Select a stock and click 'Run analysis'
+              Select a stock and click &quot;Run analysis&quot;
             </p>
           </div>
         ) : (

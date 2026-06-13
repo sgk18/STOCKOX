@@ -30,10 +30,16 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 			const res = await fetch("/api/v1/watchlist", { headers });
 			if (res.ok) {
 				const data = await res.json();
+				interface WatchlistResponseItem {
+					Ticker?: string;
+					ticker?: string;
+					CompanyName?: string;
+					company_name?: string;
+				}
 				set({
-					watchlist: data.map((item: any) => ({
-						ticker: item.Ticker || item.ticker,
-						company_name: item.CompanyName || item.company_name,
+					watchlist: data.map((item: WatchlistResponseItem) => ({
+						ticker: item.Ticker || item.ticker || "",
+						company_name: item.CompanyName || item.company_name || "",
 					})),
 				});
 			}

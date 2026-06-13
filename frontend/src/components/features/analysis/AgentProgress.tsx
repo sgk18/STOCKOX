@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CheckCircle2, CircleDot, Play, AlertCircle, Bot } from "lucide-react";
+import { CheckCircle2, CircleDot, Play, Bot } from "lucide-react";
 
 interface AgentProgressProps {
   agentStates: Record<string, "idle" | "thinking" | "analyzing" | "completed">;
