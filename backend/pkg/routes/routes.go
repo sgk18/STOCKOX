@@ -28,6 +28,14 @@ func SetupRoutes(
 	r.Use(middleware.Recovery())
 	r.Use(middleware.RateLimiter(rateLimitRPS, rateLimitBurst))
 
+	// Welcome / Root Endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":  "healthy",
+			"message": "Stockox AI Investment Engine API Service is online",
+		})
+	})
+
 	// Health Endpoints
 	r.GET("/health", healthCtrl.Health)
 	r.GET("/health/database", healthCtrl.HealthDB)
