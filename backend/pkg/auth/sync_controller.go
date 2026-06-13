@@ -5,12 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -56,126 +54,11 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// Check if a user with this email already exists (e.g. mock seeded user)
-			existingUser, err := ctrl.userRepo.GetByEmail(req.Email)
-			if err == nil && existingUser != nil {
-				log.Printf("[SYNC] Linking existing user record (%s) to Clerk user ID (%s)", req.Email, userID)
-				oldID := existingUser.ID
-				
-				// Update user ID in the database
-				if err := ctrl.userRepo.UpdateID(oldID, userID); err != nil {
-					errors.InternalServerError(c, "Failed to link existing user to Clerk ID: "+err.Error())
-					return
-				}
-
-				// Update user details
-				existingUser.ID = userID
-				if req.Name != "" {
-					existingUser.Name = req.Name
-				}
-				if req.AvatarURL != "" {
-					existingUser.AvatarURL = req.AvatarURL
-				}
-				existingUser.UpdatedAt = time.Now()
-				if err := ctrl.userRepo.Update(existingUser); err != nil {
-					log.Printf("[SYNC-WARN] Failed to update user profile details during link: %v", err)
-				}
-
-				c.JSON(http.StatusOK, SyncResponse{
-					Success: true,
-					Message: "User profile linked and synchronized",
-				})
+			// Call centralized provisioning helper
+			err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, req.Email, req.Name, req.AvatarURL, req.Role)
+			if err != nil {
+				errors.InternalServerError(c, "Failed to provision user profile: "+err.Error())
 				return
-			}
-
-			// ===================================================
-			// JIT Provisioning for Brand New Clerk User
-			// ===================================================
-			log.Printf("[SYNC] Creating local database record for Clerk user: %s (%s)", req.Email, userID)
-			
-			role := req.Role
-			if role == "" {
-				role = "Lead Investment Advisor"
-			}
-			avatar := req.AvatarURL
-			if avatar == "" {
-				avatar = "https://avatar.vercel.sh/" + userID
-			}
-
-			newUser := models.User{
-				ID:        userID,
-				Email:     req.Email,
-				Name:      req.Name,
-				AvatarURL: avatar,
-				Role:      role,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			}
-
-			if err := ctrl.userRepo.Create(&newUser); err != nil {
-				errors.InternalServerError(c, "Failed to create user record: "+err.Error())
-				return
-			}
-
-			// Seed Portfolio Summary
-			portfolio := models.Portfolio{
-				ID:                 uuid.New(),
-				UserID:             userID,
-				TotalValue:         125400.00,
-				CashBalance:        12000.00,
-				DailyChange:        5062.00,
-				DailyChangePercent: 4.21,
-				CreatedAt:          time.Now(),
-				UpdatedAt:          time.Now(),
-			}
-			if err := ctrl.portfolioRepo.Create(&portfolio); err != nil {
-				log.Printf("[SYNC-ERR] Failed to seed portfolio for user %s: %v", userID, err)
-			} else {
-				// Seed Portfolio Holdings
-				holdings := []models.PortfolioHolding{
-					{
-						ID:           uuid.New(),
-						PortfolioID:  portfolio.ID,
-						Ticker:       "NVDA",
-						CompanyName:  "NVIDIA Corp.",
-						Quantity:     50,
-						AveragePrice: 150.00,
-						CurrentPrice: 187.20,
-						CreatedAt:    time.Now(),
-						UpdatedAt:    time.Now(),
-					},
-					{
-						ID:           uuid.New(),
-						PortfolioID:  portfolio.ID,
-						Ticker:       "AAPL",
-						CompanyName:  "Apple Inc.",
-						Quantity:     40,
-						AveragePrice: 170.00,
-						CurrentPrice: 178.45,
-						CreatedAt:    time.Now(),
-						UpdatedAt:    time.Now(),
-					},
-				}
-				for _, h := range holdings {
-					if err := ctrl.portfolioRepo.AddHolding(&h); err != nil {
-						log.Printf("[SYNC-ERR] Failed to seed holding %s: %v", h.Ticker, err)
-					}
-				}
-			}
-
-			// Seed Watchlist Items
-			watchlists := []struct {
-				ticker string
-				name   string
-			}{
-				{"TSLA", "Tesla Inc."},
-				{"MSFT", "Microsoft Corp."},
-				{"AMD", "Advanced Micro Devices"},
-			}
-			for _, w := range watchlists {
-				if _, err := ctrl.watchlistRepo.Add(userID, w.ticker, w.name); err != nil {
-					log.Printf("[SYNC-ERR] Failed to seed watchlist item %s: %v", w.ticker, err)
-				}
 			}
 
 			c.JSON(http.StatusOK, SyncResponse{

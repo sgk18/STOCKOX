@@ -87,6 +87,7 @@ func main() {
 	healthCtrl := health.NewHealthController(db, rdb)
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
+	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 
 	// Market Controllers
 	providerFactory := marketProviders.NewProviderFactory(cfg)
@@ -106,6 +107,10 @@ func main() {
 		syncCtrl,
 		v1Ctrl,
 		marketCtrl,
+		webhookCtrl,
+		userRepo,
+		portfolioRepo,
+		watchlistRepo,
 		wsHub,
 		cfg.JWT.Secret,
 		10.0, // rate limiter RPS

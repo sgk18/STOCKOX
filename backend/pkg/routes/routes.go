@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
@@ -20,6 +21,10 @@ func SetupRoutes(
 	syncCtrl *auth.SyncController,
 	v1Ctrl *analysis.V1Controller,
 	marketCtrl *marketController.MarketController,
+	webhookCtrl *auth.WebhookController,
+	userRepo repositories.UserRepository,
+	portfolioRepo repositories.PortfolioRepository,
+	watchlistRepo repositories.WatchlistRepository,
 	wsHub *websocket.Hub,
 	jwtSecret string,
 	rateLimitRPS float64,
@@ -40,6 +45,9 @@ func SetupRoutes(
 		})
 	})
 
+	// Clerk Webhooks (Public route subject to Svix signature verification)
+	r.POST("/api/v1/webhooks/clerk", webhookCtrl.HandleClerkWebhook)
+
 	// Health Endpoints
 	r.GET("/health", healthCtrl.Health)
 	r.GET("/health/database", healthCtrl.HealthDB)
@@ -56,7 +64,7 @@ func SetupRoutes(
 
 	// Authenticated API Group
 	api := r.Group("/api")
-	api.Use(middleware.Auth(jwtSecret))
+	api.Use(middleware.Auth(jwtSecret, userRepo, portfolioRepo, watchlistRepo))
 	{
 		// Clerk Sync Callback
 		api.POST("/auth/sync", syncCtrl.SyncUser)

@@ -46,6 +46,11 @@ type Config struct {
 		AlphaVantageAPIKey string
 		PolygonAPIKey      string
 	}
+	Clerk struct {
+		SecretKey      string
+		PublishableKey string
+		WebhookSecret  string
+	}
 	FrontendURL string
 }
 
@@ -96,6 +101,11 @@ func LoadConfig() *Config {
 	cfg.Market.FinnhubAPIKey = getEnv("FINNHUB_API_KEY", "")
 	cfg.Market.AlphaVantageAPIKey = getEnv("ALPHA_VANTAGE_API_KEY", "")
 	cfg.Market.PolygonAPIKey = getEnv("POLYGON_API_KEY", "")
+
+	// Clerk
+	cfg.Clerk.SecretKey = getEnv("CLERK_SECRET_KEY", "")
+	cfg.Clerk.PublishableKey = getEnv("CLERK_PUBLISHABLE_KEY", "")
+	cfg.Clerk.WebhookSecret = getEnv("CLERK_WEBHOOK_SECRET", "")
 
 	// Frontend
 	cfg.FrontendURL = getEnv("FRONTEND_URL", "http://localhost:3000")

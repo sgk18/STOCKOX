@@ -51,6 +51,7 @@ func init() {
 	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
 	healthCtrl := health.NewHealthController(db, nil)
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 
 	// 6. Init WebSocket Hub
 	wsHub := websocket.NewHub()
@@ -74,6 +75,10 @@ func init() {
 		syncCtrl,
 		v1Ctrl,
 		marketCtrl,
+		webhookCtrl,
+		userRepo,
+		portfolioRepo,
+		watchlistRepo,
 		wsHub,
 		cfg.JWT.Secret,
 		100.0, // RPS limit

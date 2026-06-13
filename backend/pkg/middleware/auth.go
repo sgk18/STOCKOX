@@ -7,10 +7,13 @@ import (
 	"os"
 	"strings"
 
+	"stockox-backend/database/repositories"
+	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 var clerkRSAPublicKey *rsa.PublicKey
@@ -32,7 +35,12 @@ func init() {
 	}
 }
 
-func Auth(jwtSecret string) gin.HandlerFunc {
+func Auth(
+	jwtSecret string,
+	userRepo repositories.UserRepository,
+	portfolioRepo repositories.PortfolioRepository,
+	watchlistRepo repositories.WatchlistRepository,
+) gin.HandlerFunc {
 	appEnv := os.Getenv("APP_ENV")
 	if appEnv == "" {
 		appEnv = "development"
@@ -46,6 +54,14 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 				defaultID := "user_000000000000000000000000001"
 				c.Set("UserID", defaultID)
 				c.Set("UserEmail", "suryachalam.vm@bsccmh.christuniversity.in")
+
+				// Check if fallback user exists in PostgreSQL, if not, JIT provision
+				_, err := userRepo.GetByID(defaultID)
+				if err != nil && err == gorm.ErrRecordNotFound {
+					log.Printf("[CLERK-AUTH-DEV-JIT] Fallback user %s not found in local database. Provisioning...", defaultID)
+					_ = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, defaultID, "suryachalam.vm@bsccmh.christuniversity.in", "Surya", "", "Lead Investment Advisor")
+				}
+
 				c.Next()
 				return
 			}
@@ -110,6 +126,25 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		} else if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
 			if emailStr, ok := emailsList[0].(string); ok {
 				c.Set("UserEmail", emailStr)
+			}
+		}
+
+		// Verify authenticated user exists in PostgreSQL. If not, automatically provision profile
+		userID := c.GetString("UserID")
+		if userID != "" {
+			_, err := userRepo.GetByID(userID)
+			if err != nil && err == gorm.ErrRecordNotFound {
+				email := c.GetString("UserEmail")
+				if email == "" {
+					email = userID + "@clerk.user"
+				}
+				log.Printf("[CLERK-AUTH-JIT] User %s not found in local database. Provisioning...", userID)
+				err = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, userID, email, "Adviser", "", "Lead Investment Advisor")
+				if err != nil {
+					log.Printf("[CLERK-AUTH-JIT-ERR] Failed to automatically provision user %s: %v", userID, err)
+				} else {
+					log.Printf("[CLERK-AUTH-JIT-SUCCESS] Successfully automatically provisioned user %s", userID)
+				}
 			}
 		}
 
