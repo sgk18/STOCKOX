@@ -5,6 +5,7 @@ import (
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/repositories"
+	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
@@ -49,6 +50,7 @@ func init() {
 
 	// 6. Init WebSocket Hub
 	wsHub := websocket.NewHub()
+	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 
 	// 7. Setup Gin Engine
 	gin.SetMode(gin.ReleaseMode)
@@ -60,6 +62,7 @@ func init() {
 		dashboardCtrl,
 		healthCtrl,
 		syncCtrl,
+		v1Ctrl,
 		wsHub,
 		cfg.JWT.Secret,
 		100.0, // RPS limit

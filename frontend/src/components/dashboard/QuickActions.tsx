@@ -1,16 +1,18 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { SearchCode, ShieldAlert, Cpu, ListPlus } from "lucide-react";
 import Button from "../ui/Button";
 
 export default function QuickActions() {
+  const router = useRouter();
   const actions = [
     {
       label: "Analyze Stock",
       desc: "Deploy committee research",
       icon: SearchCode,
-      onClick: () => alert("Launching Secure Agent Analysis Room..."),
+      onClick: () => router.push("/dashboard/analysis"),
       variant: "primary" as const,
     },
     {

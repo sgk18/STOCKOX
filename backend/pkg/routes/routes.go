@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/health"
@@ -16,6 +17,7 @@ func SetupRoutes(
 	dbCtrl *controller.DashboardController,
 	healthCtrl *health.HealthController,
 	syncCtrl *auth.SyncController,
+	v1Ctrl *analysis.V1Controller,
 	wsHub *websocket.Hub,
 	jwtSecret string,
 	rateLimitRPS float64,
@@ -64,6 +66,20 @@ func SetupRoutes(
 		api.GET("/dashboard/activity", dbCtrl.GetAgentActivity)
 		api.GET("/dashboard/analyses", dbCtrl.GetRecentAnalyses)
 		api.GET("/dashboard/opportunities", dbCtrl.GetOpportunities)
+
+		// V1 Endpoints
+		v1 := api.Group("/v1")
+		{
+			v1.GET("/stocks/search", v1Ctrl.SearchStocks)
+			v1.GET("/stocks/:ticker", v1Ctrl.GetStockDetails)
+			v1.POST("/analysis/start", v1Ctrl.StartAnalysis)
+			v1.GET("/analysis/:id", v1Ctrl.GetAnalysisDetails)
+			v1.GET("/analysis/:id/agents", v1Ctrl.GetAgentMessages)
+			v1.GET("/analysis/recent", v1Ctrl.GetRecentAnalyses)
+			v1.GET("/watchlist", v1Ctrl.GetWatchlist)
+			v1.POST("/watchlist", v1Ctrl.AddWatchlist)
+			v1.DELETE("/watchlist/:ticker", v1Ctrl.RemoveWatchlist)
+		}
 
 		// Compatibility endpoints mapping directly to frontend queries
 		api.GET("/watchlist", dbCtrl.GetWatchlist)

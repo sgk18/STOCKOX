@@ -8,6 +8,7 @@ import (
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/repositories"
+	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
@@ -71,16 +72,17 @@ func main() {
 		rdb,
 	)
 
-	// 6. Initialize Controllers
-	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
-	healthCtrl := health.NewHealthController(db, rdb)
-	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
-
 	// 7. Setup WebSockets Hub and Simulator
 	wsHub := websocket.NewHub()
 	go wsHub.Run()
 	wsHub.StartSimulator()
 	log.Println("[WS-INFO] WebSocket Hub initialized and Simulator running in background")
+
+	// 6. Initialize Controllers
+	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
+	healthCtrl := health.NewHealthController(db, rdb)
+	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 
 	// 8. Create Gin Engine (gin.New is used because custom recovery/logger middlewares are registered in SetupRoutes)
 	gin.SetMode(gin.ReleaseMode)
@@ -92,6 +94,7 @@ func main() {
 		dashboardCtrl,
 		healthCtrl,
 		syncCtrl,
+		v1Ctrl,
 		wsHub,
 		cfg.JWT.Secret,
 		10.0, // rate limiter RPS

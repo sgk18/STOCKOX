@@ -3,10 +3,12 @@
 import React, { useState } from "react";
 import { Search, Bell, Bot, Sparkles, User, LogOut } from "lucide-react";
 import { useUser, useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 export default function Navbar() {
   const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
@@ -36,6 +38,12 @@ export default function Navbar() {
           placeholder="Search stocks, companies, sectors..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && searchQuery.trim() !== "") {
+              router.push(`/dashboard/analysis?ticker=${searchQuery.trim().toUpperCase()}`);
+              setSearchQuery("");
+            }
+          }}
           className="w-full bg-[#F8FAFC] border-3 border-black rounded-xl py-2 pl-11 pr-4 font-bold text-sm text-[#0F172A] focus:outline-none focus:bg-white focus:shadow-[2px_2px_0px_#000000] placeholder:text-black/40 transition-all"
         />
         <Search className="w-5 h-5 text-black/60 absolute left-4 pointer-events-none" />
