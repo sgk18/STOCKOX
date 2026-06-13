@@ -29,7 +29,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	}
 
 	// Run Schema Auto-Migrations and Seeding
-	if err := migrations.RunMigrations(db); err != nil {
+	if err := migrations.RunMigrations(db, cfg.Database.DropOnStartup); err != nil {
 		log.Fatalf("[DB-ERR] Database migrations failed: %v", err)
 	}
 

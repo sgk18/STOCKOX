@@ -2,8 +2,11 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -13,12 +16,13 @@ type Config struct {
 		Name string
 	}
 	Database struct {
-		Host     string
-		Port     string
-		User     string
-		Password string
-		Name     string
-		SSLMode  string
+		Host          string
+		Port          string
+		User          string
+		Password      string
+		Name          string
+		SSLMode       string
+		DropOnStartup bool
 	}
 	Redis struct {
 		Host     string
@@ -42,6 +46,13 @@ type Config struct {
 
 // LoadConfig reads configuration parameters from environmental variables
 func LoadConfig() *Config {
+	// Load environment variables from files if present
+	if err := godotenv.Load(".env.development"); err != nil {
+		if err := godotenv.Load(); err != nil {
+			log.Println("[CONFIG-INFO] No .env.development or .env files found. Relying on system environment.")
+		}
+	}
+
 	cfg := &Config{}
 
 	// Server
@@ -56,6 +67,7 @@ func LoadConfig() *Config {
 	cfg.Database.Password = getEnv("DB_PASSWORD", "root")
 	cfg.Database.Name = getEnv("DB_NAME", "stockox")
 	cfg.Database.SSLMode = getEnv("DB_SSLMODE", "disable")
+	cfg.Database.DropOnStartup = getEnv("DB_DROP_ON_STARTUP", "false") == "true"
 
 	// Redis
 	cfg.Redis.Host = getEnv("REDIS_HOST", "localhost")
