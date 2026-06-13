@@ -23,6 +23,7 @@ type Config struct {
 		Name          string
 		SSLMode       string
 		DropOnStartup bool
+		URL           string
 	}
 	Redis struct {
 		Host     string
@@ -72,6 +73,7 @@ func LoadConfig() *Config {
 	cfg.Server.Name = getEnv("APP_NAME", "stockox")
 
 	// Database
+	cfg.Database.URL = getEnv("DATABASE_URL", "")
 	cfg.Database.Host = getEnv("DB_HOST", "localhost")
 	cfg.Database.Port = getEnv("DB_PORT", "5432")
 	cfg.Database.User = getEnv("DB_USER", "postgres")
@@ -114,6 +116,9 @@ func LoadConfig() *Config {
 }
 
 func (c *Config) GetDSN() string {
+	if c.Database.URL != "" {
+		return c.Database.URL
+	}
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		c.Database.Host, c.Database.User, c.Database.Password, c.Database.Name, c.Database.Port, c.Database.SSLMode)
 }
