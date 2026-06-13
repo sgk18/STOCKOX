@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 )
 
 // InitDB initializes PostgreSQL connection pool using configuration properties
-func InitDB(cfg *config.Config) *gorm.DB {
+func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetDSN()
 	log.Printf("[DB] Connecting to database host: %s, name: %s", cfg.Database.Host, cfg.Database.Name)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("[DB-ERR] Database connection failed: %v", err)
+		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
 
 	sqlDB, err := db.DB()
@@ -30,8 +31,8 @@ func InitDB(cfg *config.Config) *gorm.DB {
 
 	// Run Schema Auto-Migrations and Seeding
 	if err := migrations.RunMigrations(db, cfg.Database.DropOnStartup); err != nil {
-		log.Fatalf("[DB-ERR] Database migrations failed: %v", err)
+		return nil, fmt.Errorf("database migrations failed: %w", err)
 	}
 
-	return db
+	return db, nil
 }

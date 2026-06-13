@@ -31,7 +31,10 @@ func main() {
 	cfg := config.LoadConfig()
 
 	// 2. Initialize Database (Performs auto-migrations and mock seeding)
-	db := database.InitDB(cfg)
+	db, err := database.InitDB(cfg)
+	if err != nil {
+		log.Fatalf("[DB-ERR] Database connection/migration failed: %v", err)
+	}
 
 	// 3. Initialize Redis Cache Layer with Safe Fallback
 	var rdb *redis.Client

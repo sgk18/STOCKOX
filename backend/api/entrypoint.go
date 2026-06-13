@@ -21,13 +21,18 @@ import (
 )
 
 var ginEngine *gin.Engine
+var initError error
 
 func init() {
 	// 1. Load config
 	cfg := config.LoadConfig()
 
 	// 2. Init DB connection
-	db := database.InitDB(cfg)
+	db, err := database.InitDB(cfg)
+	if err != nil {
+		initError = err
+		return
+	}
 
 	// 3. Init Repositories
 	userRepo := repositories.NewUserRepository(db)
@@ -88,5 +93,11 @@ func init() {
 
 // Handler is the Vercel serverless entrypoint function
 func Handler(w http.ResponseWriter, r *http.Request) {
+	if initError != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Serverless Init Database Error: ` + initError.Error() + `"}`))
+		return
+	}
 	ginEngine.ServeHTTP(w, r)
 }
