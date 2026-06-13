@@ -5,16 +5,13 @@ import (
 	"log"
 	"time"
 
-	"stockox-backend/internal/agents"
-	"stockox-backend/internal/analysis"
-	"stockox-backend/internal/config"
+	"stockox-backend/config"
+	"stockox-backend/database"
+	"stockox-backend/database/repositories"
 	"stockox-backend/internal/dashboard/controller"
 	"stockox-backend/internal/dashboard/service"
-	"stockox-backend/internal/database"
-	"stockox-backend/internal/market"
-	"stockox-backend/internal/portfolio"
+	"stockox-backend/internal/health"
 	"stockox-backend/internal/routes"
-	"stockox-backend/internal/watchlist"
 	"stockox-backend/internal/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -22,21 +19,22 @@ import (
 )
 
 func main() {
-	log.Println("[SERVER] Bootstrapping Stockox Dashboard Backend Service")
+	log.Println("[SERVER] Bootstrapping Stockox Service Environment")
 
 	// 1. Load Configurations
 	cfg := config.LoadConfig()
 
-	// 2. Initialize Database
+	// 2. Initialize Database (Performs auto-migrations and mock seeding)
 	db := database.InitDB(cfg)
 
 	// 3. Initialize Redis Cache Layer with Safe Fallback
 	var rdb *redis.Client
-	if cfg.RedisAddr != "" {
+	if cfg.Redis.Host != "" && cfg.Redis.Port != "" {
+		redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
 		rdb = redis.NewClient(&redis.Options{
-			Addr:     cfg.RedisAddr,
-			Password: cfg.RedisPass,
-			DB:       cfg.RedisDB,
+			Addr:     redisAddr,
+			Password: cfg.Redis.Password,
+			DB:       0,
 		})
 
 		// Ping Redis with a timeout to verify connectivity
@@ -44,19 +42,23 @@ func main() {
 		defer cancel()
 
 		if err := rdb.Ping(ctx).Err(); err != nil {
-			log.Printf("[REDIS-WARN] Redis is unreachable at %s (%v). Proceeding without cache layer (direct DB reads).", cfg.RedisAddr, err)
+			log.Printf("[REDIS-WARN] Redis is unreachable at %s (%v). Proceeding without cache layer (direct DB reads).", redisAddr, err)
 			rdb = nil
 		} else {
-			log.Printf("[REDIS-INFO] Redis cache connection established at %s", cfg.RedisAddr)
+			log.Printf("[REDIS-INFO] Redis cache connection established at %s", redisAddr)
 		}
 	}
 
 	// 4. Initialize Domain Repositories
-	portfolioRepo := portfolio.NewPortfolioRepository(db)
-	watchlistRepo := watchlist.NewWatchlistRepository(db)
-	marketRepo := market.NewMarketRepository(db)
-	agentRepo := agents.NewAgentRepository(db)
-	analysisRepo := analysis.NewAnalysisRepository(db)
+	userRepo := repositories.NewUserRepository(db)
+	_ = userRepo
+	portfolioRepo := repositories.NewPortfolioRepository(db)
+	watchlistRepo := repositories.NewWatchlistRepository(db)
+	marketRepo := repositories.NewMarketRepository(db)
+	agentRepo := repositories.NewAgentRepository(db)
+	analysisRepo := repositories.NewAnalysisRepository(db)
+	recommendationRepo := repositories.NewRecommendationRepository(db)
+	_ = recommendationRepo
 
 	// 5. Initialize Services
 	dashboardSrv := service.NewDashboardService(
@@ -70,6 +72,7 @@ func main() {
 
 	// 6. Initialize Controllers
 	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
+	healthCtrl := health.NewHealthController(db, rdb)
 
 	// 7. Setup WebSockets Hub and Simulator
 	wsHub := websocket.NewHub()
@@ -85,15 +88,16 @@ func main() {
 	routes.SetupRoutes(
 		r,
 		dashboardCtrl,
+		healthCtrl,
 		wsHub,
-		cfg.JWTSecret,
-		cfg.RateLimitRPS,
-		cfg.RateBurst,
+		cfg.JWT.Secret,
+		10.0, // rate limiter RPS
+		20,   // rate limiter burst
 	)
 
 	// 10. Start Server
-	log.Printf("[SERVER] Stockox service successfully running on port %s", cfg.Port)
-	if err := r.Run(":" + cfg.Port); err != nil {
+	log.Printf("[SERVER] Stockox service successfully running on port %s", cfg.Server.Port)
+	if err := r.Run(":" + cfg.Server.Port); err != nil {
 		log.Fatalf("[SERVER-ERR] Server failed to start: %v", err)
 	}
 }

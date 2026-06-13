@@ -164,7 +164,7 @@ export default function AuthCard() {
         {/* Auth Forms */}
         <div className="flex flex-col gap-4">
           {/* Primary Social Auth */}
-          <div className="grid grid-cols-2 gap-3.5">
+          <div>
             <Button
               type="button"
               variant="secondary"
@@ -174,16 +174,6 @@ export default function AuthCard() {
               leftIcon={<GoogleIcon />}
             >
               Google
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => handleSocialSubmit("GitHub")}
-              disabled={loading}
-              className="w-full py-3.5 text-sm font-black uppercase text-black"
-              leftIcon={<GitHubIcon />}
-            >
-              GitHub
             </Button>
           </div>
 

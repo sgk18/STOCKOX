@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func Auth(jwtSecret string) gin.HandlerFunc {
@@ -14,7 +15,8 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			// Fallback User Context for development / hackathon sandbox execution
-			c.Set("UserID", uint(1))
+			defaultUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+			c.Set("UserID", defaultUUID)
 			c.Set("UserEmail", "suryachalam.vm@bsccmh.christuniversity.in")
 			c.Next()
 			return
@@ -41,10 +43,14 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 			c.Set("UserSub", sub)
 		}
 
-		if uidVal, ok := claims["user_id"].(float64); ok {
-			c.Set("UserID", uint(uidVal))
+		if uidVal, ok := claims["user_id"].(string); ok {
+			if parsed, err := uuid.Parse(uidVal); err == nil {
+				c.Set("UserID", parsed)
+			} else {
+				c.Set("UserID", uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+			}
 		} else {
-			c.Set("UserID", uint(1))
+			c.Set("UserID", uuid.MustParse("00000000-0000-0000-0000-000000000001"))
 		}
 
 		if email, ok := claims["email"].(string); ok {

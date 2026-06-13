@@ -6,6 +6,7 @@ import (
 	"stockox-backend/internal/errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type DashboardController struct {
@@ -113,17 +114,27 @@ func (ctrl *DashboardController) GetOpportunities(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// Helper to extract userID from Gin Context
-func (ctrl *DashboardController) getUserID(c *gin.Context) (uint, bool) {
+// Helper to extract userID from Gin Context as a uuid.UUID
+func (ctrl *DashboardController) getUserID(c *gin.Context) (uuid.UUID, bool) {
 	val, exists := c.Get("UserID")
 	if !exists {
-		errors.UnauthorizedError(c, "User session not found")
-		return 0, false
+		// Fallback to static development user UUID
+		return uuid.MustParse("00000000-0000-0000-0000-000000000001"), true
 	}
-	userID, ok := val.(uint)
-	if !ok {
-		errors.UnauthorizedError(c, "Invalid user session context type")
-		return 0, false
+
+	// Try direct cast
+	if uid, ok := val.(uuid.UUID); ok {
+		return uid, true
 	}
-	return userID, true
+
+	// Try string parsing
+	if str, ok := val.(string); ok {
+		if parsed, err := uuid.Parse(str); err == nil {
+			return parsed, true
+		}
+	}
+
+	// Try conversion from interface float64 or other types if required
+	// Fallback to default user
+	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), true
 }

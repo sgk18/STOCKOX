@@ -52,6 +52,7 @@ interface DashboardState {
   removeFromWatchlist: (ticker: string) => void;
   updateAgentStatus: (id: string, status: Agent["status"], activity: string) => void;
   updatePortfolioValue: (value: number, changePercent: number) => void;
+  updateMarketPrice: (name: string, value: number, changePercent: number) => void;
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
@@ -180,4 +181,18 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         },
       };
     }),
-}));
+
+  updateMarketPrice: (name, value, changePercent) =>
+    set((state) => ({
+      market: state.market.map((m) =>
+        m.name === name
+          ? {
+              ...m,
+              value,
+              changePercent,
+              history: [...m.history.slice(1), { time: new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }), value }],
+            }
+          : m
+      ),
+    })),
+  }));

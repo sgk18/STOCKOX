@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MessageSquare, Bot, Database, Globe, LineChart, ShieldCheck, Cpu } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useDashboardStore } from "@/lib/store";
 
 interface Message {
   id: string;
@@ -37,6 +38,7 @@ export default function AgentFeed() {
     },
   ]);
 
+  const [isWsConnected, setIsWsConnected] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
 
   // Auto scroll logic
@@ -44,7 +46,119 @@ export default function AgentFeed() {
     feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Tick simulation of Slack conversations
+  // Real-time WebSocket connection
+  useEffect(() => {
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 
+      (host.includes("localhost") ? "ws://localhost:8080/api/dashboard/ws" : `${wsProto}//${host}/api/dashboard/ws`);
+
+    let socket: WebSocket;
+    let reconnectTimeout: NodeJS.Timeout;
+
+    function connect() {
+      console.log("[WS] Connecting to:", wsUrl);
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("[WS] Connected successfully");
+        setIsWsConnected(true);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // 1. Process Agent Activity Logs
+          if (data.type === "agent_message" || data.type === "agent_started" || data.type === "agent_completed") {
+            const payload = data.payload;
+            const time = new Date(payload.timestamp || Date.now()).toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            let msgText = payload.message || "";
+            if (data.type === "agent_started") {
+              msgText = `Started audit task: ${payload.task}`;
+            } else if (data.type === "agent_completed") {
+              msgText = `Completed task successfully. Result: ${payload.result}`;
+            }
+
+            setMessages((prev) => {
+              // Deduplicate identical sequential messages
+              if (prev.length > 0 && prev[prev.length - 1].message === msgText) return prev;
+              return [
+                ...prev,
+                {
+                  id: `ws-${Date.now()}-${Math.random()}`,
+                  agentId: payload.agent_id as any,
+                  agentName: payload.agent_name,
+                  message: msgText,
+                  timestamp: time,
+                },
+              ];
+            });
+
+            // Update status in global Zustand store
+            try {
+              let storeStatus: any = "Idle";
+              if (data.type === "agent_started" || data.type === "agent_message") {
+                if (payload.agent_id === "research") storeStatus = "Researching";
+                else if (payload.agent_id === "news") storeStatus = "Fetching News";
+                else if (payload.agent_id === "technical") storeStatus = "Thinking";
+                else if (payload.agent_id === "risk") storeStatus = "Monitoring";
+                else storeStatus = "Thinking";
+              } else if (data.type === "agent_completed") {
+                storeStatus = "Complete";
+              }
+              
+              useDashboardStore.getState().updateAgentStatus(payload.agent_id, storeStatus, msgText);
+            } catch (err) {
+              console.error(err);
+            }
+          }
+
+          // 2. Process Market Price Updates
+          if (data.type === "market_update") {
+            const payload = data.payload;
+            // Map symbols to indices names in store
+            const symbolMap: Record<string, string> = {
+              "SP500": "S&P 500",
+              "NASDAQ": "NASDAQ",
+              "NIFTY50": "NIFTY 50",
+              "GOLD": "Gold",
+              "BITCOIN": "Bitcoin",
+            };
+            const mappedName = symbolMap[payload.symbol];
+            if (mappedName) {
+              useDashboardStore.getState().updateMarketPrice(mappedName, payload.price, payload.change_percent);
+            }
+          }
+        } catch (err) {
+          console.error("[WS-PARSER-ERR]", err);
+        }
+      };
+
+      socket.onerror = () => {
+        setIsWsConnected(false);
+      };
+
+      socket.onclose = () => {
+        setIsWsConnected(false);
+        console.log("[WS] Disconnected. Reconnecting in 5s...");
+        reconnectTimeout = setTimeout(connect, 5000);
+      };
+    }
+
+    connect();
+
+    return () => {
+      if (socket) socket.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
+
+  // Tick simulation of Slack conversations (runs ONLY when WebSockets is disconnected)
   useEffect(() => {
     const simulationPool = [
       {
@@ -86,8 +200,11 @@ export default function AgentFeed() {
 
     let idx = 0;
     const interval = setInterval(() => {
+      // If WebSocket is active, bypass client-side simulation to preserve actual streams
+      if (isWsConnected) return;
+
       const item = simulationPool[idx % simulationPool.length];
-      const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
       
       setMessages((prev) => [
         ...prev,
@@ -104,7 +221,7 @@ export default function AgentFeed() {
     }, 6000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isWsConnected]);
 
   const agentIcons = {
     research: Database,
@@ -130,9 +247,9 @@ export default function AgentFeed() {
           <MessageSquare className="w-5 h-5 text-[#2563EB]" />
           <span className="text-sm font-black uppercase tracking-wider text-[#0F172A]">Agent Comm Bus (Slack Link)</span>
         </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#22C55E]">
-          <span className="w-2 h-2 rounded-full bg-[#22C55E] border border-black animate-ping" />
-          Listening
+        <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${isWsConnected ? "text-[#22C55E]" : "text-amber-500"}`}>
+          <span className={`w-2 h-2 rounded-full border border-black ${isWsConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+          {isWsConnected ? "Live Connection" : "Simulated"}
         </span>
       </div>
 

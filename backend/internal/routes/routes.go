@@ -2,6 +2,7 @@ package routes
 
 import (
 	"stockox-backend/internal/dashboard/controller"
+	"stockox-backend/internal/health"
 	"stockox-backend/internal/middleware"
 	"stockox-backend/internal/websocket"
 
@@ -12,6 +13,7 @@ import (
 func SetupRoutes(
 	r *gin.Engine,
 	dbCtrl *controller.DashboardController,
+	healthCtrl *health.HealthController,
 	wsHub *websocket.Hub,
 	jwtSecret string,
 	rateLimitRPS float64,
@@ -23,6 +25,11 @@ func SetupRoutes(
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 	r.Use(middleware.RateLimiter(rateLimitRPS, rateLimitBurst))
+
+	// Health Endpoints
+	r.GET("/health", healthCtrl.Health)
+	r.GET("/health/database", healthCtrl.HealthDB)
+	r.GET("/health/redis", healthCtrl.HealthRedis)
 
 	// WebSocket Endpoints (No Auth wrapper required to prevent client-side header upgrade blockages,
 	// though they will be subject to global middlewares and local origin checks)
@@ -44,5 +51,10 @@ func SetupRoutes(
 		api.GET("/dashboard/activity", dbCtrl.GetAgentActivity)
 		api.GET("/dashboard/analyses", dbCtrl.GetRecentAnalyses)
 		api.GET("/dashboard/opportunities", dbCtrl.GetOpportunities)
+
+		// Compatibility endpoints mapping directly to frontend queries
+		api.GET("/watchlist", dbCtrl.GetWatchlist)
+		api.GET("/market-overview", dbCtrl.GetMarketOverview)
+		api.GET("/agent-feed", dbCtrl.GetAgentActivity)
 	}
 }

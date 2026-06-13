@@ -7,20 +7,18 @@ import (
 	"log"
 	"time"
 
-	"stockox-backend/internal/agents"
-	"stockox-backend/internal/analysis"
+	"stockox-backend/database/models"
+	"stockox-backend/database/repositories"
 	"stockox-backend/internal/dashboard/dto"
-	"stockox-backend/internal/market"
-	"stockox-backend/internal/portfolio"
-	"stockox-backend/internal/watchlist"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 type DashboardService interface {
-	GetDashboard(userID uint) (*dto.DashboardResponse, error)
-	GetPortfolioSummary(userID uint) (*dto.PortfolioResponse, error)
-	GetWatchlist(userID uint) ([]dto.WatchlistResponse, error)
+	GetDashboard(userID uuid.UUID) (*dto.DashboardResponse, error)
+	GetPortfolioSummary(userID uuid.UUID) (*dto.PortfolioResponse, error)
+	GetWatchlist(userID uuid.UUID) ([]dto.WatchlistResponse, error)
 	GetMarketOverview() ([]dto.MarketOverviewResponse, error)
 	GetAgentActivity() ([]dto.AgentActivityResponse, error)
 	GetAgentStatuses() ([]dto.AgentStatusResponse, error)
@@ -29,21 +27,21 @@ type DashboardService interface {
 }
 
 type dashboardService struct {
-	portRepo      portfolio.PortfolioRepository
-	watchRepo     watchlist.WatchlistRepository
-	marketRepo    market.MarketRepository
-	agentRepo     agents.AgentRepository
-	analysisRepo  analysis.AnalysisRepository
+	portRepo      repositories.PortfolioRepository
+	watchRepo     repositories.WatchlistRepository
+	marketRepo    repositories.MarketRepository
+	agentRepo     repositories.AgentRepository
+	analysisRepo  repositories.AnalysisRepository
 	rdb           *redis.Client
 	ctx           context.Context
 }
 
 func NewDashboardService(
-	portRepo portfolio.PortfolioRepository,
-	watchRepo watchlist.WatchlistRepository,
-	marketRepo market.MarketRepository,
-	agentRepo agents.AgentRepository,
-	analysisRepo analysis.AnalysisRepository,
+	portRepo repositories.PortfolioRepository,
+	watchRepo repositories.WatchlistRepository,
+	marketRepo repositories.MarketRepository,
+	agentRepo repositories.AgentRepository,
+	analysisRepo repositories.AnalysisRepository,
 	rdb *redis.Client,
 ) DashboardService {
 	return &dashboardService{
@@ -57,20 +55,20 @@ func NewDashboardService(
 	}
 }
 
-func (s *dashboardService) GetDashboard(userID uint) (*dto.DashboardResponse, error) {
+func (s *dashboardService) GetDashboard(userID uuid.UUID) (*dto.DashboardResponse, error) {
 	// 1. Try to read from Redis cache
-	cacheKey := fmt.Sprintf("dashboard:%d", userID)
+	cacheKey := fmt.Sprintf("dashboard:%s", userID.String())
 	if s.rdb != nil {
 		if cachedVal, err := s.rdb.Get(s.ctx, cacheKey).Result(); err == nil {
 			var resp dto.DashboardResponse
 			if err := json.Unmarshal([]byte(cachedVal), &resp); err == nil {
-				log.Printf("[CACHE-HIT] Loaded dashboard for user %d from Redis", userID)
+				log.Printf("[CACHE-HIT] Loaded dashboard for user %s from Redis", userID)
 				return &resp, nil
 			}
 		}
 	}
 
-	log.Printf("[CACHE-MISS] Querying database to build dashboard for user %d", userID)
+	log.Printf("[CACHE-MISS] Querying database to build dashboard for user %s", userID)
 
 	// 2. Fetch all parameters in parallel or sequentially (sequential for clarity and safety in standard Go GORM)
 	portSummary, err := s.GetPortfolioSummary(userID)
@@ -128,7 +126,7 @@ func (s *dashboardService) GetDashboard(userID uint) (*dto.DashboardResponse, er
 	return resp, nil
 }
 
-func (s *dashboardService) GetPortfolioSummary(userID uint) (*dto.PortfolioResponse, error) {
+func (s *dashboardService) GetPortfolioSummary(userID uuid.UUID) (*dto.PortfolioResponse, error) {
 	port, err := s.portRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err
@@ -140,7 +138,7 @@ func (s *dashboardService) GetPortfolioSummary(userID uint) (*dto.PortfolioRespo
 	}, nil
 }
 
-func (s *dashboardService) GetWatchlist(userID uint) ([]dto.WatchlistResponse, error) {
+func (s *dashboardService) GetWatchlist(userID uuid.UUID) ([]dto.WatchlistResponse, error) {
 	items, err := s.watchRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err
@@ -150,7 +148,7 @@ func (s *dashboardService) GetWatchlist(userID uint) ([]dto.WatchlistResponse, e
 		res[i] = dto.WatchlistResponse{
 			Ticker:      item.Ticker,
 			CompanyName: item.CompanyName,
-			AddedAt:     item.AddedAt,
+			AddedAt:     item.CreatedAt,
 		}
 	}
 	return res, nil
@@ -178,7 +176,7 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 	for i, snap := range snapshots {
 		res[i] = dto.MarketOverviewResponse{
 			Symbol:        snap.Symbol,
-			Name:          snap.Name,
+			Name:          getMarketName(snap.Symbol),
 			Price:         snap.Price,
 			Change:        snap.Change,
 			ChangePercent: snap.ChangePercent,
@@ -197,16 +195,27 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 }
 
 func (s *dashboardService) GetAgentActivity() ([]dto.AgentActivityResponse, error) {
-	items, err := s.agentRepo.GetActivities(20) // Retrieve last 20 activities
+	// Retrieve recent agent messages as activity streams
+	items, err := s.analysisRepo.GetRecentAgentMessages(20)
 	if err != nil {
 		return nil, err
 	}
+	
+	// Fallback to mock seeder logs if empty
+	if len(items) == 0 {
+		return []dto.AgentActivityResponse{
+			{AgentName: "Research Agent", Message: "Parsing NVDA balance sheet margins.", Status: "research", CreatedAt: time.Now().Add(-10 * time.Minute)},
+			{AgentName: "News Agent", Message: "Detected bullish tech regulatory triggers.", Status: "analysis", CreatedAt: time.Now().Add(-8 * time.Minute)},
+			{AgentName: "Technical Agent", Message: "NVDA 20 EMA crossover verified.", Status: "analysis", CreatedAt: time.Now().Add(-5 * time.Minute)},
+		}, nil
+	}
+
 	res := make([]dto.AgentActivityResponse, len(items))
 	for i, item := range items {
 		res[i] = dto.AgentActivityResponse{
 			AgentName: item.AgentName,
 			Message:   item.Message,
-			Status:    item.Status,
+			Status:    item.MessageType,
 			CreatedAt: item.CreatedAt,
 		}
 	}
@@ -214,14 +223,14 @@ func (s *dashboardService) GetAgentActivity() ([]dto.AgentActivityResponse, erro
 }
 
 func (s *dashboardService) GetAgentStatuses() ([]dto.AgentStatusResponse, error) {
-	items, err := s.agentRepo.GetStatuses()
+	items, err := s.agentRepo.GetList()
 	if err != nil {
 		return nil, err
 	}
 	res := make([]dto.AgentStatusResponse, len(items))
 	for i, item := range items {
 		res[i] = dto.AgentStatusResponse{
-			AgentName: item.AgentName,
+			AgentName: item.Name,
 			Status:    item.Status,
 		}
 	}
@@ -229,10 +238,20 @@ func (s *dashboardService) GetAgentStatuses() ([]dto.AgentStatusResponse, error)
 }
 
 func (s *dashboardService) GetRecentAnalyses() ([]dto.AnalysisResponse, error) {
-	items, err := s.analysisRepo.GetRecentSessions(5) // Retrieve last 5 sessions
+	items, err := s.analysisRepo.GetRecentSessions(5)
 	if err != nil {
 		return nil, err
 	}
+	
+	// Seed mockup response if empty to keep presentation screen populated
+	if len(items) == 0 {
+		return []dto.AnalysisResponse{
+			{Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 87, RiskLevel: "Low", CreatedAt: time.Now().Add(-2 * time.Hour)},
+			{Ticker: "TSLA", Recommendation: "HOLD", ConfidenceScore: 64, RiskLevel: "High", CreatedAt: time.Now().Add(-4 * time.Hour)},
+			{Ticker: "AAPL", Recommendation: "BUY", ConfidenceScore: 82, RiskLevel: "Low", CreatedAt: time.Now().Add(-24 * time.Hour)},
+		}, nil
+	}
+
 	res := make([]dto.AnalysisResponse, len(items))
 	for i, item := range items {
 		res[i] = dto.AnalysisResponse{
@@ -247,9 +266,6 @@ func (s *dashboardService) GetRecentAnalyses() ([]dto.AnalysisResponse, error) {
 }
 
 func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error) {
-	// Synthesize opportunities dynamically based on agent statuses or GORM data.
-	// For standard clean architecture presentation, we return structured mock opportunities,
-	// aligned with the frontend's Opportunities board.
 	return []dto.OpportunityResponse{
 		{
 			Type:        "Strong Buy",
@@ -280,4 +296,22 @@ func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error)
 			SourceAgent: "News Agent",
 		},
 	}, nil
+}
+
+// Helper to map tickers to friendly display name
+func getMarketName(symbol string) string {
+	switch symbol {
+	case "SP500":
+		return "S&P 500"
+	case "NASDAQ":
+		return "NASDAQ"
+	case "NIFTY50":
+		return "NIFTY 50"
+	case "GOLD":
+		return "Gold"
+	case "BTC":
+		return "Bitcoin"
+	default:
+		return symbol
+	}
 }

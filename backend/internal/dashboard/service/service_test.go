@@ -1,140 +1,82 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
-	"stockox-backend/internal/agents"
-	"stockox-backend/internal/analysis"
-	"stockox-backend/internal/market"
-	"stockox-backend/internal/portfolio"
-	"stockox-backend/internal/watchlist"
+	"stockox-backend/database/models"
+	"stockox-backend/database/repositories"
+
+	"github.com/google/uuid"
 )
 
-// Define Mocks matching the repository interfaces
+// Define Mocks matching the new repository interfaces
 
 type mockPortfolioRepo struct {
-	portfolio.PortfolioRepository
-	getByUserIDFn func(userID uint) (*portfolio.Portfolio, error)
-	getUserByIDFn func(userID uint) (*portfolio.User, error)
+	repositories.PortfolioRepository
+	getByUserIDFn func(userID uuid.UUID) (*models.Portfolio, error)
 }
 
-func (m *mockPortfolioRepo) GetByUserID(userID uint) (*portfolio.Portfolio, error) {
+func (m *mockPortfolioRepo) GetByUserID(userID uuid.UUID) (*models.Portfolio, error) {
 	if m.getByUserIDFn != nil {
 		return m.getByUserIDFn(userID)
-	}
-	return nil, errors.New("method not mocked")
-}
-
-func (m *mockPortfolioRepo) GetUserByID(userID uint) (*portfolio.User, error) {
-	if m.getUserByIDFn != nil {
-		return m.getUserByIDFn(userID)
 	}
 	return nil, errors.New("method not mocked")
 }
 
 type mockWatchlistRepo struct {
-	watchlist.WatchlistRepository
-	getByUserIDFn func(userID uint) ([]watchlist.Watchlist, error)
-	addFn         func(userID uint, ticker, companyName string) (*watchlist.Watchlist, error)
-	removeFn      func(userID uint, ticker string) error
+	repositories.WatchlistRepository
+	getByUserIDFn func(userID uuid.UUID) ([]models.Watchlist, error)
 }
 
-func (m *mockWatchlistRepo) GetByUserID(userID uint) ([]watchlist.Watchlist, error) {
+func (m *mockWatchlistRepo) GetByUserID(userID uuid.UUID) ([]models.Watchlist, error) {
 	if m.getByUserIDFn != nil {
 		return m.getByUserIDFn(userID)
 	}
 	return nil, errors.New("method not mocked")
 }
 
-func (m *mockWatchlistRepo) Add(userID uint, ticker, companyName string) (*watchlist.Watchlist, error) {
-	if m.addFn != nil {
-		return m.addFn(userID, ticker, companyName)
-	}
-	return nil, errors.New("method not mocked")
-}
-
-func (m *mockWatchlistRepo) Remove(userID uint, ticker string) error {
-	if m.removeFn != nil {
-		return m.removeFn(userID, ticker)
-	}
-	return errors.New("method not mocked")
-}
-
 type mockMarketRepo struct {
-	market.MarketRepository
-	getSnapshotsFn func() ([]market.MarketSnapshot, error)
-	getBySymbolFn  func(symbol string) (*market.MarketSnapshot, error)
+	repositories.MarketRepository
+	getSnapshotsFn func() ([]models.MarketSnapshot, error)
 }
 
-func (m *mockMarketRepo) GetSnapshots() ([]market.MarketSnapshot, error) {
+func (m *mockMarketRepo) GetSnapshots() ([]models.MarketSnapshot, error) {
 	if m.getSnapshotsFn != nil {
 		return m.getSnapshotsFn()
 	}
 	return nil, errors.New("method not mocked")
 }
 
-func (m *mockMarketRepo) GetBySymbol(symbol string) (*market.MarketSnapshot, error) {
-	if m.getBySymbolFn != nil {
-		return m.getBySymbolFn(symbol)
-	}
-	return nil, errors.New("method not mocked")
-}
-
 type mockAgentRepo struct {
-	agents.AgentRepository
-	getActivitiesFn func(limit int) ([]agents.AgentActivity, error)
-	getStatusesFn   func() ([]agents.AgentStatus, error)
-	logActivityFn   func(agentName, activityType, message, status string) (*agents.AgentActivity, error)
-	updateStatusFn  func(agentName, status string) error
+	repositories.AgentRepository
+	getListFn func() ([]models.Agent, error)
 }
 
-func (m *mockAgentRepo) GetActivities(limit int) ([]agents.AgentActivity, error) {
-	if m.getActivitiesFn != nil {
-		return m.getActivitiesFn(limit)
+func (m *mockAgentRepo) GetList() ([]models.Agent, error) {
+	if m.getListFn != nil {
+		return m.getListFn()
 	}
 	return nil, errors.New("method not mocked")
-}
-
-func (m *mockAgentRepo) GetStatuses() ([]agents.AgentStatus, error) {
-	if m.getStatusesFn != nil {
-		return m.getStatusesFn()
-	}
-	return nil, errors.New("method not mocked")
-}
-
-func (m *mockAgentRepo) LogActivity(agentName, activityType, message, status string) (*agents.AgentActivity, error) {
-	if m.logActivityFn != nil {
-		return m.logActivityFn(agentName, activityType, message, status)
-	}
-	return nil, errors.New("method not mocked")
-}
-
-func (m *mockAgentRepo) UpdateStatus(agentName, status string) error {
-	if m.updateStatusFn != nil {
-		return m.updateStatusFn(agentName, status)
-	}
-	return errors.New("method not mocked")
 }
 
 type mockAnalysisRepo struct {
-	analysis.AnalysisRepository
-	getRecentSessionsFn func(limit int) ([]analysis.AnalysisSession, error)
-	logSessionFn         func(userID uint, ticker, recommendation string, confidenceScore int, riskLevel string) (*analysis.AnalysisSession, error)
+	repositories.AnalysisRepository
+	getRecentSessionsFn      func(limit int) ([]models.AnalysisSession, error)
+	getRecentAgentMessagesFn func(limit int) ([]models.AgentMessage, error)
 }
 
-func (m *mockAnalysisRepo) GetRecentSessions(limit int) ([]analysis.AnalysisSession, error) {
+func (m *mockAnalysisRepo) GetRecentSessions(limit int) ([]models.AnalysisSession, error) {
 	if m.getRecentSessionsFn != nil {
 		return m.getRecentSessionsFn(limit)
 	}
 	return nil, errors.New("method not mocked")
 }
 
-func (m *mockAnalysisRepo) LogSession(userID uint, ticker, recommendation string, confidenceScore int, riskLevel string) (*analysis.AnalysisSession, error) {
-	if m.logSessionFn != nil {
-		return m.logSessionFn(userID, ticker, recommendation, confidenceScore, riskLevel)
+func (m *mockAnalysisRepo) GetRecentAgentMessages(limit int) ([]models.AgentMessage, error) {
+	if m.getRecentAgentMessagesFn != nil {
+		return m.getRecentAgentMessagesFn(limit)
 	}
 	return nil, errors.New("method not mocked")
 }
@@ -142,74 +84,73 @@ func (m *mockAnalysisRepo) LogSession(userID uint, ticker, recommendation string
 // Test Suite Executions
 
 func TestGetDashboard_Success(t *testing.T) {
-	ctx := context.Background()
-	_ = ctx
+	defaultUserUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	now := time.Now()
 
 	// 1. Mock DB Records
-	now := time.Now()
-	mockPort := &portfolio.Portfolio{
-		UserID:             1,
+	mockPort := &models.Portfolio{
+		UserID:             defaultUserUUID,
 		TotalValue:         250000.00,
 		DailyChange:        1500.00,
 		DailyChangePercent: 0.60,
 	}
 
-	mockWatch := []watchlist.Watchlist{
-		{UserID: 1, Ticker: "TSLA", CompanyName: "Tesla Inc.", AddedAt: now},
-		{UserID: 1, Ticker: "NVDA", CompanyName: "NVIDIA Corp", AddedAt: now},
+	mockWatch := []models.Watchlist{
+		{UserID: defaultUserUUID, Ticker: "TSLA", CompanyName: "Tesla Inc.", CreatedAt: now},
+		{UserID: defaultUserUUID, Ticker: "NVDA", CompanyName: "NVIDIA Corp", CreatedAt: now},
 	}
 
-	mockMarket := []market.MarketSnapshot{
-		{Symbol: "SP500", Name: "S&P 500", Price: 5000.0, Change: 10.0, ChangePercent: 0.2, UpdatedAt: now},
+	mockMarket := []models.MarketSnapshot{
+		{Symbol: "SP500", Price: 5000.0, Change: 10.0, ChangePercent: 0.2, UpdatedAt: now},
 	}
 
-	mockActivity := []agents.AgentActivity{
-		{AgentName: "Technical Agent", ActivityType: "technical", Message: "Breakout NVDA", Status: "success", CreatedAt: now},
+	mockActivity := []models.AgentMessage{
+		{AgentName: "Technical Agent", Message: "Breakout NVDA", MessageType: "analysis", CreatedAt: now},
 	}
 
-	mockStatuses := []agents.AgentStatus{
-		{AgentName: "Technical Agent", Status: "idle"},
+	mockStatuses := []models.Agent{
+		{Name: "Technical Agent", Status: "idle"},
 	}
 
-	mockAnalyses := []analysis.AnalysisSession{
-		{UserID: 1, Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 90, RiskLevel: "Medium", CreatedAt: now},
+	mockAnalyses := []models.AnalysisSession{
+		{UserID: defaultUserUUID, Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 90, RiskLevel: "Medium", CreatedAt: now},
 	}
 
 	// 2. Wire Mocks
 	portRepo := &mockPortfolioRepo{
-		getByUserIDFn: func(userID uint) (*portfolio.Portfolio, error) {
+		getByUserIDFn: func(userID uuid.UUID) (*models.Portfolio, error) {
 			return mockPort, nil
 		},
 	}
 	watchRepo := &mockWatchlistRepo{
-		getByUserIDFn: func(userID uint) ([]watchlist.Watchlist, error) {
+		getByUserIDFn: func(userID uuid.UUID) ([]models.Watchlist, error) {
 			return mockWatch, nil
 		},
 	}
 	marketRepo := &mockMarketRepo{
-		getSnapshotsFn: func() ([]market.MarketSnapshot, error) {
+		getSnapshotsFn: func() ([]models.MarketSnapshot, error) {
 			return mockMarket, nil
 		},
 	}
 	agentRepo := &mockAgentRepo{
-		getActivitiesFn: func(limit int) ([]agents.AgentActivity, error) {
-			return mockActivity, nil
-		},
-		getStatusesFn: func() ([]agents.AgentStatus, error) {
+		getListFn: func() ([]models.Agent, error) {
 			return mockStatuses, nil
 		},
 	}
 	analysisRepo := &mockAnalysisRepo{
-		getRecentSessionsFn: func(limit int) ([]analysis.AnalysisSession, error) {
+		getRecentSessionsFn: func(limit int) ([]models.AnalysisSession, error) {
 			return mockAnalyses, nil
+		},
+		getRecentAgentMessagesFn: func(limit int) ([]models.AgentMessage, error) {
+			return mockActivity, nil
 		},
 	}
 
-	// 3. Instantiate Service under nil Redis client (direct database fallback pathway testing)
+	// 3. Instantiate Service
 	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
 
 	// 4. Execute Service Call
-	resp, err := srv.GetDashboard(1)
+	resp, err := srv.GetDashboard(defaultUserUUID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -251,40 +192,42 @@ func TestGetDashboard_Success(t *testing.T) {
 }
 
 func TestGetDashboard_RepoError(t *testing.T) {
+	defaultUserUUID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
 	// 1. Mock DB returning error on watchlist query
 	portRepo := &mockPortfolioRepo{
-		getByUserIDFn: func(userID uint) (*portfolio.Portfolio, error) {
-			return &portfolio.Portfolio{UserID: 1}, nil
+		getByUserIDFn: func(userID uuid.UUID) (*models.Portfolio, error) {
+			return &models.Portfolio{UserID: defaultUserUUID}, nil
 		},
 	}
 	watchRepo := &mockWatchlistRepo{
-		getByUserIDFn: func(userID uint) ([]watchlist.Watchlist, error) {
+		getByUserIDFn: func(userID uuid.UUID) ([]models.Watchlist, error) {
 			return nil, errors.New("db query failed")
 		},
 	}
 	marketRepo := &mockMarketRepo{
-		getSnapshotsFn: func() ([]market.MarketSnapshot, error) {
-			return []market.MarketSnapshot{}, nil
+		getSnapshotsFn: func() ([]models.MarketSnapshot, error) {
+			return []models.MarketSnapshot{}, nil
 		},
 	}
 	agentRepo := &mockAgentRepo{
-		getActivitiesFn: func(limit int) ([]agents.AgentActivity, error) {
-			return []agents.AgentActivity{}, nil
-		},
-		getStatusesFn: func() ([]agents.AgentStatus, error) {
-			return []agents.AgentStatus{}, nil
+		getListFn: func() ([]models.Agent, error) {
+			return []models.Agent{}, nil
 		},
 	}
 	analysisRepo := &mockAnalysisRepo{
-		getRecentSessionsFn: func(limit int) ([]analysis.AnalysisSession, error) {
-			return []analysis.AnalysisSession{}, nil
+		getRecentSessionsFn: func(limit int) ([]models.AnalysisSession, error) {
+			return []models.AnalysisSession{}, nil
+		},
+		getRecentAgentMessagesFn: func(limit int) ([]models.AgentMessage, error) {
+			return []models.AgentMessage{}, nil
 		},
 	}
 
 	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
 
 	// 2. Execute and expect failure
-	_, err := srv.GetDashboard(1)
+	_, err := srv.GetDashboard(defaultUserUUID)
 	if err == nil {
 		t.Fatal("Expected error on watchlist repository failure, got nil")
 	}
