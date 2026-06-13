@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"stockox-backend/internal/market/dto"
+	"stockox-backend/pkg/market/dto"
 )
 
 type AlphaVantageProvider struct {

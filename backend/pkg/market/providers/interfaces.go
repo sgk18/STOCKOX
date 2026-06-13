@@ -1,6 +1,6 @@
 package providers
 
-import "stockox-backend/internal/market/dto"
+import "stockox-backend/pkg/market/dto"
 
 type MarketProvider interface {
 	SearchStocks(query string) ([]dto.SearchStockDTO, error)

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"stockox-backend/internal/market/service"
+	"stockox-backend/pkg/market/service"
 	"stockox-backend/pkg/errors"
 
 	"github.com/gin-gonic/gin"

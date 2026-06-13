@@ -8,7 +8,7 @@ import (
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
-	marketController "stockox-backend/internal/market/controller"
+	marketController "stockox-backend/pkg/market/controller"
 
 	"github.com/gin-gonic/gin"
 )

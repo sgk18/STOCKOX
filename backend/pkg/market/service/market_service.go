@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"stockox-backend/internal/market/cache"
-	"stockox-backend/internal/market/dto"
-	"stockox-backend/internal/market/providers"
+	"stockox-backend/pkg/market/cache"
+	"stockox-backend/pkg/market/dto"
+	"stockox-backend/pkg/market/providers"
 )
 
 type MarketService struct {

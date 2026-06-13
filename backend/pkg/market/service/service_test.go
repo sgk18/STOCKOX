@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 	"stockox-backend/config"
-	"stockox-backend/internal/market/cache"
-	"stockox-backend/internal/market/providers"
+	"stockox-backend/pkg/market/cache"
+	"stockox-backend/pkg/market/providers"
 )
 
 func TestMarketServiceCreation(t *testing.T) {
