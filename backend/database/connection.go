@@ -17,7 +17,10 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetDSN()
 	log.Printf("[DB] Connecting to database host: %s, name: %s", cfg.Database.Host, cfg.Database.Name)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
