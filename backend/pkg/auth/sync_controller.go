@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/errors"
 
@@ -101,5 +102,123 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 	c.JSON(http.StatusOK, SyncResponse{
 		Success: true,
 		Message: "User profile synchronized",
+	})
+}
+
+// SyncUserV1 handles POST /api/v1/auth/sync-user.
+// It retrieves user details and performs an upsert into the users table.
+func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
+	// 1. Retrieve authenticated Clerk User ID
+	userIDVal, exists := c.Get("UserID")
+	if !exists {
+		errors.UnauthorizedError(c, "Missing authenticated user ID")
+		return
+	}
+	userID := userIDVal.(string)
+
+	log.Printf("[AUTH] User authenticated: user_id=%s", userID)
+
+	// 2. Bind optional request body containing name, email, avatar_url
+	var req struct {
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		AvatarURL string `json:"avatar_url"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	// Determine email, fallback to context then generic placeholder
+	email := req.Email
+	if email == "" {
+		email = c.GetString("UserEmail")
+	}
+	if email == "" {
+		email = userID + "@clerk.user"
+	}
+
+	name := req.Name
+	if name == "" {
+		name = "Adviser"
+	}
+
+	avatarURL := req.AvatarURL
+	if avatarURL == "" {
+		avatarURL = "https://avatar.vercel.sh/" + userID
+	}
+
+	// 3. Upsert Logic: Query to differentiate logs (created vs updated)
+	existingUser, err := ctrl.userRepo.GetByID(userID)
+	isNew := false
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			isNew = true
+		} else {
+			log.Printf("[DATABASE] Database error: failed to query user %s: %v", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
+			return
+		}
+	}
+
+	userToUpsert := models.User{
+		ID:        userID,
+		Email:     email,
+		Name:      name,
+		AvatarURL: avatarURL,
+		Role:      "Lead Investment Advisor",
+		UpdatedAt: time.Now(),
+	}
+
+	if isNew {
+		userToUpsert.CreatedAt = time.Now()
+		// Call centralized provisioning helper (which seeds portfolio/watchlist)
+		err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
+		if err != nil {
+			log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
+			return
+		}
+		log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
+	} else {
+		userToUpsert.CreatedAt = existingUser.CreatedAt
+		if err := ctrl.userRepo.Upsert(&userToUpsert); err != nil {
+			log.Printf("[DATABASE] Database error: failed to upsert user %s: %v", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
+			return
+		}
+		log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
+	}
+
+	log.Printf("[AUTH] User synced: email=%s, user_id=%s", email, userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "User synchronized successfully",
+	})
+}
+
+// DebugCurrentUser handles GET /api/v1/debug/current-user.
+// It returns structural details of the currently authenticated Clerk user.
+func (ctrl *SyncController) DebugCurrentUser(c *gin.Context) {
+	userIDVal, exists := c.Get("UserID")
+	if !exists {
+		errors.UnauthorizedError(c, "Missing authenticated user ID")
+		return
+	}
+	userID := userIDVal.(string)
+
+	user, err := ctrl.userRepo.GetByID(userID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found in database"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"clerk_id":   user.ID,
+		"email":      user.Email,
+		"name":       user.Name,
+		"avatar_url": user.AvatarURL,
 	})
 }

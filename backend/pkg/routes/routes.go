@@ -68,6 +68,7 @@ func SetupRoutes(
 	// Authenticated API Group
 	api := r.Group("/api")
 	api.Use(middleware.Auth(jwtSecret, userRepo, portfolioRepo, watchlistRepo))
+	api.Use(middleware.EnsureUserExists(userRepo, portfolioRepo, watchlistRepo))
 	{
 		// Clerk Sync Callback
 		api.POST("/auth/sync", syncCtrl.SyncUser)
@@ -83,6 +84,9 @@ func SetupRoutes(
 		// V1 Endpoints
 		v1 := api.Group("/v1")
 		{
+			v1.POST("/auth/sync-user", syncCtrl.SyncUserV1)
+			v1.GET("/debug/current-user", syncCtrl.DebugCurrentUser)
+
 			v1.GET("/stocks/search", marketCtrl.SearchStocks)
 			v1.GET("/stocks/:ticker", marketCtrl.GetStockDetails)
 			v1.GET("/stocks/:ticker/metrics", marketCtrl.GetMetrics)

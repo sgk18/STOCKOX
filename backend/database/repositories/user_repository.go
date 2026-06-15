@@ -4,6 +4,7 @@ import (
 	"stockox-backend/database/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserRepository interface {
@@ -13,6 +14,7 @@ type UserRepository interface {
 	Update(user *models.User) error
 	UpdateID(oldID, newID string) error
 	Delete(id string) error
+	Upsert(user *models.User) error
 }
 
 type sqlUserRepository struct {
@@ -55,5 +57,12 @@ func (r *sqlUserRepository) Delete(id string) error {
 
 func (r *sqlUserRepository) UpdateID(oldID, newID string) error {
 	return r.db.Model(&models.User{}).Where("id = ?", oldID).Update("id", newID).Error
+}
+
+func (r *sqlUserRepository) Upsert(user *models.User) error {
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		UpdateAll: true,
+	}).Create(user).Error
 }
 

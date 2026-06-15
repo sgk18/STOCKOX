@@ -62,6 +62,7 @@ func Auth(
 					_ = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, defaultID, "suryachalam.vm@bsccmh.christuniversity.in", "Surya", "", "Lead Investment Advisor")
 				}
 
+				log.Printf("[AUTH] User authenticated: user_id=%s", defaultID)
 				c.Next()
 				return
 			}
@@ -129,22 +130,43 @@ func Auth(
 			}
 		}
 
-		// Verify authenticated user exists in PostgreSQL. If not, automatically provision profile
 		userID := c.GetString("UserID")
-		if userID != "" {
-			_, err := userRepo.GetByID(userID)
-			if err != nil && err == gorm.ErrRecordNotFound {
+		log.Printf("[AUTH] User authenticated: user_id=%s", userID)
+
+		c.Next()
+	}
+}
+
+// EnsureUserExists checks if the authenticated user exists in the local database.
+// If missing, it JIT provisions their profile, default portfolio, and watchlists.
+func EnsureUserExists(
+	userRepo repositories.UserRepository,
+	portfolioRepo repositories.PortfolioRepository,
+	watchlistRepo repositories.WatchlistRepository,
+) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetString("UserID")
+		if userID == "" {
+			c.Next()
+			return
+		}
+
+		_, err := userRepo.GetByID(userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
 				email := c.GetString("UserEmail")
 				if email == "" {
 					email = userID + "@clerk.user"
 				}
-				log.Printf("[CLERK-AUTH-JIT] User %s not found in local database. Provisioning...", userID)
+				log.Printf("[AUTH] User missing from DB. JIT provisioning for user %s...", userID)
 				err = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, userID, email, "Adviser", "", "Lead Investment Advisor")
 				if err != nil {
-					log.Printf("[CLERK-AUTH-JIT-ERR] Failed to automatically provision user %s: %v", userID, err)
+					log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
 				} else {
-					log.Printf("[CLERK-AUTH-JIT-SUCCESS] Successfully automatically provisioned user %s", userID)
+					log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
 				}
+			} else {
+				log.Printf("[DATABASE] Database error: user lookup failed for %s: %v", userID, err)
 			}
 		}
 

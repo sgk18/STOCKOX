@@ -80,6 +80,14 @@ func (m *MockUserRepository) Delete(id string) error {
 	return nil
 }
 
+func (m *MockUserRepository) Upsert(user *models.User) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.users[user.ID] = user
+	return nil
+}
+
 type MockPortfolioRepository struct {
 	portfolios map[string]*models.Portfolio
 	holdings   []*models.PortfolioHolding
@@ -314,4 +322,125 @@ func TestHandleClerkWebhook_UserDeleted(t *testing.T) {
 
 	_, err := userRepo.GetByID("user_123")
 	assert.Error(t, err)
+}
+
+func TestSyncUserV1_Created(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userRepo := &MockUserRepository{users: make(map[string]*models.User)}
+	portfolioRepo := &MockPortfolioRepository{portfolios: make(map[string]*models.Portfolio)}
+	watchlistRepo := &MockWatchlistRepository{}
+
+	syncCtrl := NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+
+	r := gin.New()
+	r.POST("/api/v1/auth/sync-user", func(c *gin.Context) {
+		c.Set("UserID", "user_123")
+		c.Set("UserEmail", "new@example.com")
+		c.Next()
+	}, syncCtrl.SyncUserV1)
+
+	payload := `{
+		"name": "New Name",
+		"email": "new@example.com",
+		"avatar_url": "new.jpg"
+	}`
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/sync-user", bytes.NewBufferString(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "success")
+
+	// Verify user is provisioned
+	user, err := userRepo.GetByID("user_123")
+	assert.NoError(t, err)
+	assert.Equal(t, "new@example.com", user.Email)
+	assert.Equal(t, "New Name", user.Name)
+	assert.Equal(t, "new.jpg", user.AvatarURL)
+}
+
+func TestSyncUserV1_Updated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userRepo := &MockUserRepository{
+		users: map[string]*models.User{
+			"user_123": {
+				ID:        "user_123",
+				Email:     "old@example.com",
+				Name:      "Old Name",
+				AvatarURL: "old.jpg",
+			},
+		},
+	}
+	portfolioRepo := &MockPortfolioRepository{portfolios: make(map[string]*models.Portfolio)}
+	watchlistRepo := &MockWatchlistRepository{}
+
+	syncCtrl := NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+
+	r := gin.New()
+	r.POST("/api/v1/auth/sync-user", func(c *gin.Context) {
+		c.Set("UserID", "user_123")
+		c.Set("UserEmail", "new@example.com")
+		c.Next()
+	}, syncCtrl.SyncUserV1)
+
+	payload := `{
+		"name": "Updated Name",
+		"email": "new@example.com",
+		"avatar_url": "new.jpg"
+	}`
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/sync-user", bytes.NewBufferString(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify user is updated
+	user, err := userRepo.GetByID("user_123")
+	assert.NoError(t, err)
+	assert.Equal(t, "new@example.com", user.Email)
+	assert.Equal(t, "Updated Name", user.Name)
+}
+
+func TestDebugCurrentUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userRepo := &MockUserRepository{
+		users: map[string]*models.User{
+			"user_123": {
+				ID:        "user_123",
+				Email:     "user@example.com",
+				Name:      "User One",
+				AvatarURL: "avatar.jpg",
+			},
+		},
+	}
+	portfolioRepo := &MockPortfolioRepository{portfolios: make(map[string]*models.Portfolio)}
+	watchlistRepo := &MockWatchlistRepository{}
+
+	syncCtrl := NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+
+	r := gin.New()
+	r.GET("/api/v1/debug/current-user", func(c *gin.Context) {
+		c.Set("UserID", "user_123")
+		c.Next()
+	}, syncCtrl.DebugCurrentUser)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/debug/current-user", nil)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"clerk_id":"user_123"`)
+	assert.Contains(t, w.Body.String(), `"email":"user@example.com"`)
+	assert.Contains(t, w.Body.String(), `"name":"User One"`)
+	assert.Contains(t, w.Body.String(), `"avatar_url":"avatar.jpg"`)
 }
