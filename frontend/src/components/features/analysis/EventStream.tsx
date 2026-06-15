@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -13,8 +14,9 @@ export default function EventStream() {
     containerEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [events]);
 
-  const getEventTextAndColor = (type: string, payload: any) => {
-    const time = new Date(payload.timestamp || Date.now()).toLocaleTimeString([], {
+  const getEventTextAndColor = (type: string, payload: any, timestampStr?: string) => {
+    const dateObj = timestampStr ? new Date(timestampStr) : new Date(0);
+    const time = dateObj.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -85,7 +87,7 @@ export default function EventStream() {
         ) : (
           <AnimatePresence initial={false}>
             {events.map((ev, index) => {
-              const { text, colorClass, time } = getEventTextAndColor(ev.type, ev.payload);
+              const { text, colorClass, time } = getEventTextAndColor(ev.type, ev.payload, ev.timestamp);
               return (
                 <motion.div
                   key={ev.id || index}
