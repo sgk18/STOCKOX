@@ -12,8 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// InitDB initializes PostgreSQL connection pool using configuration properties
-func InitDB(cfg *config.Config) (*gorm.DB, error) {
+// InitializeDatabase connects to the database, configures the connection pool, and runs schema migrations.
+func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetDSN()
 	log.Printf("[DB] Connecting to database host: %s, name: %s", cfg.Database.Host, cfg.Database.Name)
 
@@ -38,4 +38,10 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// InitDB initializes PostgreSQL connection pool using configuration properties
+// Deprecated: Use InitializeDatabase instead.
+func InitDB(cfg *config.Config) (*gorm.DB, error) {
+	return InitializeDatabase(cfg)
 }

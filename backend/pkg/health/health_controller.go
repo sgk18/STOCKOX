@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"stockox-backend/database/migrations"
+
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -29,7 +31,7 @@ func (ctrl *HealthController) Health(c *gin.Context) {
 	})
 }
 
-// HealthDB verifies active PostgreSQL database connection Pings
+// HealthDB verifies active PostgreSQL database connection Pings and migration status
 func (ctrl *HealthController) HealthDB(c *gin.Context) {
 	sqlDB, err := ctrl.db.DB()
 	if err != nil {
@@ -49,9 +51,18 @@ func (ctrl *HealthController) HealthDB(c *gin.Context) {
 		return
 	}
 
+	// Verify migrations completed
+	if !migrations.AreMigrationsCompleted() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":  "unhealthy",
+			"details": "Database migrations have not completed successfully",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "healthy",
-		"details": "Database connectivity verified",
+		"details": "Database connectivity and migrations verified",
 	})
 }
 

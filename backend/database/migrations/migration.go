@@ -16,12 +16,16 @@ import (
 func RunMigrations(db *gorm.DB, dropTables bool) error {
 	if os.Getenv("SKIP_MIGRATIONS") == "true" {
 		log.Println("[MIGRATOR] Skipping database migrations in this environment (SKIP_MIGRATIONS=true)")
+		SetMigrationsCompleted(true)
 		return nil
 	}
 
 	if dropTables {
-		log.Println("[MIGRATOR] Dropping existing tables to apply schema migrations...")
+		log.Println("[MIGRATOR] Dropping existing tables and migrations record to apply schema migrations...")
 		
+		// Drop migrations record table
+		_ = db.Exec("DROP TABLE IF EXISTS schema_migrations").Error
+
 		// Drop tables first to ensure VARCHAR types are applied clean
 		_ = db.Migrator().DropTable(
 			&models.User{},
@@ -36,9 +40,15 @@ func RunMigrations(db *gorm.DB, dropTables bool) error {
 		)
 	}
 
-	log.Println("[MIGRATOR] Running schema migrations...")
+	// 1. Run versioned SQL migrations
+	if err := RunSQLMigrations(db); err != nil {
+		log.Printf("[MIGRATOR] Versioned SQL migrations failed: %v", err)
+		return err
+	}
+
+	log.Println("[MIGRATOR] Running schema GORM AutoMigrate...")
 	
-	// Perform AutoMigrate
+	// 2. Perform AutoMigrate once to sync GORM models
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.Portfolio{},
@@ -61,6 +71,7 @@ func RunMigrations(db *gorm.DB, dropTables bool) error {
 
 	log.Println("[MIGRATOR] Schema migrations completed. Starting data seeding...")
 	SeedData(db)
+	SetMigrationsCompleted(true)
 	return nil
 }
 

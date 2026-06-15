@@ -28,7 +28,7 @@ func init() {
 	cfg := config.LoadConfig()
 
 	// 2. Init DB connection
-	db, err := database.InitDB(cfg)
+	db, err := database.InitializeDatabase(cfg)
 	if err != nil {
 		initError = err
 		return

@@ -30,8 +30,8 @@ func main() {
 	// 1. Load Configurations
 	cfg := config.LoadConfig()
 
-	// 2. Initialize Database (Performs auto-migrations and mock seeding)
-	db, err := database.InitDB(cfg)
+	// 2. Initialize Database (Performs SQL migrations, auto-migrations, and mock seeding)
+	db, err := database.InitializeDatabase(cfg)
 	if err != nil {
 		log.Fatalf("[DB-ERR] Database connection/migration failed: %v", err)
 	}
