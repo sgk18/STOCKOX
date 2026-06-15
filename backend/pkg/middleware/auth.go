@@ -62,7 +62,7 @@ func Auth(
 					_ = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, defaultID, "suryachalam.vm@bsccmh.christuniversity.in", "Surya", "", "Lead Investment Advisor")
 				}
 
-				log.Printf("[AUTH] User authenticated: user_id=%s", defaultID)
+				log.Printf("[AUTH] Clerk user detected: user_id=%s", defaultID)
 				c.Next()
 				return
 			}
@@ -131,7 +131,7 @@ func Auth(
 		}
 
 		userID := c.GetString("UserID")
-		log.Printf("[AUTH] User authenticated: user_id=%s", userID)
+		log.Printf("[AUTH] Clerk user detected: user_id=%s", userID)
 
 		c.Next()
 	}
@@ -158,15 +158,15 @@ func EnsureUserExists(
 				if email == "" {
 					email = userID + "@clerk.user"
 				}
-				log.Printf("[AUTH] User missing from DB. JIT provisioning for user %s...", userID)
+				log.Printf("[AUTH] Sync started: user_id=%s", userID)
 				err = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, userID, email, "Adviser", "", "Lead Investment Advisor")
 				if err != nil {
-					log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
+					log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 				} else {
-					log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
+					log.Printf("[AUTH] User inserted: email=%s, user_id=%s", email, userID)
 				}
 			} else {
-				log.Printf("[DATABASE] Database error: user lookup failed for %s: %v", userID, err)
+				log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			}
 		}
 

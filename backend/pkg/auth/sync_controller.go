@@ -111,12 +111,14 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 	// 1. Retrieve authenticated Clerk User ID
 	userIDVal, exists := c.Get("UserID")
 	if !exists {
+		log.Println("[AUTH] Sync failed: error=missing authenticated user ID")
 		errors.UnauthorizedError(c, "Missing authenticated user ID")
 		return
 	}
 	userID := userIDVal.(string)
 
-	log.Printf("[AUTH] User authenticated: user_id=%s", userID)
+	log.Printf("[AUTH] Clerk user detected: user_id=%s", userID)
+	log.Printf("[AUTH] Sync started: user_id=%s", userID)
 
 	// 2. Bind optional request body containing name, email, avatar_url
 	var req struct {
@@ -152,7 +154,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		if err == gorm.ErrRecordNotFound {
 			isNew = true
 		} else {
-			log.Printf("[DATABASE] Database error: failed to query user %s: %v", userID, err)
+			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
 			return
 		}
@@ -172,22 +174,20 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		// Call centralized provisioning helper (which seeds portfolio/watchlist)
 		err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
 		if err != nil {
-			log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
+			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
 			return
 		}
-		log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
+		log.Printf("[AUTH] User inserted: email=%s, user_id=%s", email, userID)
 	} else {
 		userToUpsert.CreatedAt = existingUser.CreatedAt
 		if err := ctrl.userRepo.Upsert(&userToUpsert); err != nil {
-			log.Printf("[DATABASE] Database error: failed to upsert user %s: %v", userID, err)
+			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
 			return
 		}
 		log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
 	}
-
-	log.Printf("[AUTH] User synced: email=%s, user_id=%s", email, userID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
