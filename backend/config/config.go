@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -125,7 +126,7 @@ func (c *Config) GetDSN() string {
 
 func getEnv(key, defaultVal string) string {
 	if val, ok := os.LookupEnv(key); ok {
-		return val
+		return strings.TrimSpace(val)
 	}
 	return defaultVal
 }
