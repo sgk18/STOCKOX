@@ -73,12 +73,12 @@ func (p *ClerkWebhookPayload) GetFullName() string {
 }
 
 func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
-	log.Println("[WEBHOOK] Received webhook event from Clerk")
+	log.Println("[WEBHOOK] Webhook received")
 
 	// 1. Read Raw Request Body
 	payloadBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		log.Printf("[WEBHOOK-ERR] Failed to read request body: %v", err)
+		log.Printf("[DATABASE] Database error: failed to read request body: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
@@ -100,7 +100,7 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 	if ctrl.webhookSecret != "" {
 		wh, err := svix.NewWebhook(ctrl.webhookSecret)
 		if err != nil {
-			log.Printf("[WEBHOOK-ERR] Failed to initialize Svix Webhook: %v", err)
+			log.Printf("[DATABASE] Database error: failed to initialize Svix Webhook: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server configuration error"})
 			return
 		}
@@ -123,7 +123,7 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 	// 4. Bind Payload JSON
 	var payload ClerkWebhookPayload
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		log.Printf("[WEBHOOK-ERR] Failed to parse webhook JSON payload: %v", err)
+		log.Printf("[DATABASE] Database error: failed to parse webhook JSON payload: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 		return
 	}
@@ -150,13 +150,12 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 				// JIT Provision User
 				err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
 				if err != nil {
-					log.Printf("[WEBHOOK-ERR] Failed to JIT provision user %s: %v", userID, err)
+					log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
 					return
 				}
-				log.Printf("[WEBHOOK-LOG] User Created: %s (%s)", name, userID)
 			} else {
-				log.Printf("[WEBHOOK-ERR] Database lookup error: %v", err)
+				log.Printf("[DATABASE] Database error: user lookup failed for ID %s: %v", userID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
 				return
 			}
@@ -168,21 +167,21 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 			user.UpdatedAt = time.Now()
 			
 			if err := ctrl.userRepo.Update(user); err != nil {
-				log.Printf("[WEBHOOK-ERR] Failed to update user %s: %v", userID, err)
+				log.Printf("[DATABASE] Database error: failed to update user %s: %v", userID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user record"})
 				return
 			}
-			log.Printf("[WEBHOOK-LOG] User Updated: %s (%s)", name, userID)
+			log.Printf("[DATABASE] User updated: email=%s, user_id=%s", email, userID)
 		}
 
 	case "user.deleted":
 		userID := payload.Data.ID
 		if err := ctrl.userRepo.Delete(userID); err != nil {
-			log.Printf("[WEBHOOK-ERR] Failed to delete user %s: %v", userID, err)
+			log.Printf("[DATABASE] Database error: failed to delete user %s: %v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
 			return
 		}
-		log.Printf("[WEBHOOK-LOG] User Soft Deleted: %s", userID)
+		log.Printf("[DATABASE] User deleted: user_id=%s", userID)
 
 	default:
 		log.Printf("[WEBHOOK-WARN] Unhandled Clerk webhook event type: %s", payload.Type)

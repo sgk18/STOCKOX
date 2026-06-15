@@ -1,9 +1,0 @@
--- Market Snapshots Table
-CREATE TABLE IF NOT EXISTS market_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol VARCHAR(20) NOT NULL UNIQUE,
-    price DECIMAL(18,4) NOT NULL DEFAULT 0.0000,
-    change DECIMAL(18,4) NOT NULL DEFAULT 0.0000,
-    change_percent DECIMAL(8,4) NOT NULL DEFAULT 0.0000,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);

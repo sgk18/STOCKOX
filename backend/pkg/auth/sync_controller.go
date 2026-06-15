@@ -57,6 +57,7 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 			// Call centralized provisioning helper
 			err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, req.Email, req.Name, req.AvatarURL, req.Role)
 			if err != nil {
+				log.Printf("[DATABASE] Database error: manual sync failed to provision user %s: %v", userID, err)
 				errors.InternalServerError(c, "Failed to provision user profile: "+err.Error())
 				return
 			}
@@ -68,6 +69,7 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 			return
 		}
 
+		log.Printf("[DATABASE] Database error: manual sync lookup failed for user %s: %v", userID, err)
 		errors.InternalServerError(c, "Database lookup failed: "+err.Error())
 		return
 	}
@@ -90,7 +92,9 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 	if hasChanged {
 		user.UpdatedAt = time.Now()
 		if err := ctrl.userRepo.Update(user); err != nil {
-			log.Printf("[SYNC-WARN] Failed to update user profile details for user %s: %v", userID, err)
+			log.Printf("[DATABASE] Database error: manual sync update failed for user %s: %v", userID, err)
+		} else {
+			log.Printf("[DATABASE] User updated: email=%s, user_id=%s", user.Email, userID)
 		}
 	}
 

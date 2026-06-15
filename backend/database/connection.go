@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"stockox-backend/config"
-	"stockox-backend/database/migrations"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// InitializeDatabase connects to the database, configures the connection pool, and runs schema migrations.
+// InitializeDatabase connects to the database, configures the connection pool, and verifies connectivity and table presence.
 func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetDSN()
 	log.Printf("[DB] Connecting to database host: %s, name: %s", cfg.Database.Host, cfg.Database.Name)
@@ -25,16 +24,49 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
 
+	log.Println("[DB] Connected successfully")
+
 	sqlDB, err := db.DB()
-	if err == nil {
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sql db: %w", err)
 	}
 
-	// Run Schema Auto-Migrations and Seeding
-	if err := migrations.RunMigrations(db, cfg.Database.DropOnStartup); err != nil {
-		return nil, fmt.Errorf("database migrations failed: %w", err)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// Ping the database
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("[DB] Ping failed: %w", err)
+	}
+	log.Println("[DB] Ping successful")
+
+	// Verify required tables exist without attempting creation
+	requiredTables := []string{
+		"users",
+		"portfolios",
+		"portfolio_holdings",
+		"watchlists",
+		"analysis_sessions",
+		"agents",
+		"agent_messages",
+		"recommendations",
+		"market_snapshots",
+	}
+
+	missingTables := false
+	migrator := db.Migrator()
+	for _, table := range requiredTables {
+		if !migrator.HasTable(table) {
+			log.Printf("[WARN] Missing table: %s", table)
+			missingTables = true
+		}
+	}
+
+	if missingTables {
+		log.Println("[WARN] Missing tables detected")
+	} else {
+		log.Println("[DB] All required tables found")
 	}
 
 	return db, nil

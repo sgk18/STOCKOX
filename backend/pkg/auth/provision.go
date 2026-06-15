@@ -31,6 +31,7 @@ func ProvisionUser(
 		// Update user ID in the database. PostgreSQL foreign keys with ON UPDATE CASCADE
 		// will propagate this change to portfolios, portfolio_holdings, watchlists, etc.
 		if err := userRepo.UpdateID(oldID, userID); err != nil {
+			log.Printf("[DATABASE] Database error: failed to update user ID from %s to %s: %v", oldID, userID, err)
 			return err
 		}
 
@@ -44,7 +45,12 @@ func ProvisionUser(
 		}
 		existingUser.UpdatedAt = time.Now()
 		
-		return userRepo.Update(existingUser)
+		if err := userRepo.Update(existingUser); err != nil {
+			log.Printf("[DATABASE] Database error: failed to update user profile for %s: %v", userID, err)
+			return err
+		}
+		log.Printf("[DATABASE] User updated: email=%s, user_id=%s", email, userID)
+		return nil
 	}
 
 	// 2. Provision a brand new user
@@ -67,8 +73,10 @@ func ProvisionUser(
 	}
 
 	if err := userRepo.Create(&newUser); err != nil {
+		log.Printf("[DATABASE] Database error: failed to insert user %s: %v", userID, err)
 		return err
 	}
+	log.Printf("[DATABASE] User inserted: email=%s, user_id=%s", email, userID)
 
 	// 3. Seed Portfolio Summary
 	portfolio := models.Portfolio{
