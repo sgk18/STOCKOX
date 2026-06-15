@@ -17,6 +17,8 @@ import (
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
 
+	"stockox-backend/pkg/eventbus"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,6 +35,9 @@ func init() {
 		initError = err
 		return
 	}
+
+	// Initialize global EventBus (Redis is disabled in serverless)
+	eventbus.GetBus().Init(nil)
 
 	// 3. Init Repositories
 	userRepo := repositories.NewUserRepository(db)

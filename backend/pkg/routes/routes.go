@@ -61,6 +61,9 @@ func SetupRoutes(
 	r.GET("/api/ws", func(c *gin.Context) {
 		websocket.ServeWS(wsHub, c)
 	})
+	r.GET("/ws", func(c *gin.Context) {
+		websocket.ServeWS(wsHub, c)
+	})
 
 	// Authenticated API Group
 	api := r.Group("/api")
@@ -89,6 +92,9 @@ func SetupRoutes(
 			v1.POST("/analysis/start", v1Ctrl.StartAnalysis)
 			v1.GET("/analysis/:id", v1Ctrl.GetAnalysisDetails)
 			v1.GET("/analysis/:id/agents", v1Ctrl.GetAgentMessages)
+			v1.GET("/analysis/:id/events", v1Ctrl.GetAnalysisEvents)
+			v1.GET("/analysis/:id/status", v1Ctrl.GetAnalysisStatus)
+			v1.GET("/analysis/:id/timeline", v1Ctrl.GetAnalysisTimeline)
 			v1.GET("/analysis/recent", v1Ctrl.GetRecentAnalyses)
 			v1.GET("/watchlist", v1Ctrl.GetWatchlist)
 			v1.POST("/watchlist", v1Ctrl.AddWatchlist)

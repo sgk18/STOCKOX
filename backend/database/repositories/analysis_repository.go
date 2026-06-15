@@ -17,6 +17,8 @@ type AnalysisRepository interface {
 	GetAgentMessages(sessionID uuid.UUID) ([]models.AgentMessage, error)
 	GetRecentAgentMessages(limit int) ([]models.AgentMessage, error)
 	GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error)
+	GetAgentExecutions(sessionID uuid.UUID) ([]models.AgentExecution, error)
+	GetAgentEvents(sessionID uuid.UUID) ([]models.AgentEvent, error)
 }
 
 type sqlAnalysisRepository struct {
@@ -90,4 +92,22 @@ func (r *sqlAnalysisRepository) GetLatestSessionForTicker(ticker string) (*model
 		return nil, err
 	}
 	return &session, nil
+}
+
+func (r *sqlAnalysisRepository) GetAgentExecutions(sessionID uuid.UUID) ([]models.AgentExecution, error) {
+	var executions []models.AgentExecution
+	err := r.db.Where("analysis_session_id = ?", sessionID).Order("started_at asc").Find(&executions).Error
+	if err != nil {
+		return nil, err
+	}
+	return executions, nil
+}
+
+func (r *sqlAnalysisRepository) GetAgentEvents(sessionID uuid.UUID) ([]models.AgentEvent, error) {
+	var events []models.AgentEvent
+	err := r.db.Where("analysis_session_id = ?", sessionID).Order("created_at asc").Find(&events).Error
+	if err != nil {
+		return nil, err
+	}
+	return events, nil
 }

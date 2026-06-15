@@ -14,6 +14,7 @@ import (
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/routes"
+	"stockox-backend/pkg/eventbus"
 	"stockox-backend/pkg/websocket"
 	marketCache "stockox-backend/pkg/market/cache"
 	marketController "stockox-backend/pkg/market/controller"
@@ -57,6 +58,9 @@ func main() {
 			log.Printf("[REDIS-INFO] Redis cache connection established at %s", redisAddr)
 		}
 	}
+
+	// Initialize global EventBus
+	eventbus.GetBus().Init(rdb)
 
 	// 4. Initialize Domain Repositories
 	userRepo := repositories.NewUserRepository(db)

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { MessageSquare, Bot, Database, Globe, LineChart, ShieldCheck, Cpu } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useWebSocketStore } from "@/lib/websocketStore";
 import { useDashboardStore } from "@/lib/store";
 
 interface Message {
@@ -14,6 +16,11 @@ interface Message {
 }
 
 export default function AgentFeed() {
+  const { getToken } = useAuth();
+  const socketConnected = useWebSocketStore((state) => state.connected);
+  const connectSocket = useWebSocketStore((state) => state.connect);
+  const subscribeSocket = useWebSocketStore((state) => state.subscribe);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "m1",
@@ -38,7 +45,6 @@ export default function AgentFeed() {
     },
   ]);
 
-  const [isWsConnected, setIsWsConnected] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
 
   // Auto scroll logic
@@ -46,119 +52,102 @@ export default function AgentFeed() {
     feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Real-time WebSocket connection
+  // Connect socket on mount
   useEffect(() => {
-    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 
-      (host.includes("localhost") ? "ws://localhost:8080/api/dashboard/ws" : `${wsProto}//${host}/api/dashboard/ws`);
-
-    let socket: WebSocket;
-    let reconnectTimeout: NodeJS.Timeout;
-
-    function connect() {
-      console.log("[WS] Connecting to:", wsUrl);
-      socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        console.log("[WS] Connected successfully");
-        setIsWsConnected(true);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // 1. Process Agent Activity Logs
-          if (data.type === "agent_message" || data.type === "agent_started" || data.type === "agent_completed") {
-            const payload = data.payload;
-            const time = new Date(payload.timestamp || Date.now()).toLocaleTimeString(undefined, {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-
-            let msgText = payload.message || "";
-            if (data.type === "agent_started") {
-              msgText = `Started audit task: ${payload.task}`;
-            } else if (data.type === "agent_completed") {
-              msgText = `Completed task successfully. Result: ${payload.result}`;
-            }
-
-            setMessages((prev) => {
-              // Deduplicate identical sequential messages
-              if (prev.length > 0 && prev[prev.length - 1].message === msgText) return prev;
-              return [
-                ...prev,
-                {
-                  id: `ws-${Date.now()}-${Math.random()}`,
-                  agentId: payload.agent_id as "research" | "news" | "technical" | "risk" | "committee",
-                  agentName: payload.agent_name,
-                  message: msgText,
-                  timestamp: time,
-                },
-              ];
-            });
-
-            // Update status in global Zustand store
-            try {
-              let storeStatus: "Idle" | "Thinking" | "Researching" | "Complete" | "Fetching News" | "Monitoring" = "Idle";
-              if (data.type === "agent_started" || data.type === "agent_message") {
-                if (payload.agent_id === "research") storeStatus = "Researching";
-                else if (payload.agent_id === "news") storeStatus = "Fetching News";
-                else if (payload.agent_id === "technical") storeStatus = "Thinking";
-                else if (payload.agent_id === "risk") storeStatus = "Monitoring";
-                else storeStatus = "Thinking";
-              } else if (data.type === "agent_completed") {
-                storeStatus = "Complete";
-              }
-              
-              useDashboardStore.getState().updateAgentStatus(payload.agent_id, storeStatus, msgText);
-            } catch (err) {
-              console.error(err);
-            }
-          }
-
-          // 2. Process Market Price Updates
-          if (data.type === "market_update") {
-            const payload = data.payload;
-            // Map symbols to indices names in store
-            const symbolMap: Record<string, string> = {
-              "SP500": "S&P 500",
-              "NASDAQ": "NASDAQ",
-              "NIFTY50": "NIFTY 50",
-              "GOLD": "Gold",
-              "BITCOIN": "Bitcoin",
-            };
-            const mappedName = symbolMap[payload.symbol];
-            if (mappedName) {
-              useDashboardStore.getState().updateMarketPrice(mappedName, payload.price, payload.change_percent);
-            }
-          }
-        } catch (err) {
-          console.error("[WS-PARSER-ERR]", err);
-        }
-      };
-
-      socket.onerror = () => {
-        setIsWsConnected(false);
-      };
-
-      socket.onclose = () => {
-        setIsWsConnected(false);
-        console.log("[WS] Disconnected. Reconnecting in 5s...");
-        reconnectTimeout = setTimeout(connect, 5000);
-      };
+    async function initSocket() {
+      const token = await getToken();
+      connectSocket(token);
     }
+    initSocket();
+  }, [getToken, connectSocket]);
 
-    connect();
+  // Subscribe to WebSocket Events
+  useEffect(() => {
+    if (!socketConnected) return;
+
+    const handleEvent = (event: any) => {
+      try {
+        const payload = event.payload;
+        const time = new Date(payload.timestamp || Date.now()).toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        let msgText = payload.message || "";
+        if (event.type === "agent_started") {
+          msgText = `Started audit task: ${payload.task}`;
+        } else if (event.type === "agent_completed") {
+          msgText = `Completed task successfully. Result: ${payload.result}`;
+        }
+
+        const agentIdRaw = (payload.agent_name || "").toLowerCase().split(" ")[0];
+        const agentId = (["research", "news", "technical", "risk", "committee"].includes(agentIdRaw)
+          ? agentIdRaw
+          : "research") as Message["agentId"];
+
+        setMessages((prev) => {
+          // Deduplicate sequential identical logs
+          if (prev.length > 0 && prev[prev.length - 1].message === msgText) return prev;
+          return [
+            ...prev,
+            {
+              id: `ws-${Date.now()}-${Math.random()}`,
+              agentId,
+              agentName: payload.agent_name,
+              message: msgText,
+              timestamp: time,
+            },
+          ];
+        });
+
+        // Update dashboard status store
+        let storeStatus: "Idle" | "Thinking" | "Researching" | "Complete" | "Fetching News" | "Monitoring" = "Idle";
+        if (event.type === "agent_started" || event.type === "agent_message") {
+          if (agentId === "research") storeStatus = "Researching";
+          else if (agentId === "news") storeStatus = "Fetching News";
+          else if (agentId === "technical") storeStatus = "Thinking";
+          else if (agentId === "risk") storeStatus = "Monitoring";
+          else storeStatus = "Thinking";
+        } else if (event.type === "agent_completed") {
+          storeStatus = "Complete";
+        }
+        
+        useDashboardStore.getState().updateAgentStatus(agentId, storeStatus, msgText);
+      } catch (err) {
+        console.error("[WS-FEED-PARSER-ERR]", err);
+      }
+    };
+
+    // Subscriptions
+    const unsubMessage = subscribeSocket("agent_message", handleEvent);
+    const unsubStarted = subscribeSocket("agent_started", handleEvent);
+    const unsubCompleted = subscribeSocket("agent_completed", handleEvent);
+
+    // Subscribe to market price ticks as well
+    const unsubMarket = subscribeSocket("market_data_updated", (event) => {
+      const payload = event.payload;
+      const symbolMap: Record<string, string> = {
+        "SP500": "S&P 500",
+        "NASDAQ": "NASDAQ",
+        "NIFTY50": "NIFTY 50",
+        "GOLD": "Gold",
+        "BITCOIN": "Bitcoin",
+      };
+      const mappedName = symbolMap[payload.symbol];
+      if (mappedName) {
+        useDashboardStore.getState().updateMarketPrice(mappedName, payload.price, payload.change_percent);
+      }
+    });
 
     return () => {
-      if (socket) socket.close();
-      clearTimeout(reconnectTimeout);
+      unsubMessage();
+      unsubStarted();
+      unsubCompleted();
+      unsubMarket();
     };
-  }, []);
+  }, [socketConnected, subscribeSocket]);
 
-  // Tick simulation of Slack conversations (runs ONLY when WebSockets is disconnected)
+  // Fallback Simulator: triggers Slack ticker ONLY when socket is disconnected
   useEffect(() => {
     const simulationPool = [
       {
@@ -200,8 +189,7 @@ export default function AgentFeed() {
 
     let idx = 0;
     const interval = setInterval(() => {
-      // If WebSocket is active, bypass client-side simulation to preserve actual streams
-      if (isWsConnected) return;
+      if (socketConnected) return;
 
       const item = simulationPool[idx % simulationPool.length];
       const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -221,7 +209,7 @@ export default function AgentFeed() {
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [isWsConnected]);
+  }, [socketConnected]);
 
   const agentIcons = {
     research: Database,
@@ -249,9 +237,9 @@ export default function AgentFeed() {
           <MessageSquare className="w-5 h-5 text-[#2563EB]" />
           <span className="text-sm font-black uppercase tracking-wider text-[#0F172A]">Agent Comm Bus (Slack Link)</span>
         </div>
-        <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${isWsConnected ? "text-[#22C55E]" : "text-amber-500"}`}>
-          <span className={`w-2 h-2 rounded-full border border-black ${isWsConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
-          {isWsConnected ? "Live Connection" : "Simulated"}
+        <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${socketConnected ? "text-[#22C55E]" : "text-amber-500"}`}>
+          <span className={`w-2 h-2 rounded-full border border-black ${socketConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+          {socketConnected ? "Live Connection" : "Simulated"}
         </span>
       </div>
 

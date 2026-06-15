@@ -37,6 +37,8 @@ func RunMigrations(db *gorm.DB, dropTables bool) error {
 			&models.Agent{},
 			&models.Recommendation{},
 			&models.MarketSnapshot{},
+			&models.AgentExecution{},
+			&models.AgentEvent{},
 		)
 	}
 
@@ -59,6 +61,8 @@ func RunMigrations(db *gorm.DB, dropTables bool) error {
 		&models.Agent{},
 		&models.Recommendation{},
 		&models.MarketSnapshot{},
+		&models.AgentExecution{},
+		&models.AgentEvent{},
 	)
 	if err != nil {
 		log.Printf("[MIGRATOR-WARNING] AutoMigrate encountered an error: %v", err)

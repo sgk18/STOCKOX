@@ -1,146 +1,130 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { Terminal, MessageSquareDot } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-
-export interface AgentTimelineMessage {
-  id: string;
-  agentName: string;
-  message: string;
-  type: string;
-  timestamp: string;
-}
+import React from "react";
+import { Terminal, Bot, CheckCircle2, AlertTriangle, Play, HelpCircle } from "lucide-react";
+import { motion } from "framer-motion";
+import { Agent } from "@/lib/agentStore";
 
 interface AgentTimelineProps {
-  messages: AgentTimelineMessage[];
+  agents: Agent[];
+  isWsConnected: boolean;
 }
 
-export default function AgentTimeline({ messages }: AgentTimelineProps) {
-  const terminalEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto scroll terminal to bottom when new logs arrive
-  useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const getAgentColorConfig = (name: string) => {
-    switch (name) {
-      case "Research Agent":
-        return {
-          bg: "bg-[#2563EB]/10",
-          border: "border-[#2563EB]/30",
-          text: "text-[#2563EB]",
-          avatar: "bg-[#2563EB]",
-        };
-      case "News Agent":
+export default function AgentTimeline({ agents, isWsConnected }: AgentTimelineProps) {
+  const getAgentColorConfig = (status: Agent["status"]) => {
+    switch (status) {
+      case "thinking":
         return {
           bg: "bg-[#FACC15]/10",
-          border: "border-[#FACC15]/30",
-          text: "text-[#FACC15] text-black",
-          avatar: "bg-[#FACC15]",
+          border: "border-[#FACC15] border-3 animate-pulse",
+          iconColor: "text-[#FACC15]",
+          dotColor: "bg-[#FACC15]",
         };
-      case "Fundamental Agent":
+      case "analyzing":
+        return {
+          bg: "bg-[#2563EB]/10",
+          border: "border-[#2563EB] border-3 animate-pulse",
+          iconColor: "text-[#2563EB]",
+          dotColor: "bg-[#2563EB]",
+        };
+      case "completed":
         return {
           bg: "bg-[#22C55E]/10",
-          border: "border-[#22C55E]/30",
-          text: "text-[#22C55E]",
-          avatar: "bg-[#22C55E]",
+          border: "border-black border-2",
+          iconColor: "text-[#22C55E]",
+          dotColor: "bg-[#22C55E]",
         };
-      case "Technical Agent":
-        return {
-          bg: "bg-[#a855f7]/10",
-          border: "border-[#a855f7]/30",
-          text: "text-[#a855f7]",
-          avatar: "bg-[#a855f7]",
-        };
-      case "Risk Agent":
+      case "error":
         return {
           bg: "bg-[#EF4444]/10",
-          border: "border-[#EF4444]/30",
-          text: "text-[#EF4444]",
-          avatar: "bg-[#EF4444]",
+          border: "border-[#EF4444] border-3",
+          iconColor: "text-[#EF4444]",
+          dotColor: "bg-[#EF4444]",
         };
-      default:
+      default: // idle
         return {
-          bg: "bg-black/5",
-          border: "border-black/20",
-          text: "text-black",
-          avatar: "bg-black",
+          bg: "bg-slate-100/40",
+          border: "border-black/20 border-2",
+          iconColor: "text-black/30",
+          dotColor: "bg-black/20",
         };
     }
   };
 
   return (
-    <div className="bg-white border-4 border-black rounded-2xl shadow-[6px_6px_0px_#000000] overflow-hidden select-none">
-      {/* Terminal Title Bar */}
+    <div className="bg-white border-4 border-black rounded-2xl shadow-[6px_6px_0px_#000000] overflow-hidden flex flex-col">
+      {/* Title bar */}
       <div className="bg-black text-[#FACC15] px-6 py-4 flex items-center justify-between border-b-4 border-black">
         <div className="flex items-center gap-2">
           <Terminal className="w-5 h-5" />
           <span className="font-mono font-black text-sm uppercase tracking-wider">
-            Agent Consensus Stream v1.2
+            AI Committee Timeline Audit
           </span>
         </div>
-        <div className="flex items-center gap-1.5 font-mono text-[9px] font-black uppercase bg-[#22C55E]/20 text-[#22C55E] px-2 py-0.5 rounded border border-[#22C55E]/50">
-          <span className="w-1.5 h-1.5 bg-[#22C55E] rounded-full animate-ping" />
-          <span>WebSocket Live Feed</span>
+        <div className={`flex items-center gap-1.5 font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded border ${isWsConnected ? "bg-[#22C55E]/20 text-[#22C55E] border-[#22C55E]/50" : "bg-amber-500/20 text-amber-500 border-amber-500/50"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isWsConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+          <span>{isWsConnected ? "WS Live Feed" : "Simulated"}</span>
         </div>
       </div>
 
-      {/* Timeline Screen */}
-      <div className="p-6 bg-[#0F172A] min-h-[350px] max-h-[450px] overflow-y-auto flex flex-col gap-4">
-        {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <MessageSquareDot className="w-12 h-12 text-white/10 animate-bounce mb-3" />
-            <p className="font-mono text-xs text-white/30 uppercase tracking-widest leading-relaxed">
-              Awaiting advisory consensus request... <br />
-              Select a stock and click &quot;Run analysis&quot;
-            </p>
-          </div>
-        ) : (
-          <AnimatePresence initial={false}>
-            {messages.map((msg, index) => {
-              const cfg = getAgentColorConfig(msg.agentName);
-              const messageDate = new Date(msg.timestamp).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
+      {/* Steps List */}
+      <div className="p-6 flex flex-col gap-5 bg-slate-50/50 max-h-[500px] overflow-y-auto relative">
+        {agents.map((agent, index) => {
+          const cfg = getAgentColorConfig(agent.status);
+          const isLast = index === agents.length - 1;
 
-              return (
+          return (
+            <div key={agent.id} className="flex gap-4 items-start relative">
+              {/* Timeline Connector Line */}
+              {!isLast && (
+                <div className="absolute left-[18px] top-9 bottom-[-20px] w-1 bg-black z-0" />
+              )}
+
+              {/* Status bullet icon */}
+              <div className="z-10 flex-shrink-0">
                 <motion.div
-                  key={msg.id || index}
-                  initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
-                  className={`border-2 p-4 rounded-xl flex gap-3 text-white shadow-[2px_2px_0px_rgba(255,255,255,0.05)] ${cfg.bg} ${cfg.border}`}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center bg-white border-2 shadow-[2px_2px_0px_#000000] ${cfg.border}`}
+                  whileHover={{ scale: 1.05 }}
                 >
-                  {/* Agent Logo Avatar */}
-                  <div className={`w-8 h-8 rounded-lg text-white font-mono font-black text-xs flex items-center justify-center flex-shrink-0 border border-white/10 ${cfg.avatar}`}>
-                    {msg.agentName.charAt(0)}
-                  </div>
-
-                  {/* Message details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="font-extrabold text-sm uppercase text-white/95">
-                        {msg.agentName}
-                      </span>
-                      <span className="font-mono text-[9px] text-white/45">
-                        {messageDate}
-                      </span>
-                    </div>
-                    <p className="font-mono text-xs text-white/70 leading-relaxed break-words">
-                      {msg.message}
-                    </p>
-                  </div>
+                  {agent.status === "completed" && <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />}
+                  {agent.status === "error" && <AlertTriangle className="w-5 h-5 text-[#EF4444]" />}
+                  {agent.status === "thinking" && <HelpCircle className="w-5 h-5 text-[#FACC15] animate-spin" />}
+                  {agent.status === "analyzing" && <Bot className="w-5 h-5 text-[#2563EB] animate-pulse" />}
+                  {agent.status === "idle" && <Play className="w-4 h-4 text-black/30" />}
                 </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        )}
-        <div ref={terminalEndRef} />
+              </div>
+
+              {/* Step details Card */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className={`flex-grow p-4 border-2 border-black rounded-xl shadow-[3px_3px_0px_#000000] flex flex-col gap-1 bg-white hover:shadow-[4.5px_4.5px_0px_#000000] transition-shadow duration-200 ${cfg.bg}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-[#0F172A]">
+                    {agent.name}
+                  </span>
+                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-black/15 ${
+                    agent.status === "completed" ? "bg-[#22C55E]/20 text-[#22C55E]" :
+                    agent.status === "error" ? "bg-[#EF4444]/20 text-[#EF4444]" :
+                    agent.status === "thinking" ? "bg-[#FACC15]/20 text-yellow-700" :
+                    agent.status === "analyzing" ? "bg-[#2563EB]/20 text-[#2563EB]" :
+                    "bg-black/5 text-black/50"
+                  }`}>
+                    {agent.status}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-black/50 block font-bold">
+                  {agent.role}
+                </span>
+                <p className="text-[11px] font-mono leading-relaxed text-black/80 mt-1 font-semibold">
+                  {agent.activity}
+                </p>
+              </motion.div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

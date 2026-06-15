@@ -1,14 +1,13 @@
 package analysis
 
 import (
-	"log"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+	"stockox-backend/pkg/agents"
 	"stockox-backend/pkg/errors"
 	"stockox-backend/pkg/websocket"
 
@@ -233,13 +232,14 @@ var StockCatalog = map[string]StockMockData{
 	},
 }
 
-// V1Controller implements API endpoints for module 3
+// V1Controller implements API endpoints for module 3 and 4
 type V1Controller struct {
 	db            *gorm.DB
 	analysisRepo  repositories.AnalysisRepository
 	watchlistRepo repositories.WatchlistRepository
 	agentRepo     repositories.AgentRepository
 	wsHub         *websocket.Hub
+	agentMgr      *agents.AgentManager
 }
 
 func NewV1Controller(
@@ -255,6 +255,7 @@ func NewV1Controller(
 		watchlistRepo: watchlistRepo,
 		agentRepo:     agentRepo,
 		wsHub:         wsHub,
+		agentMgr:      agents.NewAgentManager(db),
 	}
 }
 
@@ -356,8 +357,17 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 		return
 	}
 
-	// 2. Start simulation goroutine
-	go ctrl.runSimulatedCommittee(session, stock)
+	// 2. Start simulation goroutine through AgentManager orchestrator
+	go ctrl.agentMgr.RunSimulatedCommittee(
+		session.ID,
+		ticker,
+		models.MarketSnapshot{Price: stock.CurrentPrice},
+		stock.CompanyName,
+		stock.AIScore,
+		stock.Recommendation,
+		stock.DebtRatio,
+		stock.PERatio,
+	)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":       "started",
@@ -506,168 +516,89 @@ func (ctrl *V1Controller) getUserID(c *gin.Context) (string, bool) {
 	return "user_000000000000000000000000001", true
 }
 
-// runSimulatedCommittee steps through agents one by one with delays, broadcasting WebSocket logs
-func (ctrl *V1Controller) runSimulatedCommittee(session *models.AnalysisSession, stock StockMockData) {
-	log.Printf("[SIM-ANALYSIS] Launching committee debate for ticker: %s", stock.Ticker)
 
-	agents := []struct {
-		ID      string
-		Name    string
-		Type    string // research, analysis, decision, warning, risk
-		Task    string
-		Message string
-		Result  string
-	}{
-		{
-			ID:      "research",
-			Name:    "Research Agent",
-			Type:    "research",
-			Task:    "Initiate fundamental profile audit and market positioning analysis for " + stock.Ticker,
-			Message: "Reviewing profit margins, capital expenditure pipelines, and competitive moat strength in " + stock.Sector + "...",
-			Result:  "Fundamental profile audited. Stable margins verified with high sector tailwinds.",
-		},
-		{
-			ID:      "news",
-			Name:    "News Agent",
-			Type:    "analysis",
-			Task:    "Scan media coverage, public social metrics, and analyst ratings for " + stock.Ticker,
-			Message: "Analyzing recent press statements, regulatory filings, and media sentiment counts...",
-			Result:  "Media sentiment score is highly supportive (+0.78 metrics index) on " + stock.Ticker + " compute assets.",
-		},
-		{
-			ID:      "fundamental",
-			Name:    "Fundamental Agent",
-			Type:    "analysis",
-			Task:    "Execute valuation models (discounted cash flow, sector multiples) for " + stock.Ticker,
-			Message: "Recalculating PEG ratio, forward P/E of " + stock.Ticker + " and EPS trends relative to revenue targets...",
-			Result:  "Valuation metrics processed. Fair value indicators imply positive growth upside.",
-		},
-		{
-			ID:      "technical",
-			Name:    "Technical Agent",
-			Type:    "analysis",
-			Task:    "Audit pricing charts, EMA crossovers, and volume indices for " + stock.Ticker,
-			Message: "Checking support bounds and breakout resistances relative to short-term moving averages...",
-			Result:  "Technical breakout markers verified above standard support threshold.",
-		},
-		{
-			ID:      "risk",
-			Name:    "Risk Agent",
-			Type:    "risk",
-			Task:    "Assess downside risk, systemic beta, and volatility exposure indices",
-			Message: "Modeling Value-at-Risk (VaR) scenarios and debt-to-equity leverage metrics under standard stress...",
-			Result:  "Volatility metrics aligned within compliance limits; downside debt exposures minimized.",
-		},
-		{
-			ID:      "committee",
-			Name:    "Committee Agent",
-			Type:    "decision",
-			Task:    "Consolidate individual agent findings and synthesize advisory recommendation",
-			Message: "Aggregating analyst ratings and weighting agent signal outputs for consensus resolution...",
-			Result:  "Committee review finalized. Signal resolution matched: " + stock.Recommendation + ".",
-		},
+
+// GetAnalysisEvents handles GET /api/v1/analysis/:id/events
+func (ctrl *V1Controller) GetAnalysisEvents(c *gin.Context) {
+	idStr := c.Param("id")
+	sessionID, err := uuid.Parse(idStr)
+	if err != nil {
+		errors.BadRequestError(c, "Invalid analysis session ID format")
+		return
 	}
 
-	for _, a := range agents {
-		// Update DB status of the agent
-		_ = ctrl.agentRepo.UpdateStatus(a.Name, "thinking")
-
-		// Broadcast Agent Started Event
-		ctrl.wsHub.Broadcast("agent_started", websocket.AgentStartedEvent{
-			AgentID:   a.ID,
-			AgentName: a.Name,
-			Task:      a.Task,
-			Timestamp: time.Now(),
-		})
-
-		time.Sleep(900 * time.Millisecond)
-
-		// Update DB status to analyzing
-		_ = ctrl.agentRepo.UpdateStatus(a.Name, "analyzing")
-
-		// Broadcast Agent Message
-		ctrl.wsHub.Broadcast("agent_message", websocket.AgentMessageEvent{
-			AgentID:   a.ID,
-			AgentName: a.Name,
-			Message:   a.Message,
-			Status:    "RUNNING",
-			Timestamp: time.Now(),
-		})
-
-		// Save agent message to DB
-		_, _ = ctrl.analysisRepo.LogAgentMessage(session.ID, a.Name, a.Message, a.Type)
-
-		time.Sleep(1000 * time.Millisecond)
-
-		// Update DB status to completed
-		_ = ctrl.agentRepo.UpdateStatus(a.Name, "completed")
-
-		// Broadcast Agent Completed Event
-		ctrl.wsHub.Broadcast("agent_completed", websocket.AgentCompletedEvent{
-			AgentID:   a.ID,
-			AgentName: a.Name,
-			Status:    "SUCCESS",
-			Result:    a.Result,
-			Timestamp: time.Now(),
-		})
-
-		// Save completed result log to DB
-		_, _ = ctrl.analysisRepo.LogAgentMessage(session.ID, a.Name, a.Result, a.Type)
-
-		time.Sleep(300 * time.Millisecond)
+	events, err := ctrl.analysisRepo.GetAgentEvents(sessionID)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve analysis events: "+err.Error())
+		return
 	}
 
-	// 3. Finalize Session Recommendation
-	riskLvl := "LOW"
-	if stock.DebtRatio > 0.8 || stock.PERatio > 50.0 {
-		riskLvl = "HIGH"
-	} else if stock.DebtRatio > 0.4 || stock.PERatio > 30.0 {
-		riskLvl = "MEDIUM"
+	c.JSON(http.StatusOK, events)
+}
+
+// GetAnalysisStatus handles GET /api/v1/analysis/:id/status
+func (ctrl *V1Controller) GetAnalysisStatus(c *gin.Context) {
+	idStr := c.Param("id")
+	sessionID, err := uuid.Parse(idStr)
+	if err != nil {
+		errors.BadRequestError(c, "Invalid analysis session ID format")
+		return
 	}
 
-	// Calculate a realistic target price based on upside/downside
-	upsideMult := 1.05
-	if stock.Recommendation == "BUY" {
-		upsideMult = 1.10 + rand.Float64()*0.05
-	} else if stock.Recommendation == "SELL" {
-		upsideMult = 0.85 + rand.Float64()*0.05
-	} else {
-		upsideMult = 0.98 + rand.Float64()*0.04
+	session, err := ctrl.analysisRepo.GetSessionByID(sessionID)
+	if err != nil {
+		errors.BadRequestError(c, "Analysis session not found: "+err.Error())
+		return
 	}
-	targetPrice := stock.CurrentPrice * upsideMult
 
-	// Update session details
-	session.Recommendation = stock.Recommendation
-	session.ConfidenceScore = stock.AIScore
-	session.RiskLevel = riskLvl
-	session.Summary = "Stockox AI committee completed structured evaluation. The final consensus score is " +
-		strings.ToUpper(stock.Recommendation) + " with a rating of " + stock.Recommendation +
-		". Supporting indicators include bullish technical momentum, strong media sentiment and low volatility index."
+	execs, _ := ctrl.analysisRepo.GetAgentExecutions(sessionID)
 
-	// Update DB record
-	ctrl.db.Save(session)
-
-	// Also insert target price in recommendations table
-	rec := models.Recommendation{
-		ID:                uuid.New(),
-		AnalysisSessionID: session.ID,
-		Ticker:            stock.Ticker,
-		Recommendation:    stock.Recommendation,
-		ConfidenceScore:   stock.AIScore,
-		TargetPrice:       targetPrice,
-		RiskLevel:         riskLvl,
-		CreatedAt:         time.Now(),
+	// Calculate progress based on number of completed agents out of 6
+	completedCount := 0
+	var currentAgent string
+	var currentStatus string
+	for _, ex := range execs {
+		if ex.Status == "completed" {
+			completedCount++
+		} else if ex.Status == "analyzing" || ex.Status == "thinking" {
+			currentAgent = ex.AgentName
+			currentStatus = ex.Status
+		}
 	}
-	ctrl.db.Create(&rec)
 
-	// Broadcast Analysis Completed Event
-	ctrl.wsHub.Broadcast("analysis_completed", websocket.AnalysisCompletedEvent{
-		Ticker:          stock.Ticker,
-		Recommendation:  stock.Recommendation,
-		ConfidenceScore: stock.AIScore,
-		RiskLevel:       riskLvl,
-		Timestamp:       time.Now(),
+	progressPercent := (completedCount * 100) / 6
+	if progressPercent > 100 {
+		progressPercent = 100
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":       sessionID,
+		"ticker":           session.Ticker,
+		"status":           session.Summary,
+		"recommendation":   session.Recommendation,
+		"confidence_score": session.ConfidenceScore,
+		"risk_level":       session.RiskLevel,
+		"progress_percent": progressPercent,
+		"current_agent":    currentAgent,
+		"agent_status":     currentStatus,
+		"updated_at":       session.UpdatedAt,
 	})
+}
 
-	log.Printf("[SIM-ANALYSIS] Committee audit complete for %s. Signals compiled.", stock.Ticker)
+// GetAnalysisTimeline handles GET /api/v1/analysis/:id/timeline
+func (ctrl *V1Controller) GetAnalysisTimeline(c *gin.Context) {
+	idStr := c.Param("id")
+	sessionID, err := uuid.Parse(idStr)
+	if err != nil {
+		errors.BadRequestError(c, "Invalid analysis session ID format")
+		return
+	}
+
+	timeline, err := ctrl.analysisRepo.GetAgentExecutions(sessionID)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve agent executions: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, timeline)
 }

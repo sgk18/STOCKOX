@@ -3,83 +3,33 @@ package websocket
 import (
 	"encoding/json"
 	"log"
-	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
+
+	"stockox-backend/pkg/eventbus"
+	"stockox-backend/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  2048,
+	WriteBufferSize: 2048,
 	CheckOrigin: func(r *http.Request) bool {
 		return true // Allow all origins for dev/hackathon purposes
 	},
 }
 
-// Event types
-const (
-	TypeAgentStarted      = "agent_started"
-	TypeAgentCompleted    = "agent_completed"
-	TypeAgentMessage      = "agent_message"
-	TypeAnalysisCompleted = "analysis_completed"
-	TypeMarketUpdate      = "market_update"
-)
-
-// WSEvent is the envelope for websocket messages
-type WSEvent struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
-}
-
-// Event payloads
-type AgentStartedEvent struct {
-	AgentID   string    `json:"agent_id"`
-	AgentName string    `json:"agent_name"`
-	Task      string    `json:"task"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type AgentCompletedEvent struct {
-	AgentID   string    `json:"agent_id"`
-	AgentName string    `json:"agent_name"`
-	Status    string    `json:"status"` // success, error
-	Result    string    `json:"result"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type AgentMessageEvent struct {
-	AgentID   string    `json:"agent_id"`
-	AgentName string    `json:"agent_name"`
-	Message   string    `json:"message"`
-	Status    string    `json:"status"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type AnalysisCompletedEvent struct {
-	Ticker          string    `json:"ticker"`
-	Recommendation  string    `json:"recommendation"`
-	ConfidenceScore int       `json:"confidence_score"`
-	RiskLevel       string    `json:"risk_level"`
-	Timestamp       time.Time `json:"timestamp"`
-}
-
-type MarketUpdateEvent struct {
-	Symbol        string    `json:"symbol"`
-	Price         float64   `json:"price"`
-	Change        float64   `json:"change"`
-	ChangePercent float64   `json:"change_percent"`
-	Timestamp     time.Time `json:"timestamp"`
-}
-
 // Client represents a connected websocket client
 type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	hub       *Hub
+	conn      *websocket.Conn
+	send      chan []byte
+	userID    string
+	userEmail string
 }
 
 // Hub maintains active clients and broadcasts messages
@@ -88,7 +38,8 @@ type Hub struct {
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
-	mu         sync.Mutex
+	mu         sync.RWMutex
+	bus        *eventbus.EventBus
 }
 
 func NewHub() *Hub {
@@ -97,177 +48,126 @@ func NewHub() *Hub {
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		bus:        eventbus.GetBus(),
+	}
+}
+
+// SubscribeToEventBus hooks the WebSocket Hub to the internal EventBus channels
+func (h *Hub) SubscribeToEventBus() {
+	channels := []string{"analysis_events", "agent_events", "market_events", "portfolio_events"}
+	for _, chName := range channels {
+		go func(cName string) {
+			eventChan := h.bus.Subscribe(cName)
+			for ev := range eventChan {
+				h.BroadcastEvent(ev)
+			}
+		}(chName)
 	}
 }
 
 func (h *Hub) Run() {
 	log.Println("[WS-HUB] Starting WebSocket hub manager")
+	
+	// Hook to external EventBus
+	h.SubscribeToEventBus()
+
 	for {
 		select {
 		case client := <-h.register:
 			h.mu.Lock()
 			h.clients[client] = true
+			clientCount := len(h.clients)
 			h.mu.Unlock()
-			log.Println("[WS-HUB] New client connection registered")
+			log.Printf("[WS-HUB] Client connected (User: %s). Total active: %d", client.userID, clientCount)
 
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				log.Println("[WS-HUB] Client connection unregistered")
+				clientCount := len(h.clients)
+				log.Printf("[WS-HUB] Client disconnected. Total active: %d", clientCount)
 			}
 			h.mu.Unlock()
 
 		case message := <-h.broadcast:
-			h.mu.Lock()
+			h.mu.RLock()
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 				default:
-					close(client.send)
-					delete(h.clients, client)
+					h.mu.RUnlock()
+					h.mu.Lock()
+					if _, ok := h.clients[client]; ok {
+						delete(h.clients, client)
+						close(client.send)
+					}
+					h.mu.Unlock()
+					h.mu.RLock()
 				}
 			}
-			h.mu.Unlock()
+			h.mu.RUnlock()
 		}
 	}
 }
 
-// Broadcast sends an event to all connected clients
-func (h *Hub) Broadcast(eventType string, payload interface{}) {
-	event := WSEvent{
-		Type:    eventType,
-		Payload: payload,
-	}
-
+// BroadcastEvent formats and broadcasts a BaseEvent to all active client connections
+func (h *Hub) BroadcastEvent(event eventbus.BaseEvent) {
 	bytes, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("[WS-HUB] Error marshaling event: %v", err)
+		log.Printf("[WS-HUB] Error marshaling broadcast event: %v", err)
 		return
 	}
 
-	h.broadcast <- bytes
-}
-
-// StartSimulator triggers a goroutine generating realistic real-time events.
-// This ensures that during presentation/hackathon testing, the dashboard UI elements
-// automatically update with live tickers and logs, providing a "living system" look.
-func (h *Hub) StartSimulator() {
-	go func() {
-		tickers := []string{"NVDA", "AAPL", "MSFT", "TSLA", "AMD", "AMZN"}
-		agents := []struct {
-			id   string
-			name string
-		}{
-			{"research", "Research Agent"},
-			{"technical", "Technical Agent"},
-			{"sentiment", "Sentiment Agent"},
-			{"risk", "Risk Agent"},
-			{"committee", "Committee Agent"},
-		}
-
-		prices := map[string]float64{
-			"NVDA": 128.50,
-			"AAPL": 178.20,
-			"MSFT": 415.10,
-			"TSLA": 175.40,
-			"AMD":  162.30,
-			"AMZN": 180.15,
-		}
-
-		log.Println("[WS-SIMULATOR] Starting live simulation loop")
-		for {
-			time.Sleep(time.Duration(5+rand.Intn(7)) * time.Second)
-
-			// Ensure we have active connections before broadcasting to save compute/logs
-			h.mu.Lock()
-			clientCount := len(h.clients)
-			h.mu.Unlock()
-			if clientCount == 0 {
-				continue
-			}
-
-			// Random event type selector
-			eventChoice := rand.Intn(5)
-			switch eventChoice {
-			case 0: // Market Price Tick Update
-				symbol := tickers[rand.Intn(len(tickers))]
-				basePrice := prices[symbol]
-				pct := (rand.Float64() - 0.48) * 0.01 // Small wiggle
-				change := basePrice * pct
-				newPrice := basePrice + change
-				prices[symbol] = newPrice
-
-				h.Broadcast(TypeMarketUpdate, MarketUpdateEvent{
-					Symbol:        symbol,
-					Price:         newPrice,
-					Change:        change,
-					ChangePercent: pct * 100,
-					Timestamp:     time.Now(),
-				})
-
-			case 1: // Agent Started Task
-				agent := agents[rand.Intn(len(agents))]
-				ticker := tickers[rand.Intn(len(tickers))]
-				h.Broadcast(TypeAgentStarted, AgentStartedEvent{
-					AgentID:   agent.id,
-					AgentName: agent.name,
-					Task:      "Audit correlation metrics and resistance zones for ticker: " + ticker,
-					Timestamp: time.Now(),
-				})
-
-			case 2: // Agent Intermediate Message
-				agent := agents[rand.Intn(len(agents))]
-				messages := []string{
-					"Analyzing balance sheet metrics...",
-					"Parsing recent earnings call transcripts...",
-					"Running MACD and Relative Strength Index indicators...",
-					"Recalculating Sharpe Ratio and beta index models...",
-					"Filtering Twitter and Reddit keyword frequencies...",
-				}
-				h.Broadcast(TypeAgentMessage, AgentMessageEvent{
-					AgentID:   agent.id,
-					AgentName: agent.name,
-					Message:   messages[rand.Intn(len(messages))],
-					Status:    "RUNNING",
-					Timestamp: time.Now(),
-				})
-
-			case 3: // Agent Completed Task
-				agent := agents[rand.Intn(len(agents))]
-				results := []string{
-					"Audit complete. Signal is neutral, standard deviation within norms.",
-					"Audit complete. Discovered bullish breakout divergence pattern.",
-					"Audit complete. Social sentiment remains highly supportive (+0.64 score).",
-					"Audit complete. Asset risk exposure metrics successfully cataloged.",
-				}
-				h.Broadcast(TypeAgentCompleted, AgentCompletedEvent{
-					AgentID:   agent.id,
-					AgentName: agent.name,
-					Status:    "SUCCESS",
-					Result:    results[rand.Intn(len(results))],
-					Timestamp: time.Now(),
-				})
-
-			case 4: // Consensus Completed Analysis
-				ticker := tickers[rand.Intn(len(tickers))]
-				recs := []string{"STRONG BUY", "BUY", "HOLD", "UNDERPERFORM"}
-				risks := []string{"Low", "Medium", "High"}
-				h.Broadcast(TypeAnalysisCompleted, AnalysisCompletedEvent{
-					Ticker:          ticker,
-					Recommendation:  recs[rand.Intn(len(recs))],
-					ConfidenceScore: 65 + rand.Intn(30),
-					RiskLevel:       risks[rand.Intn(len(risks))],
-					Timestamp:       time.Now(),
-				})
-			}
-		}
-	}()
+	select {
+	case h.broadcast <- bytes:
+	default:
+		// Queue full, drop or process non-blocking
+	}
 }
 
 // ServeWS upgrades HTTP to WebSocket and registers the client connection
 func ServeWS(hub *Hub, c *gin.Context) {
+	// 1. Authenticate WebSocket Connection
+	tokenStr := c.Query("token")
+	if tokenStr == "" {
+		// Try reading from Authorization Header
+		authHeader := c.GetHeader("Authorization")
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenStr = authHeader[7:]
+		}
+	}
+
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "development"
+	}
+
+	var userID string
+	var email string
+	var err error
+
+	if tokenStr != "" {
+		userID, email, err = middleware.VerifyJWTToken(tokenStr)
+		if err != nil {
+			log.Printf("[WS-AUTH-ERR] Token verification failed: %v", err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: " + err.Error()})
+			return
+		}
+	} else {
+		// No token provided
+		if appEnv == "development" {
+			userID = "user_000000000000000000000000001"
+			email = "suryachalam.vm@bsccmh.christuniversity.in"
+			log.Println("[WS-AUTH-WARN] No token provided, falling back to default user in development mode")
+		} else {
+			log.Println("[WS-AUTH-ERR] Token is required for production WebSocket connections")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Token is required"})
+			return
+		}
+	}
+
+	// 2. Upgrade connection
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("[WS-ERR] Failed to upgrade HTTP connection: %v", err)
@@ -275,9 +175,11 @@ func ServeWS(hub *Hub, c *gin.Context) {
 	}
 
 	client := &Client{
-		hub:  hub,
-		conn: conn,
-		send: make(chan []byte, 256),
+		hub:       hub,
+		conn:      conn,
+		send:      make(chan []byte, 512),
+		userID:    userID,
+		userEmail: email,
 	}
 	client.hub.register <- client
 
@@ -292,7 +194,7 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(512)
+	c.conn.SetReadLimit(1024)
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -311,7 +213,7 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) writePump() {
-	ticker := time.NewTicker(54 * time.Second)
+	ticker := time.NewTicker(45 * time.Second)
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
@@ -332,7 +234,7 @@ func (c *Client) writePump() {
 			}
 			w.Write(message)
 
-			// Add queued chat messages to the current websocket message.
+			// Add queued events to the current packet
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
@@ -350,4 +252,60 @@ func (c *Client) writePump() {
 			}
 		}
 	}
+}
+
+// StartSimulator triggers a goroutine generating realistic real-time events.
+// Updated to publish directly to the EventBus, enabling seamless Redis distribution.
+func (h *Hub) StartSimulator() {
+	go func() {
+		tickers := []string{"NVDA", "AAPL", "MSFT", "TSLA", "AMD", "AMZN"}
+		prices := map[string]float64{
+			"NVDA": 128.50,
+			"AAPL": 178.20,
+			"MSFT": 415.10,
+			"TSLA": 175.40,
+			"AMD":  162.30,
+			"AMZN": 180.15,
+		}
+
+		log.Println("[WS-SIMULATOR] Starting live simulation loop publishing to EventBus")
+		for {
+			time.Sleep(time.Duration(4+randInt(6)) * time.Second)
+
+			// Ensure we have active connections somewhere before generating logs
+			h.mu.RLock()
+			clientCount := len(h.clients)
+			h.mu.RUnlock()
+			if clientCount == 0 {
+				continue
+			}
+
+			symbol := tickers[randInt(len(tickers))]
+			basePrice := prices[symbol]
+			pct := (randFloat() - 0.48) * 0.01 // Small wiggle
+			change := basePrice * pct
+			newPrice := basePrice + change
+			prices[symbol] = newPrice
+
+			eventPayload := map[string]interface{}{
+				"symbol":         symbol,
+				"price":          newPrice,
+				"change":         change,
+				"change_percent": pct * 100,
+				"timestamp":      time.Now(),
+			}
+
+			event := eventbus.NewEvent("market_data_updated", eventPayload)
+			h.bus.Publish("market_events", event)
+		}
+	}()
+}
+
+// Helper mathematical functions
+func randInt(n int) int {
+	return int(time.Now().UnixNano() % int64(n))
+}
+
+func randFloat() float64 {
+	return float64(time.Now().UnixNano()%1000) / 1000.0
 }

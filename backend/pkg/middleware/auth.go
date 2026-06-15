@@ -151,3 +151,42 @@ func Auth(
 		c.Next()
 	}
 }
+
+// VerifyJWTToken parses and validates a JWT token using Clerk's public key or dev fallback
+func VerifyJWTToken(tokenStr string) (string, string, error) {
+	claims := jwt.MapClaims{}
+	var tokenValid bool
+	var parseErr error
+
+	if clerkRSAPublicKey != nil {
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return clerkRSAPublicKey, nil
+		})
+		parseErr = err
+		tokenValid = err == nil && token.Valid
+	} else {
+		// Dev fallback
+		parser := jwt.Parser{}
+		_, _, err := parser.ParseUnverified(tokenStr, claims)
+		parseErr = err
+		tokenValid = err == nil
+	}
+
+	if !tokenValid {
+		return "", "", fmt.Errorf("invalid token: %w", parseErr)
+	}
+
+	userID, _ := claims["sub"].(string)
+	email, _ := claims["email"].(string)
+	if email == "" {
+		if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
+			if emailStr, ok := emailsList[0].(string); ok {
+				email = emailStr
+			}
+		}
+	}
+	return userID, email, nil
+}

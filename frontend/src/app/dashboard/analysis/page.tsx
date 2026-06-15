@@ -17,9 +17,10 @@ import SearchResults from "@/components/features/search/SearchResults";
 import CompanyMetrics from "@/components/features/analysis/CompanyMetrics";
 import WatchlistButton from "@/components/features/watchlist/WatchlistButton";
 import LightweightChart from "@/components/features/analysis/LightweightChart";
+import LiveAnalysisPanel from "@/components/features/analysis/LiveAnalysisPanel";
 
 import Button from "@/components/ui/Button";
-import { Bot, Compass, AlertCircle, ArrowUpRight, ArrowDownRight, Newspaper, Calendar, Globe } from "lucide-react";
+import { Compass, AlertCircle, ArrowUpRight, ArrowDownRight, Newspaper, Calendar, Globe } from "lucide-react";
 
 function AnalysisWorkspaceContent() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -48,11 +49,6 @@ function AnalysisWorkspaceContent() {
 
   // Watchlist Store
   const fetchWatchlist = useWatchlistStore((state) => state.fetchWatchlist);
-
-  // Analysis Store
-  const agents = useAnalysisStore((state) => state.agents);
-  const isAnalyzing = useAnalysisStore((state) => state.isAnalyzing);
-  const runAnalysis = useAnalysisStore((state) => state.runAnalysis);
 
   // Redirect if not signed in
   useEffect(() => {
@@ -96,11 +92,6 @@ function AnalysisWorkspaceContent() {
     setSearchQuery("");
     setSearchResults([]);
     router.push(`/dashboard/analysis?ticker=${stock.ticker}`);
-  };
-
-  const handleRunAnalysis = async () => {
-    if (!selectedStock) return;
-    await runAnalysis(selectedStock.ticker);
   };
 
   const formatLargeNumber = (num: number) => {
@@ -246,8 +237,7 @@ function AnalysisWorkspaceContent() {
 
               {/* Right Column: Chart, News & AI Agent Placeholders */}
               <div className="flex flex-col gap-6">
-                
-                {/* Candlestick TradingView Chart */}
+                              {/* Candlestick TradingView Chart */}
                 <div className="bg-white border-4 border-black rounded-2xl p-6 shadow-[4px_4px_0px_#000000]">
                   <h4 className="text-sm font-black uppercase tracking-wider text-[#0F172A] border-b-2 border-black pb-3 mb-4">
                     Price History (TradingView Charts)
@@ -259,56 +249,6 @@ function AnalysisWorkspaceContent() {
                   ) : (
                     <LightweightChart data={history} />
                   )}
-                </div>
-
-                {/* AI Agents Placeholder Board */}
-                <div className="bg-white border-4 border-black rounded-2xl p-6 shadow-[4px_4px_0px_#000000] font-sans">
-                  <div className="flex items-center justify-between border-b-2 border-black pb-3 mb-4">
-                    <h4 className="text-sm font-black uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
-                      <Bot className="w-5 h-5 text-[#2563EB]" />
-                      <span>Investment Committee Room</span>
-                    </h4>
-                    <span className="bg-[#EF4444]/10 text-[#EF4444] text-[8px] font-black uppercase px-2 py-0.5 rounded border border-[#EF4444]/30 shadow-[1px_1px_0px_#000000]">
-                      Inactive
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-3.5 font-mono">
-                    {agents.map((agent) => (
-                      <div
-                        key={agent.name}
-                        className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl flex items-center justify-between shadow-[2px_2px_0px_#000000] opacity-80"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 bg-black/5 border border-black rounded-lg text-black/50 font-black text-xs flex items-center justify-center">
-                            {agent.name.charAt(0)}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-xs block text-[#0F172A]">
-                              {agent.name}
-                            </span>
-                            <span className="text-[9px] text-black/45 block">
-                              {agent.message}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[8px] font-black uppercase bg-black/5 px-2 py-0.5 rounded border border-black/10 text-black/45">
-                          {agent.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5">
-                    <Button
-                      variant="primary"
-                      onClick={handleRunAnalysis}
-                      isLoading={isAnalyzing}
-                      className="w-full text-xs font-black uppercase border-2 shadow-[2px_2px_0px_#000000] py-3.5 cursor-pointer"
-                    >
-                      Audit Session Placeholder
-                    </Button>
-                  </div>
                 </div>
 
                 {/* News Feed Stream */}
@@ -355,6 +295,11 @@ function AnalysisWorkspaceContent() {
 
               </div>
 
+            </div>
+
+            {/* Real-time multi-agent debate and timeline replay panel */}
+            <div className="mt-8">
+              <LiveAnalysisPanel />
             </div>
 
           </div>
