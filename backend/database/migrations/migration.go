@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"stockox-backend/database/models"
@@ -12,6 +13,11 @@ import (
 
 // RunMigrations performs schema migrations and seeds initial database entries
 func RunMigrations(db *gorm.DB, dropTables bool) error {
+	if os.Getenv("SKIP_MIGRATIONS") == "true" {
+		log.Println("[MIGRATOR] Skipping database migrations in this environment (SKIP_MIGRATIONS=true)")
+		return nil
+	}
+
 	if dropTables {
 		log.Println("[MIGRATOR] Dropping existing tables to apply schema migrations...")
 		
