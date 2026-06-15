@@ -3,6 +3,7 @@ package migrations
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"stockox-backend/database/models"
@@ -50,7 +51,12 @@ func RunMigrations(db *gorm.DB, dropTables bool) error {
 		&models.MarketSnapshot{},
 	)
 	if err != nil {
-		return err
+		log.Printf("[MIGRATOR-WARNING] AutoMigrate encountered an error: %v", err)
+		if strings.Contains(err.Error(), "already exists") {
+			log.Println("[MIGRATOR] Table already exists. Proceeding to seeding...")
+		} else {
+			return err
+		}
 	}
 
 	log.Println("[MIGRATOR] Schema migrations completed. Starting data seeding...")
