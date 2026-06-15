@@ -69,7 +69,7 @@ export default function DashboardPage() {
     syncProfile();
   }, [isLoaded, isSignedIn, user, getToken]);
 
-  // TanStack Query to sync watchlist updates from Mock API
+  // TanStack Query to sync watchlist updates from API
   const { data: apiWatchlist } = useQuery<WatchlistItem[]>({
     queryKey: ["watchlist"],
     queryFn: async () => {
@@ -82,35 +82,25 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Failed to fetch watchlist API");
       const rawData = await res.json();
 
-      const stockProfiles: Record<string, Omit<WatchlistItem, "ticker" | "name">> = {
-        NVDA: { price: 187.20, changePercent: 4.20, aiScore: 92, risk: "Low", recommendation: "BUY" },
-        AAPL: { price: 178.45, changePercent: 1.15, aiScore: 82, risk: "Low", recommendation: "BUY" },
-        TSLA: { price: 210.80, changePercent: -2.40, aiScore: 64, risk: "High", recommendation: "HOLD" },
-        MSFT: { price: 415.50, changePercent: 0.85, aiScore: 88, risk: "Low", recommendation: "BUY" },
-        AMD: { price: 162.30, changePercent: -1.95, aiScore: 71, risk: "Medium", recommendation: "HOLD" },
-      };
-
       interface RawWatchlistItem {
         ticker: string;
         company_name?: string;
+        price?: number;
+        change_percent?: number;
+        ai_score?: number;
+        risk?: string;
+        recommendation?: string;
       }
 
       return rawData.map((item: RawWatchlistItem) => {
-        const profile = stockProfiles[item.ticker] || {
-          price: 150.00,
-          changePercent: 1.5,
-          aiScore: 75,
-          risk: "Medium",
-          recommendation: "HOLD",
-        };
         return {
           ticker: item.ticker,
           name: item.company_name || item.ticker,
-          price: profile.price,
-          changePercent: profile.changePercent,
-          aiScore: profile.aiScore,
-          risk: profile.risk,
-          recommendation: profile.recommendation,
+          price: item.price ?? 150.00,
+          changePercent: item.change_percent ?? 0.0,
+          aiScore: item.ai_score ?? 75,
+          risk: item.risk ?? "Medium",
+          recommendation: item.recommendation ?? "HOLD",
         };
       });
     },
@@ -178,12 +168,15 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-16 flex flex-col font-sans text-[#0F172A]">
+    <div className="min-h-screen bg-[#F8FAFC] pb-16 flex flex-col font-sans text-[#0F172A] relative overflow-hidden">
+      {/* Background visual accents */}
+      <div className="absolute inset-0 dot-pattern-brutal pointer-events-none z-0" />
+
       {/* Top Navbar (80px height) */}
       <Navbar />
 
       {/* Main Grid Wrapper */}
-      <main className="max-w-7xl mx-auto w-full px-6 flex flex-col gap-10 mt-8">
+      <main className="max-w-7xl mx-auto w-full px-6 flex flex-col gap-10 mt-8 relative z-10">
         
         {/* HERO SECTION - Welcome & Portfolio Balance & AI Committee Status (Top 30% of viewport approx) */}
         <section className="grid grid-cols-1 lg:grid-cols-10 gap-6">

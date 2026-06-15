@@ -16,6 +16,7 @@ type AnalysisRepository interface {
 	LogAgentMessage(sessionID uuid.UUID, agentName string, message string, messageType string) (*models.AgentMessage, error)
 	GetAgentMessages(sessionID uuid.UUID) ([]models.AgentMessage, error)
 	GetRecentAgentMessages(limit int) ([]models.AgentMessage, error)
+	GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error)
 }
 
 type sqlAnalysisRepository struct {
@@ -80,4 +81,13 @@ func (r *sqlAnalysisRepository) GetRecentAgentMessages(limit int) ([]models.Agen
 		return nil, err
 	}
 	return messages, nil
+}
+
+func (r *sqlAnalysisRepository) GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error) {
+	var session models.AnalysisSession
+	err := r.db.Where("ticker = ?", ticker).Order("created_at desc").First(&session).Error
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
 }

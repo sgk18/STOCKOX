@@ -61,8 +61,9 @@ func (m *mockAgentRepo) GetList() ([]models.Agent, error) {
 
 type mockAnalysisRepo struct {
 	repositories.AnalysisRepository
-	getRecentSessionsFn      func(limit int) ([]models.AnalysisSession, error)
-	getRecentAgentMessagesFn func(limit int) ([]models.AgentMessage, error)
+	getRecentSessionsFn       func(limit int) ([]models.AnalysisSession, error)
+	getRecentAgentMessagesFn  func(limit int) ([]models.AgentMessage, error)
+	getLatestSessionForTickerFn func(ticker string) (*models.AnalysisSession, error)
 }
 
 func (m *mockAnalysisRepo) GetRecentSessions(limit int) ([]models.AnalysisSession, error) {
@@ -77,6 +78,13 @@ func (m *mockAnalysisRepo) GetRecentAgentMessages(limit int) ([]models.AgentMess
 		return m.getRecentAgentMessagesFn(limit)
 	}
 	return nil, errors.New("method not mocked")
+}
+
+func (m *mockAnalysisRepo) GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error) {
+	if m.getLatestSessionForTickerFn != nil {
+		return m.getLatestSessionForTickerFn(ticker)
+	}
+	return nil, nil
 }
 
 // Test Suite Executions
@@ -145,7 +153,7 @@ func TestGetDashboard_Success(t *testing.T) {
 	}
 
 	// 3. Instantiate Service
-	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
+	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
 
 	// 4. Execute Service Call
 	resp, err := srv.GetDashboard(defaultUserID)
@@ -222,7 +230,7 @@ func TestGetDashboard_RepoError(t *testing.T) {
 		},
 	}
 
-	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil)
+	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
 
 	// 2. Execute and expect failure
 	_, err := srv.GetDashboard(defaultUserID)

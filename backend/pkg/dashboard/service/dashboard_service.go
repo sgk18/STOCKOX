@@ -9,6 +9,7 @@ import (
 
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/dashboard/dto"
+	marketService "stockox-backend/pkg/market/service"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -32,6 +33,7 @@ type dashboardService struct {
 	analysisRepo  repositories.AnalysisRepository
 	rdb           *redis.Client
 	ctx           context.Context
+	marketSrv     *marketService.MarketService
 }
 
 func NewDashboardService(
@@ -41,6 +43,7 @@ func NewDashboardService(
 	agentRepo repositories.AgentRepository,
 	analysisRepo repositories.AnalysisRepository,
 	rdb *redis.Client,
+	marketSrv *marketService.MarketService,
 ) DashboardService {
 	return &dashboardService{
 		portRepo:     portRepo,
@@ -50,6 +53,7 @@ func NewDashboardService(
 		analysisRepo: analysisRepo,
 		rdb:          rdb,
 		ctx:          context.Background(),
+		marketSrv:    marketSrv,
 	}
 }
 
@@ -143,10 +147,33 @@ func (s *dashboardService) GetWatchlist(userID string) ([]dto.WatchlistResponse,
 	}
 	res := make([]dto.WatchlistResponse, len(items))
 	for i, item := range items {
+		var price float64 = 150.00
+		var changePercent float64 = 0.0
+		if s.marketSrv != nil {
+			if quote, errQuote := s.marketSrv.GetQuote(item.Ticker); errQuote == nil && quote != nil {
+				price = quote.CurrentPrice
+				changePercent = quote.DailyChangePercent
+			}
+		}
+
+		var aiScore int = 75
+		var risk string = "Medium"
+		var rec string = "HOLD"
+		if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(item.Ticker); errSession == nil && latestSession != nil {
+			aiScore = latestSession.ConfidenceScore
+			risk = latestSession.RiskLevel
+			rec = latestSession.Recommendation
+		}
+
 		res[i] = dto.WatchlistResponse{
-			Ticker:      item.Ticker,
-			CompanyName: item.CompanyName,
-			AddedAt:     item.CreatedAt,
+			Ticker:         item.Ticker,
+			CompanyName:    item.CompanyName,
+			AddedAt:        item.CreatedAt,
+			Price:          price,
+			ChangePercent:  changePercent,
+			AIScore:        aiScore,
+			Risk:           risk,
+			Recommendation: rec,
 		}
 	}
 	return res, nil
@@ -172,12 +199,43 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 
 	res := make([]dto.MarketOverviewResponse, len(snapshots))
 	for i, snap := range snapshots {
+		price := snap.Price
+		change := snap.Change
+		changePercent := snap.ChangePercent
+
+		if s.marketSrv != nil {
+			ticker := ""
+			switch snap.Symbol {
+			case "SP500":
+				ticker = "SPY"
+			case "NASDAQ":
+				ticker = "QQQ"
+			case "GOLD":
+				ticker = "GLD"
+			case "BTC":
+				ticker = "BINANCE:BTCUSDT"
+			}
+			if ticker != "" {
+				if quote, errQuote := s.marketSrv.GetQuote(ticker); errQuote == nil && quote != nil {
+					price = quote.CurrentPrice
+					change = quote.DailyChange
+					changePercent = quote.DailyChangePercent
+
+					// Update the DB snapshot cache
+					snap.Price = price
+					snap.Change = change
+					snap.ChangePercent = changePercent
+					_ = s.marketRepo.Update(&snap)
+				}
+			}
+		}
+
 		res[i] = dto.MarketOverviewResponse{
 			Symbol:        snap.Symbol,
 			Name:          getMarketName(snap.Symbol),
-			Price:         snap.Price,
-			Change:        snap.Change,
-			ChangePercent: snap.ChangePercent,
+			Price:         price,
+			Change:        change,
+			ChangePercent: changePercent,
 			UpdatedAt:     snap.UpdatedAt,
 		}
 	}

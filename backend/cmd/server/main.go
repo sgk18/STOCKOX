@@ -69,7 +69,11 @@ func main() {
 	recommendationRepo := repositories.NewRecommendationRepository(db)
 	_ = recommendationRepo
 
-	// 5. Initialize Services
+	// 5. Initialize Services (MarketService first to allow injection into DashboardService)
+	providerFactory := marketProviders.NewProviderFactory(cfg)
+	marketRedisCache := marketCache.NewMarketCache(rdb)
+	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+
 	dashboardSrv := service.NewDashboardService(
 		portfolioRepo,
 		watchlistRepo,
@@ -77,6 +81,7 @@ func main() {
 		agentRepo,
 		analysisRepo,
 		rdb,
+		marketSrv,
 	)
 
 	// 7. Setup WebSockets Hub and Simulator
@@ -91,11 +96,6 @@ func main() {
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
-
-	// Market Controllers
-	providerFactory := marketProviders.NewProviderFactory(cfg)
-	marketRedisCache := marketCache.NewMarketCache(rdb)
-	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
 	// 8. Create Gin Engine (gin.New is used because custom recovery/logger middlewares are registered in SetupRoutes)

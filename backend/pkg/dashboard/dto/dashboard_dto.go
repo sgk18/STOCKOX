@@ -16,9 +16,14 @@ type PortfolioResponse struct {
 }
 
 type WatchlistResponse struct {
-	Ticker      string    `json:"ticker"`
-	CompanyName string    `json:"company_name"`
-	AddedAt     time.Time `json:"added_at"`
+	Ticker         string    `json:"ticker"`
+	CompanyName    string    `json:"company_name"`
+	AddedAt        time.Time `json:"added_at"`
+	Price          float64   `json:"price"`
+	ChangePercent  float64   `json:"change_percent"`
+	AIScore        int       `json:"ai_score"`
+	Risk           string    `json:"risk"`
+	Recommendation string    `json:"recommendation"`
 }
 
 type MarketOverviewResponse struct {

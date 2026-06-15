@@ -42,7 +42,11 @@ func init() {
 	agentRepo := repositories.NewAgentRepository(db)
 	analysisRepo := repositories.NewAnalysisRepository(db)
 
-	// 4. Init Services
+	// 4. Init Services (MarketService first to allow injection into DashboardService)
+	providerFactory := marketProviders.NewProviderFactory(cfg)
+	marketRedisCache := marketCache.NewMarketCache(nil) // redis disabled in serverless
+	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+
 	dashboardSrv := service.NewDashboardService(
 		portfolioRepo,
 		watchlistRepo,
@@ -50,6 +54,7 @@ func init() {
 		agentRepo,
 		analysisRepo,
 		nil, // Redis cache is disabled for serverless execution simplicity
+		marketSrv,
 	)
 
 	// 5. Init Controllers
@@ -61,11 +66,6 @@ func init() {
 	// 6. Init WebSocket Hub
 	wsHub := websocket.NewHub()
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
-
-	// Market Controllers
-	providerFactory := marketProviders.NewProviderFactory(cfg)
-	marketRedisCache := marketCache.NewMarketCache(nil) // redis disabled in serverless
-	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
 	// 7. Setup Gin Engine
