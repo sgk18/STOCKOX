@@ -9,6 +9,7 @@ import (
 
 type UserRepository interface {
 	GetByID(id string) (*models.User, error)
+	GetByClerkID(clerkID string) (*models.User, error)
 	GetByEmail(email string) (*models.User, error)
 	Create(user *models.User) error
 	Update(user *models.User) error
@@ -28,6 +29,15 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 func (r *sqlUserRepository) GetByID(id string) (*models.User, error) {
 	var user models.User
 	err := r.db.First(&user, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *sqlUserRepository) GetByClerkID(clerkID string) (*models.User, error) {
+	var user models.User
+	err := r.db.First(&user, "clerk_id = ?", clerkID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +71,8 @@ func (r *sqlUserRepository) UpdateID(oldID, newID string) error {
 
 func (r *sqlUserRepository) Upsert(user *models.User) error {
 	return r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		UpdateAll: true,
+		Columns:   []clause.Column{{Name: "clerk_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"email", "name", "avatar_url", "updated_at"}),
 	}).Create(user).Error
 }
 

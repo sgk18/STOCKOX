@@ -117,7 +117,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 	}
 	userID := userIDVal.(string)
 
-	log.Printf("[AUTH] Clerk user detected: user_id=%s", userID)
+	log.Printf("[AUTH] Clerk user authenticated: user_id=%s", userID)
 	log.Printf("[AUTH] Sync started: user_id=%s", userID)
 
 	// 2. Bind optional request body containing name, email, avatar_url
@@ -147,12 +147,22 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		avatarURL = "https://avatar.vercel.sh/" + userID
 	}
 
-	// 3. Upsert Logic: Query to differentiate logs (created vs updated)
-	existingUser, err := ctrl.userRepo.GetByID(userID)
+	// 3. Upsert Logic: Search by clerk_id first
+	existingUser, err := ctrl.userRepo.GetByClerkID(userID)
 	isNew := false
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			isNew = true
+			// If clerk_id does not exist, search by email to link records
+			existingUser, err = ctrl.userRepo.GetByEmail(email)
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					isNew = true
+				} else {
+					log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
+					return
+				}
+			}
 		} else {
 			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
@@ -160,17 +170,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		}
 	}
 
-	userToUpsert := models.User{
-		ID:        userID,
-		Email:     email,
-		Name:      name,
-		AvatarURL: avatarURL,
-		Role:      "Lead Investment Advisor",
-		UpdatedAt: time.Now(),
-	}
-
 	if isNew {
-		userToUpsert.CreatedAt = time.Now()
 		// Call centralized provisioning helper (which seeds portfolio/watchlist)
 		err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
 		if err != nil {
@@ -178,9 +178,31 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
 			return
 		}
-		log.Printf("[AUTH] User inserted: email=%s, user_id=%s", email, userID)
+		log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
 	} else {
-		userToUpsert.CreatedAt = existingUser.CreatedAt
+		// If linked by email, cascade update User ID in tables
+		if existingUser.ClerkID == "" {
+			log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s)", email, userID)
+			oldID := existingUser.ID
+			if err := ctrl.userRepo.UpdateID(oldID, userID); err != nil {
+				log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user ID during link"})
+				return
+			}
+			existingUser.ID = userID
+			existingUser.ClerkID = userID
+		}
+
+		userToUpsert := models.User{
+			ID:        existingUser.ID,
+			ClerkID:   userID,
+			Email:     email,
+			Name:      name,
+			AvatarURL: avatarURL,
+			Role:      existingUser.Role,
+			CreatedAt: existingUser.CreatedAt,
+			UpdatedAt: time.Now(),
+		}
 		if err := ctrl.userRepo.Upsert(&userToUpsert); err != nil {
 			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
@@ -189,6 +211,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
 	}
 
+	log.Printf("[AUTH] Sync completed: user_id=%s", userID)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "User synchronized successfully",
@@ -205,7 +228,7 @@ func (ctrl *SyncController) DebugCurrentUser(c *gin.Context) {
 	}
 	userID := userIDVal.(string)
 
-	user, err := ctrl.userRepo.GetByID(userID)
+	user, err := ctrl.userRepo.GetByClerkID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found in database"})
@@ -216,7 +239,7 @@ func (ctrl *SyncController) DebugCurrentUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"clerk_id":   user.ID,
+		"clerk_id":   user.ClerkID,
 		"email":      user.Email,
 		"name":       user.Name,
 		"avatar_url": user.AvatarURL,

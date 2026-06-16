@@ -69,6 +69,20 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		log.Println("[DB] All required tables found")
 	}
 
+	// Run schema migrations for user synchronization
+	log.Println("[DB] Running schema updates for Clerk user synchronization...")
+	migrationSQLs := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE;`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
+	}
+	for _, sql := range migrationSQLs {
+		if err := db.Exec(sql).Error; err != nil {
+			log.Printf("[DB-WARN] Failed to run migration SQL '%s': %v", sql, err)
+		}
+	}
+	log.Println("[DB] Schema updates executed")
+
 	return db, nil
 }
 

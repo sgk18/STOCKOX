@@ -37,6 +37,7 @@ func ProvisionUser(
 
 		// Update user profile properties
 		existingUser.ID = userID
+		existingUser.ClerkID = userID
 		if name != "" {
 			existingUser.Name = name
 		}
@@ -64,6 +65,7 @@ func ProvisionUser(
 
 	newUser := models.User{
 		ID:        userID,
+		ClerkID:   userID,
 		Email:     email,
 		Name:      name,
 		AvatarURL: avatarURL,

@@ -32,6 +32,18 @@ func (m *MockUserRepository) GetByID(id string) (*models.User, error) {
 	return u, nil
 }
 
+func (m *MockUserRepository) GetByClerkID(clerkID string) (*models.User, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, u := range m.users {
+		if u.ClerkID == clerkID {
+			return u, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (m *MockUserRepository) GetByEmail(email string) (*models.User, error) {
 	if m.err != nil {
 		return nil, m.err
@@ -232,6 +244,7 @@ func TestHandleClerkWebhook_UserUpdated(t *testing.T) {
 		users: map[string]*models.User{
 			"user_123": {
 				ID:        "user_123",
+				ClerkID:   "user_123",
 				Email:     "old@example.com",
 				Name:      "Old Name",
 				AvatarURL: "old.jpg",
@@ -288,6 +301,7 @@ func TestHandleClerkWebhook_UserDeleted(t *testing.T) {
 		users: map[string]*models.User{
 			"user_123": {
 				ID:        "user_123",
+				ClerkID:   "user_123",
 				Email:     "user@example.com",
 				Name:      "User",
 				AvatarURL: "user.jpg",
@@ -370,6 +384,7 @@ func TestSyncUserV1_Updated(t *testing.T) {
 		users: map[string]*models.User{
 			"user_123": {
 				ID:        "user_123",
+				ClerkID:   "user_123",
 				Email:     "old@example.com",
 				Name:      "Old Name",
 				AvatarURL: "old.jpg",
@@ -416,6 +431,7 @@ func TestDebugCurrentUser(t *testing.T) {
 		users: map[string]*models.User{
 			"user_123": {
 				ID:        "user_123",
+				ClerkID:   "user_123",
 				Email:     "user@example.com",
 				Name:      "User One",
 				AvatarURL: "avatar.jpg",

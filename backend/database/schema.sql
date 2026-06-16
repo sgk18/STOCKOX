@@ -9,6 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY,
+    clerk_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255),
     avatar_url VARCHAR(255),
@@ -19,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- Portfolios Table
 CREATE TABLE IF NOT EXISTS portfolios (

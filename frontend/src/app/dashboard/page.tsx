@@ -40,7 +40,7 @@ export default function DashboardPage() {
       if (isLoaded && isSignedIn && user) {
         try {
           const token = await getToken();
-          const res = await fetch("/api/auth/sync", {
+          const res = await fetch("/api/v1/auth/sync-user", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -49,8 +49,7 @@ export default function DashboardPage() {
             body: JSON.stringify({
               name: user.fullName || user.username || user.firstName || "Adviser",
               email: user.primaryEmailAddress?.emailAddress || "",
-              avatar_url: user.imageUrl || "",
-              role: "Lead Investment Advisor"
+              avatar_url: user.imageUrl || ""
             })
           });
           if (res.ok) {

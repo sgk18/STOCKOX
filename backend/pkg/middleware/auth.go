@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/auth"
@@ -137,9 +138,9 @@ func Auth(
 	}
 }
 
-// EnsureUserExists checks if the authenticated user exists in the local database.
+// EnsureUserSynced checks if the authenticated user exists in the local database.
 // If missing, it JIT provisions their profile, default portfolio, and watchlists.
-func EnsureUserExists(
+func EnsureUserSynced(
 	userRepo repositories.UserRepository,
 	portfolioRepo repositories.PortfolioRepository,
 	watchlistRepo repositories.WatchlistRepository,
@@ -151,22 +152,53 @@ func EnsureUserExists(
 			return
 		}
 
-		_, err := userRepo.GetByID(userID)
+		email := c.GetString("UserEmail")
+		if email == "" {
+			email = userID + "@clerk.user"
+		}
+
+		existingUser, err := userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				email := c.GetString("UserEmail")
-				if email == "" {
-					email = userID + "@clerk.user"
-				}
-				log.Printf("[AUTH] Sync started: user_id=%s", userID)
-				err = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, userID, email, "Adviser", "", "Lead Investment Advisor")
-				if err != nil {
-					log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+				// Search by email to link records
+				existingUser, err = userRepo.GetByEmail(email)
+				if err == nil && existingUser != nil {
+					log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s) via middleware", email, userID)
+					oldID := existingUser.ID
+					if err := userRepo.UpdateID(oldID, userID); err != nil {
+						log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+					} else {
+						existingUser.ID = userID
+						existingUser.ClerkID = userID
+						existingUser.UpdatedAt = time.Now()
+						if err := userRepo.Update(existingUser); err != nil {
+							log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+						} else {
+							log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
+						}
+					}
 				} else {
-					log.Printf("[AUTH] User inserted: email=%s, user_id=%s", email, userID)
+					log.Printf("[AUTH] Sync started: user_id=%s", userID)
+					err = auth.ProvisionUser(userRepo, portfolioRepo, watchlistRepo, userID, email, "Adviser", "", "Lead Investment Advisor")
+					if err != nil {
+						log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+					} else {
+						log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
+					}
 				}
 			} else {
 				log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+			}
+		} else {
+			// User exists, update if context email changed and not empty
+			if email != "" && existingUser.Email != email {
+				existingUser.Email = email
+				existingUser.UpdatedAt = time.Now()
+				if err := userRepo.Update(existingUser); err != nil {
+					log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+				} else {
+					log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
+				}
 			}
 		}
 

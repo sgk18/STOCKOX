@@ -144,15 +144,45 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 			return
 		}
 
-		user, err := ctrl.userRepo.GetByID(userID)
+		user, err := ctrl.userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				// JIT Provision User
-				err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
+				// Search by email to link records
+				user, err = ctrl.userRepo.GetByEmail(email)
 				if err != nil {
-					log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
-					return
+					if err == gorm.ErrRecordNotFound {
+						// JIT Provision User
+						err = ProvisionUser(ctrl.userRepo, ctrl.portfolioRepo, ctrl.watchlistRepo, userID, email, name, avatarURL, "Lead Investment Advisor")
+						if err != nil {
+							log.Printf("[DATABASE] Database error: failed to JIT provision user %s: %v", userID, err)
+							c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to provision user profile"})
+							return
+						}
+					} else {
+						log.Printf("[DATABASE] Database error: email lookup failed for ID %s: %v", userID, err)
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
+						return
+					}
+				} else {
+					// Link existing user
+					log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s) via webhook", email, userID)
+					oldID := user.ID
+					if err := ctrl.userRepo.UpdateID(oldID, userID); err != nil {
+						log.Printf("[DATABASE] Database error: failed to update user ID during link: %v", err)
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user ID"})
+						return
+					}
+					user.ID = userID
+					user.ClerkID = userID
+					user.Name = name
+					user.AvatarURL = avatarURL
+					user.UpdatedAt = time.Now()
+					if err := ctrl.userRepo.Upsert(user); err != nil {
+						log.Printf("[DATABASE] Database error: failed to update user record: %v", err)
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user record"})
+						return
+					}
+					log.Printf("[DATABASE] User updated (linked): email=%s, user_id=%s", email, userID)
 				}
 			} else {
 				log.Printf("[DATABASE] Database error: user lookup failed for ID %s: %v", userID, err)
@@ -166,7 +196,7 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 			user.AvatarURL = avatarURL
 			user.UpdatedAt = time.Now()
 			
-			if err := ctrl.userRepo.Update(user); err != nil {
+			if err := ctrl.userRepo.Upsert(user); err != nil {
 				log.Printf("[DATABASE] Database error: failed to update user %s: %v", userID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user record"})
 				return
@@ -176,7 +206,19 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 
 	case "user.deleted":
 		userID := payload.Data.ID
-		if err := ctrl.userRepo.Delete(userID); err != nil {
+		user, err := ctrl.userRepo.GetByClerkID(userID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				log.Printf("[DATABASE] User not found for deletion: clerk_id=%s", userID)
+				c.JSON(http.StatusOK, gin.H{"status": "success", "message": "User not found for deletion"})
+				return
+			}
+			log.Printf("[DATABASE] Database error: delete lookup failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database lookup failed"})
+			return
+		}
+
+		if err := ctrl.userRepo.Delete(user.ID); err != nil {
 			log.Printf("[DATABASE] Database error: failed to delete user %s: %v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
 			return

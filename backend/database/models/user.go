@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	ID        string         `gorm:"type:varchar(255);primaryKey"`
+	ClerkID   string         `gorm:"type:varchar(255);uniqueIndex;column:clerk_id"`
 	Email     string         `gorm:"type:varchar(255);uniqueIndex;not null"`
 	Name      string         `gorm:"type:varchar(255)"`
 	AvatarURL string         `gorm:"type:varchar(255)"`

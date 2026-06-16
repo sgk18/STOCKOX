@@ -68,7 +68,7 @@ func SetupRoutes(
 	// Authenticated API Group
 	api := r.Group("/api")
 	api.Use(middleware.Auth(jwtSecret, userRepo, portfolioRepo, watchlistRepo))
-	api.Use(middleware.EnsureUserExists(userRepo, portfolioRepo, watchlistRepo))
+	api.Use(middleware.EnsureUserSynced(userRepo, portfolioRepo, watchlistRepo))
 	{
 		// Clerk Sync Callback
 		api.POST("/auth/sync", syncCtrl.SyncUser)

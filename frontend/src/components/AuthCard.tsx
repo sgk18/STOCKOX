@@ -33,13 +33,13 @@ export default function AuthCard() {
     <div className="w-full max-w-[460px] mx-auto p-2 relative flex justify-center">
       {isSignUp ? (
         <SignUp
-          forceRedirectUrl="/dashboard"
+          forceRedirectUrl="/auth-callback"
           signInUrl="/"
           appearance={brutalistAppearance}
         />
       ) : (
         <SignIn
-          forceRedirectUrl="/dashboard"
+          forceRedirectUrl="/auth-callback"
           signUpUrl="/?signup=true"
           appearance={brutalistAppearance}
         />
