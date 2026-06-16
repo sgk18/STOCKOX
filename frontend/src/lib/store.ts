@@ -46,8 +46,10 @@ interface DashboardState {
   watchlist: WatchlistItem[];
   agents: Agent[];
   market: MarketOverview[];
+  isDemoMode: boolean;
   
   // Actions
+  setDemoMode: (val: boolean) => void;
   addToWatchlist: (item: WatchlistItem) => void;
   removeFromWatchlist: (ticker: string) => void;
   updateAgentStatus: (id: string, status: Agent["status"], activity: string) => void;
@@ -181,6 +183,9 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         },
       };
     }),
+
+  isDemoMode: true,
+  setDemoMode: (val) => set({ isDemoMode: val }),
 
   updateMarketPrice: (name, value, changePercent) =>
     set((state) => ({

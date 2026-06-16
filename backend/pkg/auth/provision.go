@@ -95,46 +95,15 @@ func ProvisionUser(
 	portfolio := models.Portfolio{
 		ID:                 uuid.New(),
 		UserID:             userID,
-		TotalValue:         125400.00,
-		CashBalance:        12000.00,
-		DailyChange:        5062.00,
-		DailyChangePercent: 4.21,
+		TotalValue:         100000.00,
+		CashBalance:        100000.00,
+		DailyChange:        0.00,
+		DailyChangePercent: 0.00,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 	if err := portfolioRepo.Create(&portfolio); err != nil {
 		log.Printf("[SYNC-PROVISION-ERR] Failed to seed portfolio for user %s: %v", userID, err)
-	} else {
-		// Seed Portfolio Holdings
-		holdings := []models.PortfolioHolding{
-			{
-				ID:           uuid.New(),
-				PortfolioID:  portfolio.ID,
-				Ticker:       "NVDA",
-				CompanyName:  "NVIDIA Corp.",
-				Quantity:     50,
-				AveragePrice: 150.00,
-				CurrentPrice: 187.20,
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
-			},
-			{
-				ID:           uuid.New(),
-				PortfolioID:  portfolio.ID,
-				Ticker:       "AAPL",
-				CompanyName:  "Apple Inc.",
-				Quantity:     40,
-				AveragePrice: 170.00,
-				CurrentPrice: 178.45,
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
-			},
-		}
-		for _, h := range holdings {
-			if err := portfolioRepo.AddHolding(&h); err != nil {
-				log.Printf("[SYNC-PROVISION-ERR] Failed to seed holding %s: %v", h.Ticker, err)
-			}
-		}
 	}
 
 	// 4. Seed Watchlist Items

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useAuth } from "@clerk/nextjs";
+import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/lib/store";
 import { 
   PieChart as PieChartIcon, 
@@ -11,8 +12,6 @@ import {
   Bot, 
   Briefcase, 
   Activity, 
-  ArrowUpRight,
-  Layers,
   ArrowRight
 } from "lucide-react";
 import {
@@ -24,27 +23,73 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from "recharts";
 
-const HOLDINGS_DATA = [
-  { ticker: "NVDA", name: "NVIDIA Corp.", allocation: 35, shares: 120, price: 187.20, value: 22464, change: 4.20, recommendation: "BUY" },
-  { ticker: "AAPL", name: "Apple Inc.", allocation: 25, shares: 150, price: 178.45, value: 26767, change: 1.15, recommendation: "BUY" },
-  { ticker: "MSFT", name: "Microsoft Corp.", allocation: 20, shares: 80, price: 415.50, value: 33240, change: 0.85, recommendation: "BUY" },
-  { ticker: "TSLA", name: "Tesla Inc.", allocation: 12, shares: 70, price: 210.80, value: 14756, change: -2.40, recommendation: "HOLD" },
-  { ticker: "AMD", name: "Advanced Micro Devices", allocation: 8, shares: 60, price: 162.30, value: 9738, change: -1.95, recommendation: "HOLD" },
-];
+interface Holding {
+  ticker: string;
+  company_name: string;
+  quantity: number;
+  average_price: number;
+  current_price: number;
+  value: number;
+  change_percent: number;
+  recommendation: string;
+}
 
-const SECTOR_DATA = [
-  { name: "Tech / AI Infrastructure", value: 55, color: "#2563EB" },
-  { name: "Consumer Electronics", value: 25, color: "#3B82F6" },
-  { name: "Automotive / EV", value: 12, color: "#60A5FA" },
-  { name: "Semiconductors", value: 8, color: "#0F172A" },
-];
+const TickerSectorMap: Record<string, string> = {
+  NVDA: "Tech / AI Infrastructure",
+  MSFT: "Tech / AI Infrastructure",
+  AAPL: "Consumer Electronics",
+  TSLA: "Automotive / EV",
+  AMD: "Semiconductors",
+};
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Tech / AI Infrastructure": "#2563EB",
+  "Consumer Electronics": "#3B82F6",
+  "Automotive / EV": "#60A5FA",
+  "Semiconductors": "#0F172A",
+  "Other": "#64748B"
+};
 
 export default function PortfolioPage() {
-  const portfolio = useDashboardStore((state) => state.portfolio);
+  const { getToken, isSignedIn } = useAuth();
+  const isDemoMode = useDashboardStore((state) => state.isDemoMode);
+
+  // 1. Fetch dynamic portfolio holdings and valuation details
+  const { data: portfolioData, isLoading: isPortLoading, error: portError } = useQuery({
+    queryKey: ["portfolio-summary", isDemoMode],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/portfolio${isDemoMode ? "?demo=true" : ""}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load portfolio stats.");
+      return res.json();
+    },
+    enabled: isSignedIn,
+    refetchInterval: 30000,
+  });
+
+  // 2. Fetch portfolio risk exposure metrics
+  const { data: riskData, isLoading: isRiskLoading } = useQuery({
+    queryKey: ["portfolio-risk", isDemoMode],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/risk${isDemoMode ? "?demo=true" : ""}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load risk exposure stats.");
+      return res.json();
+    },
+    enabled: isSignedIn,
+    refetchInterval: 30000,
+  });
 
   const customTooltipStyle = {
     backgroundColor: "#FFFFFF",
@@ -54,6 +99,52 @@ export default function PortfolioPage() {
     fontSize: "10px",
     fontWeight: "bold",
   };
+
+  if (isPortLoading || isRiskLoading) {
+    return (
+      <div className="flex flex-col gap-8 animate-pulse p-4">
+        <div className="h-32 bg-black/5 border-4 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="col-span-1 lg:col-span-8 h-72 bg-black/5 border-4 border-black rounded-[24px]" />
+          <div className="col-span-1 lg:col-span-4 h-72 bg-black/5 border-4 border-black rounded-[24px]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (portError) {
+    return (
+      <div className="p-8 border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase">
+        <span className="font-black">Error:</span> Failed to retrieve terminal database records.
+      </div>
+    );
+  }
+
+  const holdings: Holding[] = portfolioData?.holdings || [];
+  const chartHistory = portfolioData?.history || [];
+  const totalValue = portfolioData?.value || 100000;
+  const cashBalance = portfolioData?.cash_balance || 100000;
+  const dailyChangeAmount = portfolioData?.change_amount || 0;
+  const dailyChangePercent = portfolioData?.change_percent || 0;
+
+  // 3. Compute dynamic sector allocations from fetched stock details
+  const sectorAllocations = holdings.reduce((acc, stock) => {
+    const sector = TickerSectorMap[stock.ticker] || "Other";
+    acc[sector] = (acc[sector] || 0) + stock.value;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Include remaining cash balance in "Other" or "Cash" sector if desired, or group stock value only
+  const totalHoldingsValue = holdings.reduce((sum, s) => sum + s.value, 0);
+  if (cashBalance > 0 && totalValue > 0) {
+    sectorAllocations["Cash / Liquid Assets"] = cashBalance;
+  }
+
+  const sectorData = Object.entries(sectorAllocations).map(([name, val]) => ({
+    name,
+    value: totalValue > 0 ? Math.round((val / totalValue) * 100) : 0,
+    color: SECTOR_COLORS[name] || "#64748B"
+  })).filter(s => s.value > 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -67,7 +158,7 @@ export default function PortfolioPage() {
             <span>Portfolio Command Center</span>
           </h1>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-1.5 font-mono">
-            Comprehensive holdings audit, risk metrics & AI asset reallocation proposals
+            {isDemoMode ? "DEMO MODE: Simulating Nvidia, Apple, Microsoft, Tesla, and AMD holdings" : "Authentic empty client portfolio (Cash Account Balance)"}
           </p>
         </div>
 
@@ -75,11 +166,13 @@ export default function PortfolioPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-4 shadow-[2px_2px_0px_#000000] flex flex-col min-w-[120px]">
             <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">NET BALANCE</span>
-            <span className="text-xl font-black text-[#2563EB] font-mono">${portfolio.value.toLocaleString()}</span>
+            <span className="text-xl font-black text-[#2563EB] font-mono">${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-4 shadow-[2px_2px_0px_#000000] flex flex-col min-w-[120px]">
             <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">TODAY'S RETURN</span>
-            <span className="text-xl font-black text-[#2563EB] font-mono">+{portfolio.changePercent}%</span>
+            <span className="text-xl font-black text-[#2563EB] font-mono">
+              {dailyChangeAmount >= 0 ? "+" : ""}{dailyChangePercent.toFixed(2)}%
+            </span>
           </div>
         </div>
       </section>
@@ -96,7 +189,7 @@ export default function PortfolioPage() {
 
           <div className="h-72 w-full font-mono text-[10px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={portfolio.history}>
+              <AreaChart data={chartHistory}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2}/>
@@ -120,28 +213,32 @@ export default function PortfolioPage() {
           </h3>
 
           <div className="h-56 w-full flex justify-center items-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={SECTOR_DATA}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {SECTOR_DATA.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#000000" strokeWidth={2} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={customTooltipStyle} />
-              </PieChart>
-            </ResponsiveContainer>
+            {sectorData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={sectorData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {sectorData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="#000000" strokeWidth={2} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={customTooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <span className="font-mono text-[10px] text-[#64748B] uppercase">No Holdings Allocated</span>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 mt-4 font-mono text-[9px] uppercase">
-            {SECTOR_DATA.map((sector) => (
+            {sectorData.map((sector) => (
               <div key={sector.name} className="flex items-center justify-between border-b border-black/5 pb-1">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 border border-black rounded" style={{ backgroundColor: sector.color }} />
@@ -166,7 +263,8 @@ export default function PortfolioPage() {
                   <th className="py-3.5 px-5">Asset</th>
                   <th className="py-3.5 px-5">Allocation</th>
                   <th className="py-3.5 px-5">Holding Shares</th>
-                  <th className="py-3.5 px-5">Price</th>
+                  <th className="py-3.5 px-5">Average Price</th>
+                  <th className="py-3.5 px-5">Current Price</th>
                   <th className="py-3.5 px-5">Value (USD)</th>
                   <th className="py-3.5 px-5">Daily Change</th>
                   <th className="py-3.5 px-5">AI Signal</th>
@@ -174,50 +272,60 @@ export default function PortfolioPage() {
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                {HOLDINGS_DATA.map((stock) => {
-                  const isNegative = stock.change < 0;
-                  return (
-                    <tr key={stock.ticker} className="hover:bg-[#F8FAFC] transition-colors">
-                      <td className="py-3.5 px-5 font-mono">
-                        <div className="flex flex-col">
-                          <span className="font-black text-[#2563EB] uppercase">{stock.ticker}</span>
-                          <span className="text-[9px] font-bold text-black/40">{stock.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-[#2563EB] w-7">{stock.allocation}%</span>
-                          <div className="w-16 bg-black/5 h-2 rounded-full overflow-hidden border border-black/10">
-                            <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${stock.allocation * 2}%` }} />
+                {holdings.length > 0 ? (
+                  holdings.map((stock) => {
+                    const isNegative = stock.change_percent < 0;
+                    const allocation = totalValue > 0 ? Math.round((stock.value / totalValue) * 100) : 0;
+                    return (
+                      <tr key={stock.ticker} className="hover:bg-[#F8FAFC] transition-colors">
+                        <td className="py-3.5 px-5 font-mono">
+                          <div className="flex flex-col">
+                            <span className="font-black text-[#2563EB] uppercase">{stock.ticker}</span>
+                            <span className="text-[9px] font-bold text-black/40">{stock.company_name}</span>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-5 font-mono font-bold">{stock.shares}</td>
-                      <td className="py-3.5 px-5 font-mono font-bold">${stock.price.toFixed(2)}</td>
-                      <td className="py-3.5 px-5 font-mono font-black">${stock.value.toLocaleString()}</td>
-                      <td className="py-3.5 px-5">
-                        <span className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-black ${isNegative ? "text-[#EF4444]" : "text-[#2563EB]"}`}>
-                          {isNegative ? "" : "+"}{stock.change.toFixed(2)}%
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-5">
-                        <span className={`px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase ${
-                          stock.recommendation === "BUY" ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-[#64748B]/10 text-[#64748B] border-[#64748B]/25"
-                        }`}>
-                          {stock.recommendation}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <a
-                          href={`/dashboard/research-terminal?ticker=${stock.ticker}`}
-                          className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-black hover:text-white hover:shadow-[1.5px_1.5px_0px_#2563EB] active:translate-y-[1px] transition-all"
-                        >
-                          Analyze
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-[#2563EB] w-7">{allocation}%</span>
+                            <div className="w-16 bg-black/5 h-2 rounded-full overflow-hidden border border-black/10">
+                              <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${allocation * 2}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-5 font-mono font-bold">{stock.quantity.toFixed(0)}</td>
+                        <td className="py-3.5 px-5 font-mono font-bold">${stock.average_price.toFixed(2)}</td>
+                        <td className="py-3.5 px-5 font-mono font-bold">${stock.current_price.toFixed(2)}</td>
+                        <td className="py-3.5 px-5 font-mono font-black">${stock.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                        <td className="py-3.5 px-5">
+                          <span className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-black ${isNegative ? "text-[#EF4444]" : "text-[#2563EB]"}`}>
+                            {isNegative ? "" : "+"}{stock.change_percent.toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5">
+                          <span className={`px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase ${
+                            stock.recommendation === "BUY" ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-[#64748B]/10 text-[#64748B] border-[#64748B]/25"
+                          }`}>
+                            {stock.recommendation}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5 text-right">
+                          <a
+                            href={`/dashboard/research-terminal?ticker=${stock.ticker}`}
+                            className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-black hover:text-white hover:shadow-[1.5px_1.5px_0px_#2563EB] active:translate-y-[1px] transition-all"
+                          >
+                            Analyze
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center font-mono text-xs uppercase text-black/55">
+                      No assets found in advisor holdings. Toggle "Demo Mode" to simulate portfolio.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -237,19 +345,25 @@ export default function PortfolioPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="border-2 border-black bg-[#F8FAFC] p-4 rounded-xl shadow-[2px_2px_0px_#000000]">
               <span className="text-[8px] font-black uppercase text-[#64748B] block mb-1">Portfolio Beta</span>
-              <span className="text-lg font-black text-[#0F172A] font-mono">1.18 <span className="text-[9px] text-[#64748B] uppercase font-bold">(vs S&P 500)</span></span>
+              <span className="text-lg font-black text-[#0F172A] font-mono">
+                {(riskData?.volatility_score || 1.18).toFixed(2)} <span className="text-[9px] text-[#64748B] uppercase font-bold">(vs S&P 500)</span>
+              </span>
             </div>
             <div className="border-2 border-black bg-[#F8FAFC] p-4 rounded-xl shadow-[2px_2px_0px_#000000]">
               <span className="text-[8px] font-black uppercase text-[#64748B] block mb-1">Sharpe Ratio</span>
               <span className="text-lg font-black text-[#2563EB] font-mono">2.41 <span className="text-[9px] text-[#64748B] uppercase font-bold">(Annualized)</span></span>
             </div>
             <div className="border-2 border-black bg-[#F8FAFC] p-4 rounded-xl shadow-[2px_2px_0px_#000000]">
-              <span className="text-[8px] font-black uppercase text-[#64748B] block mb-1">Max Drawdown</span>
-              <span className="text-lg font-black text-black/85 font-mono">-14.2%</span>
+              <span className="text-[8px] font-black uppercase text-[#64748B] block mb-1">Concentration Risk</span>
+              <span className="text-lg font-black text-black/85 font-mono">
+                {(riskData?.concentration_risk || 0).toFixed(1)}%
+              </span>
             </div>
             <div className="border-2 border-black bg-[#F8FAFC] p-4 rounded-xl shadow-[2px_2px_0px_#000000]">
               <span className="text-[8px] font-black uppercase text-[#64748B] block mb-1">95% Daily VaR</span>
-              <span className="text-lg font-black text-[#2563EB] font-mono">$4,820</span>
+              <span className="text-lg font-black text-[#2563EB] font-mono">
+                ${((totalValue * 0.038) || 4820).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
             </div>
           </div>
         </section>
@@ -258,26 +372,16 @@ export default function PortfolioPage() {
         <section className="glass-brutal-card p-6 flex flex-col gap-4">
           <h3 className="text-xs font-black uppercase tracking-wider text-[#0F172A] border-b-2 border-black pb-3 mb-2 font-mono flex items-center gap-2">
             <Bot className="w-4.5 h-4.5 text-[#2563EB]" />
-            <span>AI Reallocation Proposals</span>
+            <span>AI Risk Commentary</span>
           </h3>
 
           <div className="flex flex-col gap-3 font-mono text-xs text-[#0F172A]">
-            <div className="flex items-start gap-2.5 bg-[#2563EB]/5 border border-[#2563EB]/25 p-3 rounded-xl">
+            <div className="flex items-start gap-2.5 bg-[#2563EB]/5 border border-[#2563EB]/25 p-4 rounded-xl">
               <ArrowRight className="w-4.5 h-4.5 text-[#2563EB] shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <span className="font-black text-[#2563EB] uppercase block text-[10px]">Overweight AI Infrastructures</span>
-                <p className="text-[10px] text-black/75 mt-1 leading-normal">
-                  Increase NVDA allocation to 40% using dividends. Core data center revenues provide high downside security margin.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/20 p-3 rounded-xl">
-              <ArrowRight className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <span className="font-black text-amber-600 uppercase block text-[10px]">Reduce EV exposure weight</span>
-                <p className="text-[10px] text-black/75 mt-1 leading-normal">
-                  Trim TSLA holdings from 12% to 8% allocation due to delivery saturation sentiments. Reallocate balance to defensive MSFT shares.
+                <span className="font-black text-[#2563EB] uppercase block text-[10px]">OPERATIONAL AUDIT REPORT</span>
+                <p className="text-[10px] text-black/75 mt-1.5 leading-normal">
+                  {riskData?.risk_commentary || "No active holdings. Please allocate capital or enable Demo Mode to populate AI advisory commentary."}
                 </p>
               </div>
             </div>

@@ -81,6 +81,12 @@ func SetupRoutes(
 		api.GET("/dashboard/analyses", dbCtrl.GetRecentAnalyses)
 		api.GET("/dashboard/opportunities", dbCtrl.GetOpportunities)
 
+		// Custom advanced endpoints
+		api.GET("/dashboard/committee", dbCtrl.GetCommitteeDecisions)
+		api.GET("/dashboard/recommendations", dbCtrl.GetRecommendations)
+		api.GET("/dashboard/risk", dbCtrl.GetRiskMetrics)
+		api.GET("/research/:ticker", dbCtrl.GetResearchTerminal)
+
 		// V1 Endpoints
 		v1 := api.Group("/v1")
 		{

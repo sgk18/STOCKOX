@@ -2,6 +2,8 @@ package controller
 
 import (
 	"net/http"
+	"strings"
+
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/errors"
 
@@ -115,17 +117,61 @@ func (ctrl *DashboardController) GetOpportunities(c *gin.Context) {
 
 // Helper to extract userID from Gin Context as a string
 func (ctrl *DashboardController) getUserID(c *gin.Context) (string, bool) {
+	if c.Query("demo") == "true" {
+		return "demo_user_id_0000000000000000001", true
+	}
 	val, exists := c.Get("UserID")
 	if !exists {
-		// Fallback to static development user ID string
 		return "user_000000000000000000000000001", true
 	}
-
-	// Try string type assertion
 	if str, ok := val.(string); ok {
 		return str, true
 	}
-
-	// Try other types
 	return "user_000000000000000000000000001", true
+}
+
+func (ctrl *DashboardController) GetCommitteeDecisions(c *gin.Context) {
+	ticker := c.Query("ticker")
+	resp, err := ctrl.srv.GetCommitteeDecisions(ticker)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve committee decisions: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetRecommendations(c *gin.Context) {
+	resp, err := ctrl.srv.GetRecommendations()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve recommendations: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetRiskMetrics(c *gin.Context) {
+	userID, ok := ctrl.getUserID(c)
+	if !ok {
+		return
+	}
+	resp, err := ctrl.srv.GetRiskMetrics(userID)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve risk metrics: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetResearchTerminal(c *gin.Context) {
+	ticker := strings.ToUpper(strings.TrimSpace(c.Param("ticker")))
+	if ticker == "" {
+		errors.BadRequestError(c, "Ticker parameter is required")
+		return
+	}
+	resp, err := ctrl.srv.GetResearchTerminal(ticker)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve research data: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }

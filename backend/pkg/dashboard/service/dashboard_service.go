@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
+	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/dashboard/dto"
 	marketService "stockox-backend/pkg/market/service"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 type DashboardService interface {
@@ -23,9 +26,16 @@ type DashboardService interface {
 	GetAgentStatuses() ([]dto.AgentStatusResponse, error)
 	GetRecentAnalyses() ([]dto.AnalysisResponse, error)
 	GetOpportunities() ([]dto.OpportunityResponse, error)
+
+	// Custom dynamic endpoint additions
+	GetCommitteeDecisions(ticker string) ([]dto.CommitteeDecisionResponse, error)
+	GetRecommendations() ([]dto.AnalysisResponse, error)
+	GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error)
+	GetResearchTerminal(ticker string) (*dto.ResearchTerminalResponse, error)
 }
 
 type dashboardService struct {
+	db            *gorm.DB
 	portRepo      repositories.PortfolioRepository
 	watchRepo     repositories.WatchlistRepository
 	marketRepo    repositories.MarketRepository
@@ -37,6 +47,7 @@ type dashboardService struct {
 }
 
 func NewDashboardService(
+	db *gorm.DB,
 	portRepo repositories.PortfolioRepository,
 	watchRepo repositories.WatchlistRepository,
 	marketRepo repositories.MarketRepository,
@@ -46,6 +57,7 @@ func NewDashboardService(
 	marketSrv *marketService.MarketService,
 ) DashboardService {
 	return &dashboardService{
+		db:           db,
 		portRepo:     portRepo,
 		watchRepo:    watchRepo,
 		marketRepo:   marketRepo,
@@ -108,6 +120,11 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 		return nil, fmt.Errorf("opportunities query failed: %w", err)
 	}
 
+	decisions, err := s.GetCommitteeDecisions("")
+	if err != nil {
+		decisions = []dto.CommitteeDecisionResponse{}
+	}
+
 	resp := &dto.DashboardResponse{
 		Portfolio:      *portSummary,
 		Watchlist:      watchItems,
@@ -116,6 +133,7 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 		AgentStatuses:  statuses,
 		RecentAnalyses: analyses,
 		Opportunities:  opps,
+		Decisions:      decisions,
 	}
 
 	// 3. Write back to Redis cache (TTL: 60s)
@@ -133,10 +151,99 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 	if err != nil {
 		return nil, err
 	}
+
+	// Fetch holdings
+	holdings, err := s.portRepo.GetHoldings(port.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	holdingResponses := make([]dto.PortfolioHoldingResponse, 0, len(holdings))
+	totalHoldingsValue := 0.0
+	totalDailyChangeAmount := 0.0
+
+	for _, h := range holdings {
+		// Fetch price snapshot
+		var snap models.MarketSnapshot
+		price := h.AveragePrice
+		changePercent := 0.0
+		dailyChange := 0.0
+
+		errSnap := s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		if errSnap == nil {
+			price = snap.Price
+			changePercent = snap.ChangePercent
+			dailyChange = snap.Change
+		} else if s.marketSrv != nil {
+			quote, errQuote := s.marketSrv.GetQuote(h.Ticker)
+			if errQuote == nil && quote != nil {
+				price = quote.CurrentPrice
+				changePercent = quote.DailyChangePercent
+				dailyChange = quote.DailyChange
+			}
+		}
+
+		// Get latest AI recommendation
+		rec := "HOLD"
+		if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(h.Ticker); errSession == nil && latestSession != nil {
+			rec = latestSession.Recommendation
+		} else {
+			// Try committee decisions table
+			var dec models.CommitteeDecision
+			if errDec := s.db.First(&dec, "ticker = ?", h.Ticker).Error; errDec == nil {
+				rec = dec.CommitteeDecision
+			}
+		}
+
+		val := h.Quantity * price
+		totalHoldingsValue += val
+		totalDailyChangeAmount += h.Quantity * dailyChange
+
+		holdingResponses = append(holdingResponses, dto.PortfolioHoldingResponse{
+			Ticker:         h.Ticker,
+			CompanyName:    h.CompanyName,
+			Quantity:       h.Quantity,
+			AveragePrice:   h.AveragePrice,
+			CurrentPrice:   price,
+			Value:          val,
+			ChangePercent:  changePercent,
+			Recommendation: rec,
+		})
+	}
+
+	// Recalculate portfolio parameters dynamically
+	totalValue := totalHoldingsValue + port.CashBalance
+	dailyChangePercent := 0.0
+	if totalValue > 0 {
+		dailyChangePercent = (totalDailyChangeAmount / totalValue) * 100
+	}
+
+	// Fetch history snapshots
+	var snapshots []models.PortfolioSnapshot
+	s.db.Where("portfolio_id = ?", port.ID).Order("recorded_at asc").Find(&snapshots)
+
+	historyPoints := make([]dto.PortfolioHistoryPoint, 0, len(snapshots))
+	for _, snap := range snapshots {
+		historyPoints = append(historyPoints, dto.PortfolioHistoryPoint{
+			Date:  snap.RecordedAt.Format("Mon"),
+			Value: snap.TotalValue,
+		})
+	}
+
+	// Fallback to initial point if empty
+	if len(historyPoints) == 0 {
+		historyPoints = []dto.PortfolioHistoryPoint{
+			{Date: "Mon", Value: totalValue},
+		}
+	}
+
 	return &dto.PortfolioResponse{
-		Value:              port.TotalValue,
-		ChangePercent:      port.DailyChangePercent,
-		ChangeAmount:       port.DailyChange,
+		Value:              totalValue,
+		ChangePercent:      dailyChangePercent,
+		ChangeAmount:       totalDailyChangeAmount,
+		CashBalance:        port.CashBalance,
+		Holdings:           holdingResponses,
+		History:            historyPoints,
 	}, nil
 }
 
@@ -354,6 +461,378 @@ func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error)
 	}, nil
 }
 
+
+func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.CommitteeDecisionResponse, error) {
+	var decisions []models.CommitteeDecision
+	var err error
+	if ticker != "" {
+		err = s.db.Where("ticker = ?", ticker).Order("created_at desc").Find(&decisions).Error
+	} else {
+		err = s.db.Order("created_at desc").Find(&decisions).Error
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]dto.CommitteeDecisionResponse, len(decisions))
+	for i, d := range decisions {
+		res[i] = dto.CommitteeDecisionResponse{
+			Ticker:            d.Ticker,
+			ResearchVote:      d.ResearchVote,
+			TechnicalVote:     d.TechnicalVote,
+			NewsVote:          d.NewsVote,
+			RiskVote:          d.RiskVote,
+			CommitteeDecision: d.CommitteeDecision,
+			ConfidenceScore:   d.ConfidenceScore,
+			Reasoning:         d.Reasoning,
+			CreatedAt:         d.CreatedAt.Format("2006-01-02 15:04"),
+		}
+	}
+	return res, nil
+}
+
+func (s *dashboardService) GetRecommendations() ([]dto.AnalysisResponse, error) {
+	return s.GetRecentAnalyses()
+}
+
+func (s *dashboardService) GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error) {
+	port, err := s.portRepo.GetByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	holdings, err := s.portRepo.GetHoldings(port.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	totalHoldingsValue := 0.0
+	sectorAllocations := make(map[string]float64)
+	var performances []dto.AssetPerformanceItem
+
+	// Ticker-to-sector mapping fallback colors
+	sectorColors := map[string]string{
+		"Tech / AI Infrastructure": "#2563EB",
+		"Consumer Electronics":     "#3B82F6",
+		"Automotive / EV":          "#60A5FA",
+		"Semiconductors":           "#0F172A",
+		"Technology":               "#64748B",
+	}
+
+	for _, h := range holdings {
+		var snap models.MarketSnapshot
+		price := h.AveragePrice
+		changePercent := 0.0
+
+		errSnap := s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		if errSnap == nil {
+			price = snap.Price
+			changePercent = snap.ChangePercent
+		} else if s.marketSrv != nil {
+			quote, errQuote := s.marketSrv.GetQuote(h.Ticker)
+			if errQuote == nil && quote != nil {
+				price = quote.CurrentPrice
+				changePercent = quote.DailyChangePercent
+			}
+		}
+
+		val := h.Quantity * price
+		totalHoldingsValue += val
+
+		// Get Sector from metadata
+		var meta models.StockMetadata
+		sector := getSectorByTicker(h.Ticker)
+		if errMeta := s.db.First(&meta, "symbol = ?", h.Ticker).Error; errMeta == nil && meta.Sector != "" {
+			sector = meta.Sector
+		}
+		sectorAllocations[sector] += val
+
+		performances = append(performances, dto.AssetPerformanceItem{
+			Ticker:        h.Ticker,
+			ChangePercent: changePercent,
+		})
+	}
+
+	totalValue := totalHoldingsValue + port.CashBalance
+
+	// Build exposure items
+	exposureItems := make([]dto.SectorExposureItem, 0, len(sectorAllocations))
+	for name, val := range sectorAllocations {
+		pct := 0.0
+		if totalValue > 0 {
+			pct = (val / totalValue) * 100
+		}
+		color, exists := sectorColors[name]
+		if !exists {
+			color = "#64748B"
+		}
+		exposureItems = append(exposureItems, dto.SectorExposureItem{
+			Name:  name,
+			Value: pct,
+			Color: color,
+		})
+	}
+
+	// Calculate Concentration Risk
+	largestHoldingValue := 0.0
+	for _, h := range holdings {
+		var snap models.MarketSnapshot
+		price := h.AveragePrice
+		_ = s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		if snap.Price > 0 {
+			price = snap.Price
+		}
+		val := h.Quantity * price
+		if val > largestHoldingValue {
+			largestHoldingValue = val
+		}
+	}
+	concentrationRisk := 0.0
+	if totalValue > 0 {
+		concentrationRisk = (largestHoldingValue / totalValue) * 100
+	}
+
+	// Beta / volatility calculations
+	betas := map[string]float64{
+		"NVDA": 1.85, "AAPL": 1.20, "MSFT": 1.15, "TSLA": 1.95, "AMD": 1.65,
+	}
+	weightedBetaSum := 0.0
+	holdingsWeightSum := 0.0
+	for _, h := range holdings {
+		var snap models.MarketSnapshot
+		price := h.AveragePrice
+		_ = s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		if snap.Price > 0 {
+			price = snap.Price
+		}
+		val := h.Quantity * price
+		beta := betas[h.Ticker]
+		if beta == 0 {
+			beta = 1.0
+		}
+		weightedBetaSum += val * beta
+		holdingsWeightSum += val
+	}
+
+	volatilityScore := 1.20
+	if holdingsWeightSum > 0 {
+		volatilityScore = weightedBetaSum / holdingsWeightSum
+	}
+
+	// Diversification score
+	diversificationScore := len(sectorAllocations) * 20
+	if diversificationScore > 100 {
+		diversificationScore = 100
+	}
+
+	// Risk score calculation
+	riskScore := int(concentrationRisk*0.4 + volatilityScore*25.0)
+	if riskScore > 100 {
+		riskScore = 100
+	}
+	if riskScore == 0 {
+		riskScore = 24
+	}
+
+	// Sort performance lists
+	sort.Slice(performances, func(i, j int) bool {
+		return performances[i].ChangePercent > performances[j].ChangePercent
+	})
+
+	bestPerformers := make([]dto.AssetPerformanceItem, 0)
+	worstPerformers := make([]dto.AssetPerformanceItem, 0)
+	if len(performances) > 0 {
+		bestPerformers = performances
+		worstPerformers = make([]dto.AssetPerformanceItem, len(performances))
+		for i, p := range performances {
+			worstPerformers[len(performances)-1-i] = p
+		}
+	}
+
+	riskCommentary := "Your asset allocation is currently optimized. High diversification scores indicate low correlation parameters across holdings."
+	if concentrationRisk > 30.0 {
+		riskCommentary = fmt.Sprintf("High concentration detected in singular assets (%.1f%% of portfolio value). Consider reallocating resources to defensive indexes to mitigate volatility.", concentrationRisk)
+	}
+
+	return &dto.RiskMetricsResponse{
+		RiskScore:             riskScore,
+		SectorExposure:        exposureItems,
+		ConcentrationRisk:     concentrationRisk,
+		VolatilityScore:       volatilityScore,
+		DiversificationScore:  diversificationScore,
+		WorstPerformingAssets: worstPerformers,
+		BestPerformingAssets:  bestPerformers,
+		RiskCommentary:        riskCommentary,
+	}, nil
+}
+
+func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerminalResponse, error) {
+	var companyName string = ticker
+	var industry string = "Equities"
+	var sector string = "Technology"
+	var logo string = "https://logo.clearbit.com/nvidia.com"
+	var desc string = ticker + " is a publicly traded company on the US stock market."
+	var marketCap string = "N/A"
+	var exchange string = "US Exchange"
+	var country string = "US"
+
+	profile, err := s.marketSrv.GetCompanyProfile(ticker)
+	if err == nil && profile != nil {
+		companyName = profile.Name
+		industry = profile.Industry
+		sector = getSectorByTicker(ticker)
+		logo = profile.Logo
+		desc = profile.Description
+		marketCap = fmt.Sprintf("%.2f Billion", float64(profile.MarketCap)/1e9)
+		exchange = profile.Exchange
+		country = profile.Country
+	}
+
+	var pe, eps, roe, debtRatio, revenueGrowth, profitMargin, currentRatio float64 = 0, 0, 0, 0, 0, 0, 0
+	var revenue, cashFlow int64 = 0, 0
+	metrics, err := s.marketSrv.GetFinancialMetrics(ticker)
+	if err == nil && metrics != nil {
+		pe = metrics.PE
+		eps = metrics.EPS
+		roe = metrics.ROE
+		debtRatio = metrics.DebtRatio
+		revenue = metrics.Revenue
+		revenueGrowth = metrics.RevenueGrowth
+		profitMargin = metrics.ProfitMargin
+		currentRatio = metrics.CurrentRatio
+		cashFlow = metrics.CashFlow
+	}
+
+	news, err := s.marketSrv.GetCompanyNews(ticker)
+	newsResponses := make([]dto.NewsResponse, 0)
+	if err == nil {
+		for _, n := range news {
+			newsResponses = append(newsResponses, dto.NewsResponse{
+				Title:   n.Title,
+				Source:  n.Source,
+				Date:    n.Date,
+				URL:     n.URL,
+				Summary: n.Summary,
+			})
+		}
+	}
+
+	candles, err := s.marketSrv.GetHistoricalCandles(ticker, "D")
+	candleResponses := make([]dto.CandleResponse, 0)
+	if err == nil {
+		for _, c := range candles {
+			candleResponses = append(candleResponses, dto.CandleResponse{
+				Time:  time.Unix(c.Timestamp, 0).Format("2006-01-02"),
+				Value: c.Close,
+			})
+		}
+	}
+
+	ratings := dto.AnalystRatingsResponse{Buy: 78, Hold: 18, Sell: 4}
+
+	var dec models.CommitteeDecision
+	errDec := s.db.First(&dec, "ticker = ?", ticker).Error
+	decResp := dto.CommitteeDecisionResponse{
+		Ticker:            ticker,
+		ResearchVote:      "BUY",
+		TechnicalVote:     "BUY",
+		NewsVote:          "HOLD",
+		RiskVote:          "BUY",
+		CommitteeDecision: "BUY",
+		ConfidenceScore:   85,
+		Reasoning:         "Consensus buy driven by robust product roadmap and scaling operational margins.",
+		CreatedAt:         time.Now().Format("2006-01-02 15:04"),
+	}
+	if errDec == nil {
+		decResp = dto.CommitteeDecisionResponse{
+			Ticker:            dec.Ticker,
+			ResearchVote:      dec.ResearchVote,
+			TechnicalVote:     dec.TechnicalVote,
+			NewsVote:          dec.NewsVote,
+			RiskVote:          dec.RiskVote,
+			CommitteeDecision: dec.CommitteeDecision,
+			ConfidenceScore:   dec.ConfidenceScore,
+			Reasoning:         dec.Reasoning,
+			CreatedAt:         dec.CreatedAt.Format("2006-01-02 15:04"),
+		}
+	}
+
+	timelineMessages, _ := s.analysisRepo.GetRecentAgentMessages(5)
+	timelineResponses := make([]dto.AgentTimelineItem, 0)
+	for _, m := range timelineMessages {
+		timelineResponses = append(timelineResponses, dto.AgentTimelineItem{
+			AgentName: m.AgentName,
+			Status:    m.MessageType,
+			Activity:  m.Message,
+			Time:      m.CreatedAt.Format("15:04"),
+		})
+	}
+	if len(timelineResponses) == 0 {
+		timelineResponses = []dto.AgentTimelineItem{
+			{AgentName: "Research Agent", Status: "research", Activity: "Parsed quarterly report details.", Time: "14:10"},
+			{AgentName: "Technical Agent", Status: "thinking", Activity: "Identified buy triggers on support lines.", Time: "14:15"},
+		}
+	}
+
+	investmentThesis := fmt.Sprintf("%s exhibits strong fundamental health parameters. The AI Committee consolidates a %s recommendation at %d%% consensus weight.", companyName, decResp.CommitteeDecision, decResp.ConfidenceScore)
+
+	var currentPrice, dailyChange, dailyChangePercent, highPrice, lowPrice, openPrice, prevClosePrice float64 = 0, 0, 0, 0, 0, 0, 0
+	var vol, avgVol int64 = 0, 0
+	if quote, errQuote := s.marketSrv.GetQuote(ticker); errQuote == nil && quote != nil {
+		currentPrice = quote.CurrentPrice
+		dailyChange = quote.DailyChange
+		dailyChangePercent = quote.DailyChangePercent
+		highPrice = quote.HighPrice
+		lowPrice = quote.LowPrice
+		openPrice = quote.OpenPrice
+		prevClosePrice = quote.PrevClosePrice
+		vol = quote.Volume
+		avgVol = quote.AvgVolume
+	}
+
+	return &dto.ResearchTerminalResponse{
+		Symbol:      ticker,
+		CompanyName: companyName,
+		Profile: dto.CompanyProfileResponse{
+			Sector:      sector,
+			Industry:    industry,
+			MarketCap:   marketCap,
+			Exchange:    exchange,
+			Country:     country,
+			LogoURL:     logo,
+			Description: desc,
+		},
+		Metrics: dto.FinancialMetricsResponse{
+			PERatio:       pe,
+			EPS:           eps,
+			ROE:           roe,
+			DebtRatio:     debtRatio,
+			Revenue:       revenue,
+			RevenueGrowth: revenueGrowth,
+			ProfitMargin:  profitMargin,
+			CurrentRatio:  currentRatio,
+			CashFlow:      cashFlow,
+		},
+		Quote: dto.QuoteResponse{
+			CurrentPrice:       currentPrice,
+			DailyChange:        dailyChange,
+			DailyChangePercent: dailyChangePercent,
+			HighPrice:          highPrice,
+			LowPrice:           lowPrice,
+			OpenPrice:          openPrice,
+			PrevClosePrice:     prevClosePrice,
+			Volume:             vol,
+			AvgVolume:          avgVol,
+		},
+		History:           candleResponses,
+		News:              newsResponses,
+		AnalystRatings:    ratings,
+		CommitteeDecision: decResp,
+		AgentTimeline:     timelineResponses,
+		InvestmentThesis:  investmentThesis,
+	}, nil
+}
+
 // Helper to map tickers to friendly display name
 func getMarketName(symbol string) string {
 	switch symbol {
@@ -371,3 +850,21 @@ func getMarketName(symbol string) string {
 		return symbol
 	}
 }
+
+func getSectorByTicker(ticker string) string {
+	switch ticker {
+	case "NVDA":
+		return "Tech / AI Infrastructure"
+	case "MSFT":
+		return "Tech / AI Infrastructure"
+	case "AAPL":
+		return "Consumer Electronics"
+	case "TSLA":
+		return "Automotive / EV"
+	case "AMD":
+		return "Semiconductors"
+	default:
+		return "Technology"
+	}
+}
+

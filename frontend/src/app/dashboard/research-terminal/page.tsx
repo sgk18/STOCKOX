@@ -3,41 +3,123 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
 
 // Stores
 import { useSearchStore, SearchStockResult } from "@/lib/searchStore";
-import { useSelectedStockStore, CompanyProfile, FinancialMetrics, Candle, CompanyNews } from "@/lib/selectedStockStore";
 import { useWatchlistStore } from "@/lib/watchlistStore";
-import { useAnalysisStore } from "@/lib/analysisStore";
 
 // Components & UI Elements
 import SearchBar from "@/components/features/search/SearchBar";
 import SearchResults from "@/components/features/search/SearchResults";
 import CompanyMetricsComponent from "@/components/features/analysis/CompanyMetrics";
 import WatchlistButton from "@/components/features/watchlist/WatchlistButton";
-import LightweightChart from "@/components/features/analysis/LightweightChart";
 import LiveAnalysisPanel from "@/components/features/analysis/LiveAnalysisPanel";
 
 import { 
   Terminal, 
-  Search, 
-  TrendingUp, 
   Newspaper, 
   AlertCircle, 
   Globe, 
   Calendar, 
   ArrowUpRight, 
   ArrowDownRight,
-  ShieldCheck, 
-  Award,
   Layers,
   FileText,
   MessageSquare,
   Sparkles
 } from "lucide-react";
 
+interface ResearchResponse {
+  symbol: string;
+  company_name: string;
+  profile: {
+    sector: string;
+    industry: string;
+    market_cap: string;
+    exchange: string;
+    country: string;
+    logo_url: string;
+    description: string;
+  };
+  metrics: {
+    pe_ratio: number;
+    eps: number;
+    roe: number;
+    debt_ratio: number;
+    revenue: number;
+    revenue_growth: number;
+    profit_margin: number;
+    current_ratio: number;
+    cash_flow: number;
+  };
+  quote: {
+    current_price: number;
+    daily_change: number;
+    daily_change_percent: number;
+    high_price: number;
+    low_price: number;
+    open_price: number;
+    prev_close_price: number;
+    volume: number;
+    avg_volume: number;
+  };
+  history: {
+    time: string;
+    value: number;
+  }[];
+  news: {
+    title: string;
+    source: string;
+    date: string;
+    url: string;
+    summary: string;
+  }[];
+  analyst_ratings: {
+    buy: number;
+    hold: number;
+    sell: number;
+  };
+  committee_decision: {
+    ticker: string;
+    research_vote: string;
+    technical_vote: string;
+    news_vote: string;
+    risk_vote: string;
+    committee_decision: string;
+    confidence: number;
+    reasoning?: string;
+    created_at: string;
+  };
+  agent_timeline: {
+    agent_name: string;
+    status: string;
+    activity: string;
+    time: string;
+  }[];
+  investment_thesis: string;
+}
+
+const customTooltipStyle = {
+  backgroundColor: "#FFFFFF",
+  border: "3px solid #000000",
+  borderRadius: "12px",
+  fontFamily: "monospace",
+  fontSize: "10px",
+  fontWeight: "bold",
+  boxShadow: "3px 3px 0px #000000"
+};
+
 function ResearchTerminalContent() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tickerParam = searchParams.get("ticker");
@@ -48,47 +130,28 @@ function ResearchTerminalContent() {
   const setSearchResults = useSearchStore((state) => state.setSearchResults);
   const addToSearchHistory = useSearchStore((state) => state.addToSearchHistory);
 
-  // Selected Stock Store
-  const selectedStock = useSelectedStockStore((state) => state.selectedStock);
-  const metrics = useSelectedStockStore((state) => state.metrics);
-  const history = useSelectedStockStore((state) => state.history);
-  const news = useSelectedStockStore((state) => state.news);
-  const isLoadingStock = useSelectedStockStore((state) => state.isLoadingStock);
-  const errorText = useSelectedStockStore((state) => state.error);
-  const fetchStockDetails = useSelectedStockStore((state) => state.fetchStockDetails);
-  const fetchMetrics = useSelectedStockStore((state) => state.fetchMetrics);
-  const fetchHistory = useSelectedStockStore((state) => state.fetchHistory);
-  const fetchNews = useSelectedStockStore((state) => state.fetchNews);
-  const clearSelectedStock = useSelectedStockStore((state) => state.clearSelectedStock);
-
-  // Watchlist Store
-  const fetchWatchlist = useWatchlistStore((state) => state.fetchWatchlist);
-
   // State for generated AI Research Report view
   const [activeTab, setActiveTab] = useState<"overview" | "financials" | "report" | "debate">("overview");
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportText, setReportText] = useState<string>("");
 
-  // Sync details / metrics / charts / news on ticker param change
-  useEffect(() => {
-    async function loadData() {
-      if (!tickerParam) {
-        clearSelectedStock();
-        return;
-      }
-      const ticker = tickerParam.toUpperCase();
+  // Query research details from the unified backend API
+  const { data: researchData, isLoading: isLoadingResearch, error: researchError } = useQuery<ResearchResponse>({
+    queryKey: ["research-terminal", tickerParam],
+    queryFn: async () => {
+      if (!tickerParam) return null;
       const token = await getToken();
-      
-      // Parallel fetches for real-time market provider
-      await Promise.all([
-        fetchStockDetails(ticker, token),
-        fetchMetrics(ticker, token),
-        fetchHistory(ticker, token, "D"),
-        fetchNews(ticker, token)
-      ]);
-    }
-    loadData();
-  }, [tickerParam, getToken, fetchStockDetails, fetchMetrics, fetchHistory, fetchNews, clearSelectedStock]);
+      const res = await fetch(`/api/research/${tickerParam.toUpperCase()}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error(`Advisory ticker ${tickerParam.toUpperCase()} could not be resolved.`);
+      return res.json();
+    },
+    enabled: isSignedIn && !!tickerParam,
+    refetchInterval: 30000,
+  });
 
   const handleStockSelect = (stock: SearchStockResult) => {
     addToSearchHistory(stock.ticker);
@@ -98,27 +161,27 @@ function ResearchTerminalContent() {
   };
 
   const generateAIReport = () => {
-    if (!selectedStock) return;
+    if (!researchData) return;
     setGeneratingReport(true);
     setTimeout(() => {
       const report = `
-# SECURITIES RESEARCH AUDIT: ${selectedStock.ticker} (${selectedStock.name})
+# SECURITIES RESEARCH AUDIT: ${researchData.symbol} (${researchData.company_name})
 **CLASSIFICATION: INVESTMENT BOARD SYNTHESIS REPORT**
 **COMPILED BY: AI ADVISORY COMMITTEE CONCURRENCE MATRIX**
 
 ## Executive Summary
-${selectedStock.name} exhibits positive market structural indicators. Supported by steady revenue growth matrices and solid macro tailwinds, the advisory committee issues a recommendation.
+${researchData.company_name} exhibits positive market structural indicators. Supported by steady revenue growth matrices and solid macro tailwinds, the advisory committee issues a recommendation.
 
 ## Financial Valuation & Multiples
-- **Market Capitalization:** ${formatLargeNumber(selectedStock.marketCap)}
-- **PE Multiple Ratio:** ${metrics?.pe || "N/A"}
-- **ROE Margin:** ${metrics?.roe ? `${(metrics.roe * 100).toFixed(2)}%` : "N/A"}
-- **Revenue Growth Rate:** ${metrics?.revenueGrowth ? `${(metrics.revenueGrowth * 100).toFixed(2)}%` : "N/A"}
+- **Market Capitalization:** ${researchData.profile.market_cap}
+- **PE Multiple Ratio:** ${researchData.metrics.pe_ratio ? researchData.metrics.pe_ratio.toFixed(2) : "N/A"}
+- **ROE Margin:** ${researchData.metrics.roe ? `${(researchData.metrics.roe * 100).toFixed(2)}%` : "N/A"}
+- **Revenue Growth Rate:** ${researchData.metrics.revenue_growth ? `${(researchData.metrics.revenue_growth * 100).toFixed(2)}%` : "N/A"}
 
 ## Committee Synthesis Concurrence
 - **Research Node:** Valuation fair pricing models set support bounds.
 - **Technical Node:** RSI values indicate strong consolidation and support base above key EMAs.
-- **Sentiment Node:** Media coverage metrics yield mostly bullish results (78/100).
+- **Sentiment Node:** Media coverage metrics yield mostly bullish results (${researchData.analyst_ratings.buy}/100).
 - **Risk Node:** Recommended portfolio limits maxed out at 8% allocation weight.
 
 *Disclaimer: Real-time analysis compiled dynamically by federated committee nodes. Past results do not guarantee future profitability.*
@@ -129,19 +192,48 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
   };
 
   useEffect(() => {
-    if (selectedStock) {
+    if (researchData) {
       generateAIReport();
     }
-  }, [selectedStock, metrics]);
+  }, [researchData]);
 
-  const formatLargeNumber = (num: number) => {
-    if (!num) return "N/A";
-    if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
-    if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
-    return num.toLocaleString();
-  };
+  const isPositive = researchData ? researchData.quote.daily_change >= 0 : true;
 
-  const isPositive = selectedStock ? selectedStock.dailyChange >= 0 : true;
+  // Map to old interfaces so CompanyMetricsComponent receives exact properties it expects
+  const mappedProfile = researchData ? {
+    name: researchData.company_name,
+    ticker: researchData.symbol,
+    logo: researchData.profile.logo_url,
+    industry: researchData.profile.industry,
+    sector: researchData.profile.sector,
+    marketCap: 0, // Bypassed in favor of pre-formatted market_cap string from API
+    website: "",
+    description: researchData.profile.description,
+    ceo: "N/A",
+    employees: 0,
+    country: researchData.profile.country,
+    exchange: researchData.profile.exchange,
+    currentPrice: researchData.quote.current_price,
+    dailyChange: researchData.quote.daily_change,
+    dailyChangePercent: researchData.quote.daily_change_percent,
+    fiftyTwoWHigh: researchData.quote.high_price,
+    fiftyTwoWLow: researchData.quote.low_price,
+    volume: researchData.quote.volume,
+    avgVolume: researchData.quote.avg_volume
+  } : null;
+
+  const mappedMetrics = researchData ? {
+    ticker: researchData.symbol,
+    pe: researchData.metrics.pe_ratio,
+    eps: researchData.metrics.eps,
+    roe: researchData.metrics.roe,
+    revenue: researchData.metrics.revenue,
+    revenueGrowth: researchData.metrics.revenue_growth,
+    profitMargin: researchData.metrics.profit_margin,
+    debtRatio: researchData.metrics.debt_ratio,
+    currentRatio: researchData.metrics.current_ratio,
+    cashFlow: researchData.metrics.cash_flow
+  } : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -151,7 +243,7 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
         <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-[#0F172A] flex items-center justify-center gap-2.5">
           <Terminal className="w-8 h-8 text-[#2563EB]" />
-          <span>Research Terminal Terminal</span>
+          <span>Research Terminal</span>
         </h1>
         <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-1.5 mb-6">
           Access Company Financial Profiles, Advanced Charts, and AI Consensus Reports
@@ -161,51 +253,50 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
       </section>
 
       {/* Error State */}
-      {errorText && (
+      {researchError && (
         <div className="bg-[#EF4444]/10 border-4 border-black p-4 rounded-2xl flex items-center gap-3 text-[#EF4444] font-black text-xs max-w-lg mx-auto w-full">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span>{errorText}</span>
+          <span>{(researchError as any).message || "Advisory ticker details could not be loaded."}</span>
         </div>
       )}
 
       {/* Autocomplete Search results */}
-      {!selectedStock && searchResults.length > 0 && (
+      {!tickerParam && searchResults.length > 0 && (
         <SearchResults results={searchResults} onAnalyze={handleStockSelect} />
       )}
 
+      {/* Loading skeleton */}
+      {tickerParam && isLoadingResearch && (
+        <div className="flex flex-col gap-8 animate-pulse">
+          <div className="h-24 bg-black/5 border-4 border-black rounded-[24px]" />
+          <div className="h-64 bg-black/5 border-4 border-black rounded-[24px]" />
+        </div>
+      )}
+
       {/* Selected Stock workspace layout */}
-      {selectedStock && !isLoadingStock && (
+      {researchData && !isLoadingResearch && (
         <div className="flex flex-col gap-8 animate-fadeIn">
           
           {/* Header Card */}
           <section className="glass-brutal-card p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:shadow-[7px_7px_0px_#000000] transition-shadow duration-200">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-[#2563EB] border-4 border-black rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-[3px_3px_0px_#000000]">
-                {selectedStock.ticker.slice(0, 2)}
+                {researchData.symbol.slice(0, 2)}
               </div>
               <div>
                 <div className="flex items-center gap-2.5">
                   <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#0F172A]">
-                    {selectedStock.name}
+                    {researchData.company_name}
                   </h3>
                   <span className="font-mono font-black text-xs bg-black text-[#60A5FA] px-2 py-0.5 rounded border-2 border-black">
-                    {selectedStock.ticker}
+                    {researchData.symbol}
                   </span>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-2 mt-1.5 font-mono text-[9px] font-black uppercase text-[#64748B] tracking-wider">
-                  <span>{selectedStock.exchange}</span>
+                  <span>{researchData.profile.exchange}</span>
                   <span>•</span>
-                  <span>{selectedStock.industry}</span>
-                  {selectedStock.website && (
-                    <>
-                      <span>•</span>
-                      <a href={selectedStock.website} target="_blank" rel="noopener noreferrer" className="text-[#2563EB] hover:underline flex items-center gap-0.5 lowercase font-sans font-bold">
-                        <Globe className="w-3.5 h-3.5" />
-                        <span>visit</span>
-                      </a>
-                    </>
-                  )}
+                  <span>{researchData.profile.industry}</span>
                 </div>
               </div>
             </div>
@@ -214,26 +305,26 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
             <div className="flex flex-wrap items-center gap-4 md:text-right">
               <div className="flex flex-col md:items-end font-mono">
                 <span className="text-2xl md:text-3xl font-black tracking-tight text-[#0F172A]">
-                  ${selectedStock.currentPrice ? selectedStock.currentPrice.toFixed(2) : "N/A"}
+                  ${researchData.quote.current_price ? researchData.quote.current_price.toFixed(2) : "0.00"}
                 </span>
-                {selectedStock.dailyChangePercent !== undefined && (
+                {researchData.quote.daily_change_percent !== undefined && (
                   <span className={`inline-flex items-center gap-0.5 text-xs font-black uppercase mt-1 px-2.5 py-0.5 border-2 border-black shadow-[1.5px_1.5px_0px_#000000] rounded-lg ${
                     isPositive
                       ? "bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]/25"
                       : "bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/25"
                   }`}>
                     {isPositive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                    {isPositive ? "+" : ""}{selectedStock.dailyChangePercent.toFixed(2)}%
+                    {isPositive ? "+" : ""}{researchData.quote.daily_change_percent.toFixed(2)}%
                   </span>
                 )}
               </div>
 
               <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-3 shadow-[2px_2px_0px_#000000] flex flex-col items-center min-w-[70px]">
                 <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">Cap</span>
-                <span className="text-xs font-black text-[#2563EB]">{formatLargeNumber(selectedStock.marketCap)}</span>
+                <span className="text-xs font-black text-[#2563EB]">{researchData.profile.market_cap}</span>
               </div>
 
-              <WatchlistButton ticker={selectedStock.ticker} companyName={selectedStock.name} />
+              <WatchlistButton ticker={researchData.symbol} companyName={researchData.company_name} />
             </div>
           </section>
 
@@ -271,17 +362,53 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
               
               {activeTab === "overview" && (
                 <div className="flex flex-col gap-6">
-                  {/* Candlestick Chart */}
+                  {/* Closing Price Timeline chart */}
                   <div className="bg-white border-4 border-black rounded-[24px] p-6 shadow-[4px_4px_0px_#000000]">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-[#0F172A] border-b-2 border-black pb-3 mb-4 font-mono">
-                      Price timeline history (Candlestick chart)
+                    <h4 className="text-xs font-black uppercase tracking-wider text-[#0F172A] border-b-2 border-black pb-3 mb-6 font-mono">
+                      Price timeline history (Closing values)
                     </h4>
-                    {history.length === 0 ? (
+                    {researchData.history.length === 0 ? (
                       <div className="h-60 flex items-center justify-center text-xs font-mono text-black/30 uppercase">
-                        Loading candles...
+                        No historical timeline points returned.
                       </div>
                     ) : (
-                      <LightweightChart data={history} />
+                      <div className="h-[280px] w-full font-mono">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={researchData.history} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorResearchVal" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#2563EB" stopOpacity={0.01}/>
+                              </linearGradient>
+                            </defs>
+                            <XAxis 
+                              dataKey="time" 
+                              stroke="#0F172A" 
+                              fontSize={9}
+                              fontWeight="bold"
+                              tickLine={false}
+                            />
+                            <YAxis 
+                              stroke="#0F172A" 
+                              fontSize={9}
+                              fontWeight="bold"
+                              tickLine={false}
+                              axisLine={false}
+                              domain={['auto', 'auto']}
+                              tickFormatter={(val) => `$${val.toFixed(2)}`}
+                            />
+                            <Tooltip contentStyle={customTooltipStyle} />
+                            <Area 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="#2563EB" 
+                              strokeWidth={3} 
+                              fillOpacity={1} 
+                              fill="url(#colorResearchVal)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
                     )}
                   </div>
 
@@ -291,34 +418,30 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
                       Profile description
                     </h4>
                     <p className="text-xs font-medium text-[#64748B] leading-relaxed font-mono">
-                      {selectedStock.description || "No company description available."}
+                      {researchData.profile.description || "No company description available."}
                     </p>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-black/5 font-mono text-[10px]">
-                      <div>
-                        <span className="font-bold text-[#64748B] block">CEO</span>
-                        <span className="font-black text-[#0F172A]">{selectedStock.ceo || "N/A"}</span>
-                      </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-black/5 font-mono text-[10px]">
                       <div>
                         <span className="font-bold text-[#64748B] block">Sector</span>
-                        <span className="font-black text-[#0F172A]">{selectedStock.sector || "N/A"}</span>
+                        <span className="font-black text-[#0F172A]">{researchData.profile.sector || "N/A"}</span>
                       </div>
                       <div>
-                        <span className="font-bold text-[#64748B] block">Employees</span>
-                        <span className="font-black text-[#0F172A]">{selectedStock.employees?.toLocaleString() || "N/A"}</span>
+                        <span className="font-bold text-[#64748B] block">Exchange</span>
+                        <span className="font-black text-[#0F172A]">{researchData.profile.exchange || "N/A"}</span>
                       </div>
                       <div>
                         <span className="font-bold text-[#64748B] block">Country</span>
-                        <span className="font-black text-[#0F172A]">{selectedStock.country || "N/A"}</span>
+                        <span className="font-black text-[#0F172A]">{researchData.profile.country || "N/A"}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {activeTab === "financials" && (
+              {activeTab === "financials" && mappedProfile && (
                 <div className="flex flex-col gap-6">
-                  <CompanyMetricsComponent profile={selectedStock} metrics={metrics} />
+                  <CompanyMetricsComponent profile={mappedProfile as any} metrics={mappedMetrics as any} />
                 </div>
               )}
 
@@ -327,7 +450,7 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
                   <div className="flex justify-between items-center border-b-2 border-black pb-3.5">
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-[#2563EB] animate-pulse" />
-                      <span className="text-xs font-black uppercase tracking-wider text-[#0F172A] font-mono">AI Consensus PDF Summary</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-[#0F172A] font-mono">AI Consensus Report</span>
                     </div>
                     <button
                       onClick={generateAIReport}
@@ -367,50 +490,49 @@ ${selectedStock.name} exhibits positive market structural indicators. Supported 
                   <span>Ticker news stream</span>
                 </h4>
 
-                {news.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-mono text-black/30 uppercase">
-                    No ticker news captured.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
-                    {news.map((item, idx) => (
-                      <a
-                        key={idx}
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[2px_2px_0px_#000000] hover:shadow-[3.5px_3.5px_0px_#000000] hover:-translate-y-0.5 transition-all block text-left"
-                      >
-                        <h5 className="font-black text-xs text-[#0F172A] leading-tight mb-2 hover:text-[#2563EB]">
-                          {item.title}
-                        </h5>
-                        <p className="text-[10px] font-bold text-black/60 line-clamp-2 leading-relaxed mb-3 font-mono">
-                          {item.summary}
-                        </p>
-                        <div className="flex items-center justify-between text-[8px] font-black uppercase text-black/40 font-mono tracking-wider">
-                          <span className="bg-black/5 px-1.5 py-0.5 rounded border border-black/5">
-                            {item.source}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{item.date}</span>
-                          </span>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                )}
+                  {researchData.news.length === 0 ? (
+                    <div className="p-8 text-center text-xs font-mono text-black/30 uppercase">
+                      No ticker news captured.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
+                      {researchData.news.map((item, idx) => (
+                        <a
+                          key={idx}
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[2px_2px_0px_#000000] hover:shadow-[3.5px_3.5px_0px_#000000] hover:-translate-y-0.5 transition-all block text-left"
+                        >
+                          <h5 className="font-black text-xs text-[#0F172A] leading-tight mb-2 hover:text-[#2563EB]">
+                            {item.title}
+                          </h5>
+                          <p className="text-[10px] font-bold text-black/60 line-clamp-2 leading-relaxed mb-3 font-mono">
+                            {item.summary}
+                          </p>
+                          <div className="flex items-center justify-between text-[8px] font-black uppercase text-black/40 font-mono tracking-wider">
+                            <span className="bg-black/5 px-1.5 py-0.5 rounded border border-black/5">
+                              {item.source}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>{item.date}</span>
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
               </div>
 
             </div>
 
           </div>
-
         </div>
       )}
 
       {/* Unselected Dashboard fallback */}
-      {!selectedStock && (
+      {!tickerParam && (
         <div className="glass-brutal-card p-12 text-center flex flex-col items-center gap-3">
           <Sparkles className="w-10 h-10 text-[#2563EB] animate-pulse" />
           <h3 className="text-sm font-black uppercase text-[#0F172A]">Terminal Standby Mode</h3>

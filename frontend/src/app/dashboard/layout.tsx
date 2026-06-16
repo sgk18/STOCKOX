@@ -48,6 +48,8 @@ export default function DashboardLayout({
 
   const socketConnected = useWebSocketStore((state) => state.connected);
   const agents = useDashboardStore((state) => state.agents);
+  const isDemoMode = useDashboardStore((state) => state.isDemoMode);
+  const setDemoMode = useDashboardStore((state) => state.setDemoMode);
   const activeAgentCount = agents.filter(a => a.status !== "Idle").length || 5;
 
   const user = {
@@ -256,6 +258,30 @@ export default function DashboardLayout({
                 3
               </span>
             </button>
+
+            {/* Demo Mode Toggle */}
+            <div className="flex items-center gap-1 border-3 border-black rounded-xl p-1 bg-[#F8FAFC] shadow-[2px_2px_0px_#000000]">
+              <button
+                onClick={() => setDemoMode(false)}
+                className={`px-3 py-1.5 text-[9px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer ${
+                  !isDemoMode 
+                    ? "bg-[#EF4444] text-white border-black shadow-[1px_1px_0px_#000000]" 
+                    : "bg-white text-[#64748B] border-transparent hover:text-black"
+                }`}
+              >
+                Live
+              </button>
+              <button
+                onClick={() => setDemoMode(true)}
+                className={`px-3 py-1.5 text-[9px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer ${
+                  isDemoMode 
+                    ? "bg-[#2563EB] text-white border-black shadow-[1px_1px_0px_#000000]" 
+                    : "bg-white text-[#64748B] border-transparent hover:text-black"
+                }`}
+              >
+                Demo
+              </button>
+            </div>
 
             {/* Clerk User Profile */}
             <div className="relative">

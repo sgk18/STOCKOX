@@ -16,6 +16,7 @@ import (
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/eventbus"
 	"stockox-backend/pkg/websocket"
+	"stockox-backend/pkg/workers"
 	marketCache "stockox-backend/pkg/market/cache"
 	marketController "stockox-backend/pkg/market/controller"
 	marketProviders "stockox-backend/pkg/market/providers"
@@ -79,6 +80,7 @@ func main() {
 	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
 
 	dashboardSrv := service.NewDashboardService(
+		db,
 		portfolioRepo,
 		watchlistRepo,
 		marketRepo,
@@ -87,6 +89,10 @@ func main() {
 		rdb,
 		marketSrv,
 	)
+
+	// Start Background Workers for Market Data & Portfolio Snapshots
+	workersCoordinator := workers.NewWorkersCoordinator(db, marketSrv)
+	workersCoordinator.Start()
 
 	// 7. Setup WebSockets Hub and Simulator
 	wsHub := websocket.NewHub()
