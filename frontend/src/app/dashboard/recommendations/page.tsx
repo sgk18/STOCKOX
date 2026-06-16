@@ -33,6 +33,15 @@ export default function RecommendationsPage() {
     refetchInterval: 30000,
   });
 
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-RECOMMENDATIONS] Status:", {
+      isLoading,
+      isError: !!error,
+      error: error ? (error as Error).message : null,
+      data: recs
+    });
+  }, [isLoading, error, recs]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6 animate-pulse p-4">

@@ -116,7 +116,7 @@ export default function DashboardPage() {
   });
 
   // 2. Fetch dynamic risk center metrics
-  const { data: riskMetrics } = useQuery({
+  const { data: riskMetrics, isLoading: isRiskLoading, error: riskError } = useQuery({
     queryKey: ["dashboard-risk-metrics", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
@@ -132,6 +132,25 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
+  // Console logging React Query variables (Step 5)
+  useEffect(() => {
+    console.log("[REACT-QUERY-AGGREGATE] Status:", {
+      isLoading: isDashLoading,
+      isError: !!dashError,
+      error: dashError ? (dashError as Error).message : null,
+      data: dashboardData
+    });
+  }, [isDashLoading, dashError, dashboardData]);
+
+  useEffect(() => {
+    console.log("[REACT-QUERY-RISK] Status:", {
+      isLoading: isRiskLoading,
+      isError: !!riskError,
+      error: riskError ? (riskError as Error).message : null,
+      data: riskMetrics
+    });
+  }, [isRiskLoading, riskError, riskMetrics]);
+
   // Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -139,7 +158,7 @@ export default function DashboardPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
-  if (!isLoaded || (isSignedIn && !isSynced) || isDashLoading) {
+  if (!isLoaded || (isSignedIn && !isSynced)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
         <div className="flex flex-col items-center gap-4 animate-pulse">
@@ -150,14 +169,6 @@ export default function DashboardPage() {
             Syncing Terminal Credentials...
           </span>
         </div>
-      </div>
-    );
-  }
-
-  if (dashError) {
-    return (
-      <div className="p-8 border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase">
-        <span className="font-black">Error:</span> Failed to retrieve terminal database records.
       </div>
     );
   }
@@ -189,11 +200,19 @@ export default function DashboardPage() {
           <div className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Total Assets (USD)</span>
-              <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">${portfolio.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
+                {isDashLoading ? (
+                  "Loading..."
+                ) : dashError ? (
+                  <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
+                ) : (
+                  `$${portfolio.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                )}
+              </h3>
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#2563EB]/15 text-[#2563EB] border border-[#2563EB]/20">
-                {portfolio.change_percent >= 0 ? "+" : ""}{portfolio.change_percent.toFixed(2)}% today
+                {isDashLoading ? "..." : dashError ? "Error" : `${portfolio.change_percent >= 0 ? "+" : ""}${portfolio.change_percent.toFixed(2)}% today`}
               </span>
               <svg className="w-16 h-8 text-[#2563EB]" viewBox="0 0 100 30" fill="none">
                 <path d="M0,25 L20,23 L40,18 L60,19 L80,10 L100,5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
@@ -206,7 +225,13 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Today&apos;s P&L</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {portfolio.change_amount >= 0 ? "+" : ""}${portfolio.change_amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {isDashLoading ? (
+                  "Loading..."
+                ) : dashError ? (
+                  <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
+                ) : (
+                  `${portfolio.change_amount >= 0 ? "+" : ""}$${portfolio.change_amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                )}
               </h3>
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
@@ -223,7 +248,15 @@ export default function DashboardPage() {
           <div className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Liquid Cash Balance</span>
-              <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">${portfolio.cash_balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
+              <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">
+                {isDashLoading ? (
+                  "Loading..."
+                ) : dashError ? (
+                  <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
+                ) : (
+                  `$${portfolio.cash_balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                )}
+              </h3>
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#2563EB]/15 text-[#2563EB] border border-[#2563EB]/20">
@@ -240,16 +273,22 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Portfolio Beta</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {(riskMetrics?.volatility_score || 1.18).toFixed(2)}
+                {isRiskLoading ? (
+                  "Loading..."
+                ) : riskError ? (
+                  <span className="text-xs text-[#EF4444] font-black">Failed to load risk</span>
+                ) : (
+                  (riskMetrics?.volatility_score || 1.18).toFixed(2)
+                )}
               </h3>
             </div>
             <div className="flex flex-col gap-1.5 mt-4 border-t border-black/5 pt-3">
               <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-[#64748B]">
                 <span>Risk Score</span>
-                <span className="text-[#2563EB]">{riskMetrics?.risk_score || 24} / 100</span>
+                <span className="text-[#2563EB]">{isRiskLoading ? "..." : riskError ? "Error" : `${riskMetrics?.risk_score || 24} / 100`}</span>
               </div>
               <div className="w-full bg-black/5 border border-black rounded-full h-2 overflow-hidden">
-                <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${riskMetrics?.risk_score || 24}%` }} />
+                <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${isRiskLoading || riskError ? 0 : (riskMetrics?.risk_score || 24)}%` }} />
               </div>
             </div>
           </div>
@@ -259,7 +298,13 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Diversification Score</span>
               <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">
-                {riskMetrics?.diversification_score || 88}%
+                {isRiskLoading ? (
+                  "Loading..."
+                ) : riskError ? (
+                  <span className="text-xs text-[#EF4444] font-black">Failed to load risk</span>
+                ) : (
+                  `${riskMetrics?.diversification_score || 88}%`
+                )}
               </h3>
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
@@ -282,7 +327,16 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          {agentStatuses.map((agent: { agent_name: string; status: string }) => (
+          {isDashLoading ? (
+            <div className="col-span-5 text-center font-mono text-xs uppercase py-8 text-[#64748B] animate-pulse bg-white border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
+              Loading committee statuses...
+            </div>
+          ) : dashError ? (
+            <div className="col-span-5 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
+              Failed to load committee data
+            </div>
+          ) : (
+            agentStatuses.map((agent: { agent_name: string; status: string }) => (
             <div key={agent.agent_name} className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -305,7 +359,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </section>
 
@@ -317,37 +371,47 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
-          {marketOverview.map((idx) => {
-            const isNegative = idx.change_percent < 0;
-            return (
-              <div key={idx.name} className="glass-brutal-card p-4 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
-                <div>
-                  <span className="text-[10px] font-black uppercase text-[#64748B] tracking-widest">{idx.name}</span>
-                  <h3 className="text-base font-black tracking-tight text-[#0F172A] mt-1 font-mono">
-                    {idx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </h3>
+          {isDashLoading ? (
+            <div className="col-span-6 text-center font-mono text-xs uppercase py-8 text-[#64748B] animate-pulse bg-white border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
+              Loading market data...
+            </div>
+          ) : dashError ? (
+            <div className="col-span-6 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
+              Failed to load market data
+            </div>
+          ) : (
+            marketOverview.map((idx) => {
+              const isNegative = idx.change_percent < 0;
+              return (
+                <div key={idx.name} className="glass-brutal-card p-4 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-[#64748B] tracking-widest">{idx.name}</span>
+                    <h3 className="text-base font-black tracking-tight text-[#0F172A] mt-1 font-mono">
+                      {idx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </h3>
+                  </div>
+                  <div className="flex items-center justify-between mt-4 pt-2 border-t border-black/5">
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                      isNegative 
+                        ? "bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/20" 
+                        : "bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]/20"
+                    }`}>
+                      {isNegative ? "" : "+"}{idx.change_percent.toFixed(2)}%
+                    </span>
+                    
+                    <svg className={`w-12 h-6 ${isNegative ? "text-[#EF4444]" : "text-[#2563EB]"}`} viewBox="0 0 100 30" fill="none">
+                      <path 
+                        d={isNegative ? "M0,5 L30,10 L60,20 L100,28" : "M0,25 L30,22 L60,12 L100,4"} 
+                        stroke="currentColor" 
+                        strokeWidth="2.5" 
+                        strokeLinecap="round" 
+                      />
+                    </svg>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-2 border-t border-black/5">
-                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
-                    isNegative 
-                      ? "bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/20" 
-                      : "bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]/20"
-                  }`}>
-                    {isNegative ? "" : "+"}{idx.change_percent.toFixed(2)}%
-                  </span>
-                  
-                  <svg className={`w-12 h-6 ${isNegative ? "text-[#EF4444]" : "text-[#2563EB]"}`} viewBox="0 0 100 30" fill="none">
-                    <path 
-                      d={isNegative ? "M0,5 L30,10 L60,20 L100,28" : "M0,25 L30,22 L60,12 L100,4"} 
-                      stroke="currentColor" 
-                      strokeWidth="2.5" 
-                      strokeLinecap="round" 
-                    />
-                  </svg>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </section>
 
@@ -378,7 +442,19 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {watchlist.length > 0 ? (
+                    {isDashLoading ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
+                          Loading watchlist snapshot...
+                        </td>
+                      </tr>
+                    ) : dashError ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
+                          Failed to load watchlist
+                        </td>
+                      </tr>
+                    ) : watchlist.length > 0 ? (
                       watchlist.map((stock) => (
                         <tr key={stock.ticker} className="hover:bg-[#F8FAFC] transition-colors">
                           <td className="py-3.5 px-5 font-mono font-black uppercase text-[#2563EB]">
@@ -446,7 +522,19 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {recentAnalyses.length > 0 ? (
+                    {isDashLoading ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
+                          Loading recent recommendations...
+                        </td>
+                      </tr>
+                    ) : dashError ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
+                          Failed to load recommendations
+                        </td>
+                      </tr>
+                    ) : recentAnalyses.length > 0 ? (
                       recentAnalyses.map((rec) => (
                         <tr key={rec.ticker} className="hover:bg-[#F8FAFC] transition-colors">
                           <td className="py-3.5 px-5 font-mono font-black uppercase text-[#0F172A]">
@@ -489,7 +577,15 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {agentActivity.length > 0 ? (
+              {isDashLoading ? (
+                <div className="p-8 border-3 border-black text-center font-mono text-xs uppercase text-[#64748B] rounded-[24px] bg-white animate-pulse">
+                  Loading research feed...
+                </div>
+              ) : dashError ? (
+                <div className="p-8 border-3 border-black text-center font-mono text-xs uppercase text-[#EF4444] rounded-[24px] bg-red-50">
+                  Failed to load research feed
+                </div>
+              ) : agentActivity.length > 0 ? (
                 agentActivity.map((feed, idx) => (
                   <div key={idx} className="glass-brutal-card p-5 hover:translate-y-[-2px] transition-all duration-150">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-2.5 mb-3 font-mono">
@@ -537,7 +633,7 @@ export default function DashboardPage() {
                     <span className="text-xs font-black uppercase">Low Volatility</span>
                   </div>
                   <span className="font-mono text-xs font-black text-[#2563EB]">
-                    {(riskMetrics?.volatility_score || 1.18).toFixed(2)}
+                    {isRiskLoading ? "..." : riskError ? "Error" : (riskMetrics?.volatility_score || 1.18).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -547,11 +643,23 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider font-sans mb-1">Portfolio Exposure Limits</span>
                 <div className="flex justify-between border-b border-black/5 pb-2">
                   <span className="font-bold text-[#64748B]">Diversification Score:</span>
-                  <span className="font-black text-[#2563EB]">{riskMetrics?.diversification_score || 88} / 100</span>
+                  <span className="font-black text-[#2563EB]">{isRiskLoading ? "..." : riskError ? "Error" : `${riskMetrics?.diversification_score || 88} / 100`}</span>
                 </div>
                 <div className="flex justify-between border-b border-black/5 pb-2">
                   <span className="font-bold text-[#64748B]">Daily Value at Risk (VaR):</span>
-                  <span className="font-black text-[#2563EB]">${((portfolio.value * 0.038) || 4820).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  <span className="font-black text-[#2563EB]">
+                    {isRiskLoading ? (
+                      "..."
+                    ) : riskError ? (
+                      "Error"
+                    ) : isDashLoading ? (
+                      "..."
+                    ) : dashError ? (
+                      "Error"
+                    ) : (
+                      `$${((portfolio.value * 0.038) || 4820).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                    )}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-[#64748B]">Sharpe Ratio:</span>
@@ -563,7 +671,11 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-3 border-t border-black/5 pt-4">
                 <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider">Sector Exposure</span>
                 <div className="flex flex-col gap-2.5">
-                  {riskMetrics?.sector_exposure && riskMetrics.sector_exposure.length > 0 ? (
+                  {isRiskLoading ? (
+                    <span className="font-mono text-[9px] text-[#64748B] uppercase animate-pulse">Loading sector exposure...</span>
+                  ) : riskError ? (
+                    <span className="font-mono text-[9px] text-[#EF4444] uppercase">Failed to load sector metrics</span>
+                  ) : riskMetrics?.sector_exposure && riskMetrics.sector_exposure.length > 0 ? (
                     riskMetrics.sector_exposure.map((sect: { name: string; value: number; color: string }) => (
                       <div key={sect.name}>
                         <div className="flex items-center justify-between text-[10px] font-mono font-black mb-1">

@@ -74,7 +74,7 @@ export default function PortfolioPage() {
   });
 
   // 2. Fetch portfolio risk exposure metrics
-  const { data: riskData, isLoading: isRiskLoading } = useQuery({
+  const { data: riskData, isLoading: isRiskLoading, error: riskError } = useQuery({
     queryKey: ["portfolio-risk", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
@@ -90,6 +90,25 @@ export default function PortfolioPage() {
     refetchInterval: 30000,
   });
 
+  // Console logging React Query variables (Step 5)
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-PORTFOLIO-SUMMARY] Status:", {
+      isLoading: isPortLoading,
+      isError: !!portError,
+      error: portError ? (portError as Error).message : null,
+      data: portfolioData
+    });
+  }, [isPortLoading, portError, portfolioData]);
+
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-PORTFOLIO-RISK] Status:", {
+      isLoading: isRiskLoading,
+      isError: !!riskError,
+      error: riskError ? (riskError as Error).message : null,
+      data: riskData
+    });
+  }, [isRiskLoading, riskError, riskData]);
+
   const customTooltipStyle = {
     backgroundColor: "#FFFFFF",
     border: "3px solid #000000",
@@ -98,26 +117,6 @@ export default function PortfolioPage() {
     fontSize: "10px",
     fontWeight: "bold",
   };
-
-  if (isPortLoading || isRiskLoading) {
-    return (
-      <div className="flex flex-col gap-8 animate-pulse p-4">
-        <div className="h-32 bg-black/5 border-4 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]" />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="col-span-1 lg:col-span-8 h-72 bg-black/5 border-4 border-black rounded-[24px]" />
-          <div className="col-span-1 lg:col-span-4 h-72 bg-black/5 border-4 border-black rounded-[24px]" />
-        </div>
-      </div>
-    );
-  }
-
-  if (portError) {
-    return (
-      <div className="p-8 border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase">
-        <span className="font-black">Error:</span> Failed to retrieve terminal database records.
-      </div>
-    );
-  }
 
   const holdings: Holding[] = portfolioData?.holdings || [];
   const chartHistory = portfolioData?.history || [];
@@ -169,12 +168,26 @@ export default function PortfolioPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-4 shadow-[2px_2px_0px_#000000] flex flex-col min-w-[120px]">
             <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">NET BALANCE</span>
-            <span className="text-xl font-black text-[#2563EB] font-mono">${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-xl font-black text-[#2563EB] font-mono">
+              {isPortLoading ? (
+                "Loading..."
+              ) : portError ? (
+                <span className="text-xs text-[#EF4444] font-black">Error</span>
+              ) : (
+                `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              )}
+            </span>
           </div>
           <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-4 shadow-[2px_2px_0px_#000000] flex flex-col min-w-[120px]">
             <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">TODAY&apos;S RETURN</span>
             <span className="text-xl font-black text-[#2563EB] font-mono">
-              {dailyChangeAmount >= 0 ? "+" : ""}{dailyChangePercent.toFixed(2)}%
+              {isPortLoading ? (
+                "..."
+              ) : portError ? (
+                <span className="text-xs text-[#EF4444] font-black">Error</span>
+              ) : (
+                `${dailyChangeAmount >= 0 ? "+" : ""}${dailyChangePercent.toFixed(2)}%`
+              )}
             </span>
           </div>
         </div>
@@ -190,21 +203,27 @@ export default function PortfolioPage() {
             <span>Portfolio Performance timeline (Net Assets)</span>
           </h3>
 
-          <div className="h-72 w-full font-mono text-[10px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartHistory}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" stroke="#000000" strokeWidth={2} tickLine={false} />
-                <YAxis stroke="#000000" strokeWidth={2} tickLine={false} domain={['dataMin - 1000', 'dataMax + 1000']} />
-                <Tooltip contentStyle={customTooltipStyle} />
-                <Area type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-72 w-full font-mono text-[10px] flex items-center justify-center">
+            {isPortLoading ? (
+              <span className="uppercase text-black/50 tracking-wider font-black animate-pulse">Loading performance chart...</span>
+            ) : portError ? (
+              <span className="uppercase text-[#EF4444] tracking-wider font-black">Failed to load performance timeline</span>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartHistory}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" stroke="#000000" strokeWidth={2} tickLine={false} />
+                  <YAxis stroke="#000000" strokeWidth={2} tickLine={false} domain={['dataMin - 1000', 'dataMax + 1000']} />
+                  <Tooltip contentStyle={customTooltipStyle} />
+                  <Area type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </section>
 
@@ -216,7 +235,11 @@ export default function PortfolioPage() {
           </h3>
 
           <div className="h-56 w-full flex justify-center items-center">
-            {sectorData.length > 0 ? (
+            {isRiskLoading ? (
+              <span className="font-mono text-[10px] text-[#64748B] uppercase animate-pulse">Loading asset allocations...</span>
+            ) : riskError ? (
+              <span className="font-mono text-[10px] text-[#EF4444] uppercase">Failed to load allocations</span>
+            ) : sectorData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie

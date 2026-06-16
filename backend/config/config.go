@@ -113,7 +113,34 @@ func LoadConfig() *Config {
 	// Frontend
 	cfg.FrontendURL = getEnv("FRONTEND_URL", "http://localhost:3000")
 
+	// Print loaded variables (excluding secrets)
+	log.Println("[CONFIG] Loaded configurations:")
+	log.Printf("[CONFIG] Server Name: %s | Port: %s | Env: %s\n", cfg.Server.Name, cfg.Server.Port, cfg.Server.Env)
+	log.Printf("[CONFIG] Database Host: %s | Port: %s | User: %s | Name: %s | SSLMode: %s | DropOnStartup: %t\n",
+		cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Name, cfg.Database.SSLMode, cfg.Database.DropOnStartup)
+	if cfg.Database.URL != "" {
+		log.Printf("[CONFIG] Database URL: [SET] (length: %d)\n", len(cfg.Database.URL))
+	} else {
+		log.Println("[CONFIG] Database URL: [NOT SET]")
+	}
+	log.Printf("[CONFIG] Redis Host: %s | Port: %s\n", cfg.Redis.Host, cfg.Redis.Port)
+	log.Printf("[CONFIG] JWT Expiration: %s\n", cfg.JWT.Expiration)
+	log.Printf("[CONFIG] Band BaseURL: %s | APIKey: %s\n", cfg.Band.BaseURL, getSecretStatus(cfg.Band.APIKey))
+	log.Printf("[CONFIG] AI AIMLAPIKey: %s | FeatherlessAPIKey: %s\n", getSecretStatus(cfg.AI.AIMLAPIKey), getSecretStatus(cfg.AI.FeatherlessAPIKey))
+	log.Printf("[CONFIG] Market FinnhubAPIKey: %s | AlphaVantageAPIKey: %s | PolygonAPIKey: %s\n",
+		getSecretStatus(cfg.Market.FinnhubAPIKey), getSecretStatus(cfg.Market.AlphaVantageAPIKey), getSecretStatus(cfg.Market.PolygonAPIKey))
+	log.Printf("[CONFIG] Clerk PublishableKey: %s | SecretKey: %s | WebhookSecret: %s\n",
+		cfg.Clerk.PublishableKey, getSecretStatus(cfg.Clerk.SecretKey), getSecretStatus(cfg.Clerk.WebhookSecret))
+	log.Printf("[CONFIG] Frontend URL: %s\n", cfg.FrontendURL)
+
 	return cfg
+}
+
+func getSecretStatus(secret string) string {
+	if secret != "" {
+		return "SET"
+	}
+	return "NOT SET"
 }
 
 func (c *Config) GetDSN() string {

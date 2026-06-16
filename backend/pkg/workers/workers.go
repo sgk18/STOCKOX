@@ -91,6 +91,8 @@ func (wc *WorkersCoordinator) collectMarketSnapshots() {
 		"AMD":    "AMD",
 		"SP500":  "SPY",
 		"NASDAQ": "QQQ",
+		"SPY":    "SPY",
+		"QQQ":    "QQQ",
 		"GOLD":   "GLD",
 		"BTC":    "BINANCE:BTCUSDT",
 		"OIL":    "USO",

@@ -50,6 +50,15 @@ export default function RiskCenterPage() {
     refetchInterval: 30000,
   });
 
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-RISK-CENTER] Status:", {
+      isLoading,
+      isError: !!error,
+      error: error ? (error as Error).message : null,
+      data: riskData
+    });
+  }, [isLoading, error, riskData]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-8 animate-pulse p-4">

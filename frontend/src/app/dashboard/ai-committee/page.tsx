@@ -48,7 +48,7 @@ export default function AICommitteePage() {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(4); // Default to completed consensus view
   
-  const { data: decisions, refetch } = useQuery<CommitteeDecision[]>({
+  const { data: decisions, isLoading, error, refetch } = useQuery<CommitteeDecision[]>({
     queryKey: ["committee-ticker-decision", selectedTicker],
     queryFn: async () => {
       const token = await getToken();
@@ -62,6 +62,15 @@ export default function AICommitteePage() {
     },
     enabled: isSignedIn,
   });
+
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-COMMITTEE] Status:", {
+      isLoading,
+      isError: !!error,
+      error: error ? (error as Error).message : null,
+      data: decisions
+    });
+  }, [isLoading, error, decisions]);
 
   const activeDecision = decisions && decisions.length > 0 ? decisions[0] : null;
 
@@ -272,6 +281,12 @@ export default function AICommitteePage() {
         </div>
       </section>
 
+      {error && (
+        <div className="p-4 border-3 border-black bg-red-50 text-[#EF4444] rounded-xl font-mono text-xs uppercase shadow-[2px_2px_0px_#000000] relative z-10">
+          <span className="font-black">WARNING:</span> Failed to contact consensus database pool. Rendering fallback advisory parameters.
+        </div>
+      )}
+
       {/* Visual Pipeline Workflow */}
       <section className="glass-brutal-card p-8 flex flex-col gap-6 relative">
         <h3 className="text-xs font-black uppercase tracking-wider text-[#64748B] mb-2 font-mono">Real-time Multi-Agent Assembly Pipeline</h3>
@@ -373,7 +388,11 @@ export default function AICommitteePage() {
             </div>
 
             <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
-              {displayTimeline.length === 0 ? (
+              {isLoading ? (
+                <div className="glass-brutal-card p-8 text-center text-xs font-mono text-black/40 uppercase animate-pulse">
+                  Querying database node consensus logs...
+                </div>
+              ) : displayTimeline.length === 0 ? (
                 <div className="glass-brutal-card p-8 text-center text-xs font-mono text-black/40 uppercase animate-pulse">
                   Trigger a committee audit to stream reasoning nodes...
                 </div>

@@ -175,3 +175,12 @@ func (ctrl *DashboardController) GetResearchTerminal(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func (ctrl *DashboardController) GetDebugDashboard(c *gin.Context) {
+	resp, err := ctrl.srv.GetDebugDashboard()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve debug metrics: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}

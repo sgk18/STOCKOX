@@ -32,6 +32,7 @@ type DashboardService interface {
 	GetRecommendations() ([]dto.AnalysisResponse, error)
 	GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error)
 	GetResearchTerminal(ticker string) (*dto.ResearchTerminalResponse, error)
+	GetDebugDashboard() (map[string]any, error)
 }
 
 type dashboardService struct {
@@ -866,5 +867,39 @@ func getSectorByTicker(ticker string) string {
 	default:
 		return "Technology"
 	}
+}
+
+func (s *dashboardService) GetDebugDashboard() (map[string]any, error) {
+	var databaseConnected bool = true
+	var portfolioCount int64
+	var holdingCount int64
+	var watchlistCount int64
+	var recommendationCount int64
+	var marketSnapshotCount int64
+
+	// Test database connection
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		databaseConnected = false
+	} else if err := sqlDB.Ping(); err != nil {
+		databaseConnected = false
+	}
+
+	if databaseConnected {
+		s.db.Model(&models.Portfolio{}).Count(&portfolioCount)
+		s.db.Model(&models.PortfolioHolding{}).Count(&holdingCount)
+		s.db.Model(&models.Watchlist{}).Count(&watchlistCount)
+		s.db.Model(&models.Recommendation{}).Count(&recommendationCount)
+		s.db.Model(&models.MarketSnapshot{}).Count(&marketSnapshotCount)
+	}
+
+	return map[string]any{
+		"databaseConnected":   databaseConnected,
+		"portfolioCount":      portfolioCount,
+		"holdingCount":        holdingCount,
+		"watchlistCount":      watchlistCount,
+		"recommendationCount": recommendationCount,
+		"marketSnapshotCount": marketSnapshotCount,
+	}, nil
 }
 

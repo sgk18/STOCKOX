@@ -52,6 +52,7 @@ func SetupRoutes(
 	r.GET("/health", healthCtrl.Health)
 	r.GET("/health/database", healthCtrl.HealthDB)
 	r.GET("/health/redis", healthCtrl.HealthRedis)
+	r.GET("/api/debug/dashboard", dbCtrl.GetDebugDashboard)
 
 	// WebSocket Endpoints (No Auth wrapper required to prevent client-side header upgrade blockages,
 	// though they will be subject to global middlewares and local origin checks)

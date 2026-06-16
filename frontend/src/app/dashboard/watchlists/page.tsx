@@ -38,6 +38,15 @@ export default function WatchlistsPage() {
     refetchInterval: 30000,
   });
 
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-WATCHLIST] Status:", {
+      isLoading,
+      isError: !!error,
+      error: error ? (error as Error).message : null,
+      data: watchlist
+    });
+  }, [isLoading, error, watchlist]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-8 animate-pulse p-4">

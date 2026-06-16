@@ -34,6 +34,15 @@ export default function MarketIntelligencePage() {
     refetchInterval: 30000,
   });
 
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-MARKET-INTELLIGENCE] Status:", {
+      isLoading,
+      isError: !!error,
+      error: error ? (error as Error).message : null,
+      data: market
+    });
+  }, [isLoading, error, market]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-8 animate-pulse p-4">

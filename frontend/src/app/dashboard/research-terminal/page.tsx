@@ -152,6 +152,15 @@ function ResearchTerminalContent() {
     refetchInterval: 30000,
   });
 
+  React.useEffect(() => {
+    console.log("[REACT-QUERY-RESEARCH-TERMINAL] Status:", {
+      isLoading: isLoadingResearch,
+      isError: !!researchError,
+      error: researchError ? (researchError as Error).message : null,
+      data: researchData
+    });
+  }, [isLoadingResearch, researchError, researchData]);
+
   const handleStockSelect = (stock: SearchStockResult) => {
     addToSearchHistory(stock.ticker);
     setSearchQuery("");
