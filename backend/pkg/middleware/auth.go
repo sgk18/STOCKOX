@@ -167,7 +167,8 @@ func EnsureUserSynced(
 		existingUser, err := userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				// Search by email to link records
+				// If Clerk ID doesn't match, attempt to search by email to gracefully link
+				// pre-existing records (e.g., from manual db inserts) to the new SSO identity.
 				existingUser, err = userRepo.GetByEmail(email)
 				if err == nil && existingUser != nil {
 					log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s) via middleware", email, userID)

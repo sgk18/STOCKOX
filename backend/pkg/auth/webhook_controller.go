@@ -157,7 +157,8 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 		user, err := ctrl.userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				// Search by email to link records
+				// Sync Logic: Attempt to find an existing user by email to link their Clerk identity.
+				// This handles scenarios where a user record was pre-created before their first login.
 				user, err = ctrl.userRepo.GetByEmail(email)
 				if err != nil {
 					if err == gorm.ErrRecordNotFound {
@@ -240,4 +241,6 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Clerk webhook processed successfully"})
+}
+)
 }

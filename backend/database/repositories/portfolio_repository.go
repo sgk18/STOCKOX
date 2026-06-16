@@ -9,6 +9,7 @@ import (
 
 type PortfolioRepository interface {
 	GetByUserID(userID string) (*models.Portfolio, error)
+	GetByUserIDAndMode(userID string, mode string) (*models.Portfolio, error)
 	GetHoldings(portfolioID uuid.UUID) ([]models.PortfolioHolding, error)
 	Create(portfolio *models.Portfolio) error
 	Update(portfolio *models.Portfolio) error
@@ -26,8 +27,25 @@ func NewPortfolioRepository(db *gorm.DB) PortfolioRepository {
 }
 
 func (r *sqlPortfolioRepository) GetByUserID(userID string) (*models.Portfolio, error) {
+	// First, fetch the user's account mode
+	var user models.User
+	err := r.db.Select("account_mode").First(&user, "id = ?", userID).Error
+	mode := "live"
+	if err == nil && user.AccountMode != "" {
+		mode = user.AccountMode
+	}
+
 	var portfolio models.Portfolio
-	err := r.db.First(&portfolio, "user_id = ?", userID).Error
+	err = r.db.First(&portfolio, "user_id = ? AND account_mode = ?", userID, mode).Error
+	if err != nil {
+		return nil, err
+	}
+	return &portfolio, nil
+}
+
+func (r *sqlPortfolioRepository) GetByUserIDAndMode(userID string, mode string) (*models.Portfolio, error) {
+	var portfolio models.Portfolio
+	err := r.db.First(&portfolio, "user_id = ? AND account_mode = ?", userID, mode).Error
 	if err != nil {
 		return nil, err
 	}

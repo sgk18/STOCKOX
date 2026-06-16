@@ -184,3 +184,58 @@ func (ctrl *DashboardController) GetDebugDashboard(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func (ctrl *DashboardController) SearchAssets(c *gin.Context) {
+	q := c.Query("q")
+	resp, err := ctrl.srv.SearchAssets(q)
+	if err != nil {
+		errors.InternalServerError(c, "Search query failed: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetPopularAssets(c *gin.Context) {
+	resp, err := ctrl.srv.GetPopularAssets()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve popular assets: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetIndianAssets(c *gin.Context) {
+	resp, err := ctrl.srv.GetIndianAssets()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve Indian assets: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetUSAssets(c *gin.Context) {
+	resp, err := ctrl.srv.GetUSAssets()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve US assets: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetCryptoAssets(c *gin.Context) {
+	resp, err := ctrl.srv.GetCryptoAssets()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve crypto assets: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) GetIndicesAssets(c *gin.Context) {
+	resp, err := ctrl.srv.GetIndicesAssets()
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve indices assets: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}

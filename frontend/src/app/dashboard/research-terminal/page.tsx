@@ -117,11 +117,11 @@ const customTooltipStyle = {
   boxShadow: "3px 3px 0px #000000"
 };
 
-function ResearchTerminalContent() {
+export function ResearchTerminalContent({ symbol }: { symbol?: string }) {
   const { getToken, isSignedIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tickerParam = searchParams.get("ticker");
+  const tickerParam = symbol || searchParams.get("ticker");
 
   // Search Store
   const setSearchQuery = useSearchStore((state) => state.setSearchQuery);
@@ -165,7 +165,7 @@ function ResearchTerminalContent() {
     addToSearchHistory(stock.ticker);
     setSearchQuery("");
     setSearchResults([]);
-    router.push(`/dashboard/research-terminal?ticker=${stock.ticker}`);
+    router.push(`/research/${stock.ticker}`);
   };
 
   const generateAIReport = useCallback(() => {

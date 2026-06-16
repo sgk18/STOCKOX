@@ -65,8 +65,9 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 			}
 
 			c.JSON(http.StatusOK, SyncResponse{
-				Success: true,
-				Message: "User profile provisioned and default portfolio seeded",
+				Success:   true,
+				Message:   "User profile provisioned",
+				Onboarded: false,
 			})
 			return
 		}
@@ -101,8 +102,9 @@ func (ctrl *SyncController) SyncUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, SyncResponse{
-		Success: true,
-		Message: "User profile synchronized",
+		Success:   true,
+		Message:   "User profile synchronized",
+		Onboarded: user.Onboarded,
 	})
 }
 
@@ -222,10 +224,18 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
 	}
 
-	log.Printf("[AUTH] Sync completed: user_id=%s", userID)
+	// Find user to know their onboarded status
+	dbUser, _ := ctrl.userRepo.GetByClerkID(userID)
+	onboarded := false
+	if dbUser != nil {
+		onboarded = dbUser.Onboarded
+	}
+
+	log.Printf("[AUTH] Sync completed: user_id=%s, onboarded=%v", userID, onboarded)
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "User synchronized successfully",
+		"success":   true,
+		"message":   "User synchronized successfully",
+		"onboarded": onboarded,
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"stockox-backend/database/models"
@@ -33,6 +34,13 @@ type DashboardService interface {
 	GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error)
 	GetResearchTerminal(ticker string) (*dto.ResearchTerminalResponse, error)
 	GetDebugDashboard() (map[string]any, error)
+
+	SearchAssets(query string) ([]dto.SearchAssetResponse, error)
+	GetPopularAssets() ([]dto.SearchAssetResponse, error)
+	GetIndianAssets() ([]dto.SearchAssetResponse, error)
+	GetUSAssets() ([]dto.SearchAssetResponse, error)
+	GetCryptoAssets() ([]dto.SearchAssetResponse, error)
+	GetIndicesAssets() ([]dto.SearchAssetResponse, error)
 }
 
 type dashboardService struct {
@@ -170,7 +178,12 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 		changePercent := 0.0
 		dailyChange := 0.0
 
-		errSnap := s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		var errSnap error
+		if s.db != nil {
+			errSnap = s.db.First(&snap, "symbol = ?", h.Ticker).Error
+		} else {
+			errSnap = fmt.Errorf("db is nil")
+		}
 		if errSnap == nil {
 			price = snap.Price
 			changePercent = snap.ChangePercent
@@ -191,7 +204,13 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 		} else {
 			// Try committee decisions table
 			var dec models.CommitteeDecision
-			if errDec := s.db.First(&dec, "ticker = ?", h.Ticker).Error; errDec == nil {
+			var errDec error
+			if s.db != nil {
+				errDec = s.db.First(&dec, "ticker = ?", h.Ticker).Error
+			} else {
+				errDec = fmt.Errorf("db is nil")
+			}
+			if errDec == nil {
 				rec = dec.CommitteeDecision
 			}
 		}
@@ -221,7 +240,9 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 
 	// Fetch history snapshots
 	var snapshots []models.PortfolioSnapshot
-	s.db.Where("portfolio_id = ?", port.ID).Order("recorded_at asc").Find(&snapshots)
+	if s.db != nil {
+		s.db.Where("portfolio_id = ?", port.ID).Order("recorded_at asc").Find(&snapshots)
+	}
 
 	historyPoints := make([]dto.PortfolioHistoryPoint, 0, len(snapshots))
 	for _, snap := range snapshots {
@@ -466,13 +487,15 @@ func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error)
 func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.CommitteeDecisionResponse, error) {
 	var decisions []models.CommitteeDecision
 	var err error
-	if ticker != "" {
-		err = s.db.Where("ticker = ?", ticker).Order("created_at desc").Find(&decisions).Error
-	} else {
-		err = s.db.Order("created_at desc").Find(&decisions).Error
-	}
-	if err != nil {
-		return nil, err
+	if s.db != nil {
+		if ticker != "" {
+			err = s.db.Where("ticker = ?", ticker).Order("created_at desc").Find(&decisions).Error
+		} else {
+			err = s.db.Order("created_at desc").Find(&decisions).Error
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	res := make([]dto.CommitteeDecisionResponse, len(decisions))
@@ -901,5 +924,93 @@ func (s *dashboardService) GetDebugDashboard() (map[string]any, error) {
 		"recommendationCount": recommendationCount,
 		"marketSnapshotCount": marketSnapshotCount,
 	}, nil
+}
+
+func (s *dashboardService) SearchAssets(query string) ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	q := "%" + strings.ToLower(query) + "%"
+	err := s.db.Where("is_active = ? AND (LOWER(symbol) LIKE ? OR LOWER(company_name) LIKE ?)", true, q, q).
+		Order("symbol ASC").
+		Limit(30).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func (s *dashboardService) GetPopularAssets() ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	popularSymbols := []string{"NVDA", "AAPL", "MSFT", "TSLA", "BTC", "RELIANCE", "TCS", "SPY", "QQQ", "NIFTY50", "ETH", "SOL"}
+	err := s.db.Where("is_active = ? AND symbol IN ?", true, popularSymbols).
+		Order("symbol ASC").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func (s *dashboardService) GetIndianAssets() ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	err := s.db.Where("is_active = ? AND country = ?", true, "India").
+		Order("symbol ASC").
+		Limit(30).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func (s *dashboardService) GetUSAssets() ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	err := s.db.Where("is_active = ? AND (country = ? OR country = ?)", true, "US", "United States").
+		Order("symbol ASC").
+		Limit(30).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func (s *dashboardService) GetCryptoAssets() ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	err := s.db.Where("is_active = ? AND asset_type = ?", true, "crypto").
+		Order("symbol ASC").
+		Limit(30).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func (s *dashboardService) GetIndicesAssets() ([]dto.SearchAssetResponse, error) {
+	var results []models.StockMetadata
+	err := s.db.Where("is_active = ? AND asset_type = ?", true, "index").
+		Order("symbol ASC").
+		Limit(30).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return convertToSearchAssetResponse(results), nil
+}
+
+func convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAssetResponse {
+	res := make([]dto.SearchAssetResponse, len(results))
+	for i, r := range results {
+		res[i] = dto.SearchAssetResponse{
+			Symbol:    r.Symbol,
+			Company:   r.CompanyName,
+			Exchange:  r.Exchange,
+			Country:   r.Country,
+			AssetType: r.AssetType,
+			LogoURL:   r.LogoURL,
+		}
+	}
+	return res
 }
 

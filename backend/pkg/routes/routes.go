@@ -19,6 +19,7 @@ func SetupRoutes(
 	dbCtrl *controller.DashboardController,
 	healthCtrl *health.HealthController,
 	syncCtrl *auth.SyncController,
+	profileCtrl *auth.ProfileController,
 	v1Ctrl *analysis.V1Controller,
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
@@ -87,6 +88,14 @@ func SetupRoutes(
 		api.GET("/dashboard/recommendations", dbCtrl.GetRecommendations)
 		api.GET("/dashboard/risk", dbCtrl.GetRiskMetrics)
 		api.GET("/research/:ticker", dbCtrl.GetResearchTerminal)
+
+		// Search and Curated Asset Universe endpoints (Module 3.8)
+		api.GET("/search", dbCtrl.SearchAssets)
+		api.GET("/assets/popular", dbCtrl.GetPopularAssets)
+		api.GET("/assets/india", dbCtrl.GetIndianAssets)
+		api.GET("/assets/us", dbCtrl.GetUSAssets)
+		api.GET("/assets/crypto", dbCtrl.GetCryptoAssets)
+		api.GET("/assets/indices", dbCtrl.GetIndicesAssets)
 
 		// V1 Endpoints
 		v1 := api.Group("/v1")

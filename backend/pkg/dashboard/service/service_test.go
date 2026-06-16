@@ -7,6 +7,8 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+
+	"github.com/google/uuid"
 )
 
 // Define Mocks matching the new repository interfaces
@@ -14,11 +16,19 @@ import (
 type mockPortfolioRepo struct {
 	repositories.PortfolioRepository
 	getByUserIDFn func(userID string) (*models.Portfolio, error)
+	getHoldingsFn func(portfolioID uuid.UUID) ([]models.PortfolioHolding, error)
 }
 
 func (m *mockPortfolioRepo) GetByUserID(userID string) (*models.Portfolio, error) {
 	if m.getByUserIDFn != nil {
 		return m.getByUserIDFn(userID)
+	}
+	return nil, errors.New("method not mocked")
+}
+
+func (m *mockPortfolioRepo) GetHoldings(portfolioID uuid.UUID) ([]models.PortfolioHolding, error) {
+	if m.getHoldingsFn != nil {
+		return m.getHoldingsFn(portfolioID)
 	}
 	return nil, errors.New("method not mocked")
 }
@@ -97,6 +107,7 @@ func TestGetDashboard_Success(t *testing.T) {
 	mockPort := &models.Portfolio{
 		UserID:             defaultUserID,
 		TotalValue:         250000.00,
+		CashBalance:        250000.00,
 		DailyChange:        1500.00,
 		DailyChangePercent: 0.60,
 	}
@@ -127,6 +138,9 @@ func TestGetDashboard_Success(t *testing.T) {
 		getByUserIDFn: func(userID string) (*models.Portfolio, error) {
 			return mockPort, nil
 		},
+		getHoldingsFn: func(portfolioID uuid.UUID) ([]models.PortfolioHolding, error) {
+			return []models.PortfolioHolding{}, nil
+		},
 	}
 	watchRepo := &mockWatchlistRepo{
 		getByUserIDFn: func(userID string) ([]models.Watchlist, error) {
@@ -153,7 +167,7 @@ func TestGetDashboard_Success(t *testing.T) {
 	}
 
 	// 3. Instantiate Service
-	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
+	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
 
 	// 4. Execute Service Call
 	resp, err := srv.GetDashboard(defaultUserID)
@@ -205,6 +219,9 @@ func TestGetDashboard_RepoError(t *testing.T) {
 		getByUserIDFn: func(userID string) (*models.Portfolio, error) {
 			return &models.Portfolio{UserID: defaultUserID}, nil
 		},
+		getHoldingsFn: func(portfolioID uuid.UUID) ([]models.PortfolioHolding, error) {
+			return []models.PortfolioHolding{}, nil
+		},
 	}
 	watchRepo := &mockWatchlistRepo{
 		getByUserIDFn: func(userID string) ([]models.Watchlist, error) {
@@ -230,7 +247,7 @@ func TestGetDashboard_RepoError(t *testing.T) {
 		},
 	}
 
-	srv := NewDashboardService(portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
+	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
 
 	// 2. Execute and expect failure
 	_, err := srv.GetDashboard(defaultUserID)

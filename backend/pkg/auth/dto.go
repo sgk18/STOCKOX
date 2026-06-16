@@ -8,6 +8,7 @@ type UserSyncRequest struct {
 }
 
 type SyncResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	Onboarded bool   `json:"onboarded"`
 }

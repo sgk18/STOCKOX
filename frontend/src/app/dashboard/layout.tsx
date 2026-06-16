@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useUser, useClerk, useAuth } from "@clerk/nextjs";
 import { useDashboardStore } from "@/lib/store";
 import { useWebSocketStore } from "@/lib/websocketStore";
 import {
@@ -39,12 +39,45 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
+  const { getToken } = useAuth();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showAgentFeed, setShowAgentFeed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setSearchResults([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const token = await getToken();
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        }
+      } catch (err) {
+        console.error("Search query failed", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, getToken]);
 
   const commandResults = [
     { type: "shortcut", label: "Go to Dashboard Home", path: "/dashboard" },
@@ -92,7 +125,7 @@ export default function DashboardLayout({
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim() !== "") {
-      router.push(`/dashboard/research-terminal?ticker=${searchQuery.trim().toUpperCase()}`);
+      router.push(`/research/${searchQuery.trim().toUpperCase()}`);
       setSearchQuery("");
     }
   };
@@ -249,31 +282,66 @@ export default function DashboardLayout({
             {isFocused && (
               <div className="absolute left-0 right-0 mt-2 bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_#000000] overflow-hidden max-h-72 overflow-y-auto z-50">
                 <div className="p-2 border-b-2 border-black bg-[#F8FAFC] text-[8px] font-black text-[#64748B] uppercase tracking-wider">
-                  Select Command Shortcut or Equity
+                  {searchQuery.trim() === "" ? "Command Shortcuts" : "Search Results"}
                 </div>
                 <div className="p-1 flex flex-col gap-0.5">
-                  {commandResults
-                    .filter((item) =>
-                      searchQuery === ""
-                        ? true
-                        : item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.path.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
-                    .map((item, idx) => (
+                  {searchQuery.trim() === "" ? (
+                    commandResults
+                      .filter((item) => item.type === "shortcut")
+                      .map((item, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            router.push(item.path);
+                            setSearchQuery("");
+                          }}
+                          className="w-full text-left flex items-center justify-between px-3 py-2 text-[10px] font-black text-black/75 hover:bg-[#2563EB] hover:text-white rounded-lg transition-colors uppercase font-sans cursor-pointer"
+                        >
+                          <span className="truncate">{item.label}</span>
+                          <span className="font-mono text-[8px] opacity-60">CMD</span>
+                        </button>
+                      ))
+                  ) : isSearching ? (
+                    <div className="p-4 text-center text-[10px] font-black text-black/40">Searching market universe...</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="p-4 text-center text-[10px] font-black text-black/40">No assets found in universe</div>
+                  ) : (
+                    searchResults.map((asset, idx) => (
                       <button
                         key={idx}
                         onClick={() => {
-                          router.push(item.path);
+                          router.push(`/research/${asset.symbol}`);
                           setSearchQuery("");
                         }}
-                        className="w-full text-left flex items-center justify-between px-3 py-2 text-[10px] font-black text-black/75 hover:bg-[#2563EB] hover:text-white rounded-lg transition-colors uppercase font-sans cursor-pointer"
+                        className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-[#2563EB] hover:text-white rounded-lg transition-colors font-sans cursor-pointer border border-transparent hover:border-black"
                       >
-                        <span className="truncate">{item.label}</span>
-                        <span className="font-mono text-[8px] opacity-60">
-                          {item.type === "shortcut" ? "CMD" : "STOCK"}
-                        </span>
+                        {asset.logo_url ? (
+                          <img
+                            src={asset.logo_url}
+                            alt={asset.symbol}
+                            className="w-6 h-6 rounded border border-black shrink-0 object-contain bg-white"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${asset.symbol}`;
+                            }}
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded border border-black bg-[#2563EB] text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                            {asset.symbol.slice(0, 2)}
+                          </div>
+                        )}
+                        <div className="flex-grow min-w-0 flex flex-col">
+                          <div className="flex items-baseline justify-between">
+                            <span className="font-black text-xs text-[#0F172A]">{asset.symbol}</span>
+                            <span className="text-[8px] font-bold opacity-60 uppercase text-[#64748B] group-hover:text-white">{asset.exchange}</span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-[10px] font-medium truncate opacity-80 text-[#334155] group-hover:text-white">{asset.company}</span>
+                            <span className="text-[8px] font-bold opacity-60 uppercase text-[#64748B] group-hover:text-white">{asset.country}</span>
+                          </div>
+                        </div>
                       </button>
-                    ))}
+                    ))
+                  )}
                 </div>
               </div>
             )}

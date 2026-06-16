@@ -107,9 +107,11 @@ func (p *FinnhubProvider) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 	}, nil
 }
 
-// GetCompanyProfile gets profile data
+// GetCompanyProfile aggregates static profile data with real-time price quotes.
+// Because Finnhub separates company metadata from live quotes, this method implicitly
+// calls GetQuote to merge both datasets into a comprehensive CompanyProfileDTO.
 func (p *FinnhubProvider) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO, error) {
-	// 1. Load profile details
+	// 1. Load profile details (Market Cap, Industry, Website, etc.)
 	u := fmt.Sprintf("%s/stock/profile2?symbol=%s&token=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {

@@ -43,6 +43,25 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	}
 	log.Println("[DB] Ping successful")
 
+	// Drop old stock_metadata if it has old schema (Symbol as primary key)
+	if db.Migrator().HasTable("stock_metadata") {
+		// Check if ID column exists. If not, drop table to recreate it with the new schema.
+		if !db.Migrator().HasColumn("stock_metadata", "id") {
+			log.Println("[DB] Dropping old stock_metadata table to apply new primary key schema...")
+			_ = db.Migrator().DropTable("stock_metadata")
+		}
+	}
+
+	// Drop old portfolios schema if it lacks account_mode (transitioning to composite unique index)
+	if db.Migrator().HasTable("portfolios") {
+		if !db.Migrator().HasColumn("portfolios", "account_mode") {
+			log.Println("[DB] Dropping old portfolios schema to apply composite index support...")
+			_ = db.Migrator().DropTable("portfolio_snapshots")
+			_ = db.Migrator().DropTable("portfolio_holdings")
+			_ = db.Migrator().DropTable("portfolios")
+		}
+	}
+
 	// Run GORM AutoMigrate for new and upgraded tables
 	log.Println("[DB] Running GORM AutoMigrate...")
 	if err := db.AutoMigrate(
@@ -115,6 +134,11 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		log.Printf("[DB-WARN] Failed to seed demo data: %v", err)
 	}
 
+	// Seed Searchable Stock Universe
+	if err := SeedStockUniverse(db); err != nil {
+		log.Printf("[DB-WARN] Failed to seed stock universe: %v", err)
+	}
+
 	return db, nil
 }
 
@@ -123,14 +147,16 @@ func SeedDemoData(db *gorm.DB) error {
 
 	// 1. Seed Demo User
 	demoUser := models.User{
-		ID:        "demo_user_id_0000000000000000001",
-		ClerkID:   "demo_user_id_0000000000000000001",
-		Email:     "demo@stockox.ai",
-		Name:      "Demo Advisor Profile",
-		AvatarURL: "https://avatar.vercel.sh/demo",
-		Role:      "Lead Investment Advisor",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:              "demo_user_id_0000000000000000001",
+		ClerkID:         "demo_user_id_0000000000000000001",
+		Email:           "demo@stockox.ai",
+		Name:            "Demo Advisor Profile",
+		AvatarURL:       "https://avatar.vercel.sh/demo",
+		Role:            "Lead Investment Advisor",
+		AccountMode:     "demo",
+		Onboarded:       true,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 	if err := db.FirstOrCreate(&demoUser, "email = ?", "demo@stockox.ai").Error; err != nil {
 		return err
@@ -141,6 +167,7 @@ func SeedDemoData(db *gorm.DB) error {
 	demoPortfolio := models.Portfolio{
 		ID:                 portfolioID,
 		UserID:             demoUser.ID,
+		AccountMode:        "demo",
 		TotalValue:         125400.00,
 		CashBalance:        12000.00,
 		DailyChange:        5062.00,

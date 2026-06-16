@@ -358,6 +358,9 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 	}
 
 	// 2. Start simulation goroutine through AgentManager orchestrator
+	// This background execution is critical for preventing HTTP timeout. The AgentManager will
+	// spin up parallel goroutines representing individual AI committee members (e.g., Value, Growth,
+	// Technical analysts), synthesize their debates, and update the database with final decisions.
 	go ctrl.agentMgr.RunSimulatedCommittee(
 		session.ID,
 		ticker,
@@ -602,3 +605,4 @@ func (ctrl *V1Controller) GetAnalysisTimeline(c *gin.Context) {
 
 	c.JSON(http.StatusOK, timeline)
 }
+

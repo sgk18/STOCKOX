@@ -200,3 +200,12 @@ type DashboardResponse struct {
 	Opportunities  []OpportunityResponse       `json:"opportunities"`
 	Decisions      []CommitteeDecisionResponse `json:"decisions"`
 }
+
+type SearchAssetResponse struct {
+	Symbol    string `json:"symbol"`
+	Company   string `json:"company"`
+	Exchange  string `json:"exchange"`
+	Country   string `json:"country"`
+	AssetType string `json:"assetType"`
+	LogoURL   string `json:"logo_url"`
+}

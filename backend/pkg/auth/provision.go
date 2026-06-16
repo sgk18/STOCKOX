@@ -91,35 +91,5 @@ func ProvisionUser(
 	}
 	log.Printf("[DATABASE] User inserted: email=%s, user_id=%s", email, userID)
 
-	// 3. Seed Portfolio Summary
-	portfolio := models.Portfolio{
-		ID:                 uuid.New(),
-		UserID:             userID,
-		TotalValue:         100000.00,
-		CashBalance:        100000.00,
-		DailyChange:        0.00,
-		DailyChangePercent: 0.00,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	}
-	if err := portfolioRepo.Create(&portfolio); err != nil {
-		log.Printf("[SYNC-PROVISION-ERR] Failed to seed portfolio for user %s: %v", userID, err)
-	}
-
-	// 4. Seed Watchlist Items
-	watchlists := []struct {
-		ticker string
-		name   string
-	}{
-		{"TSLA", "Tesla Inc."},
-		{"MSFT", "Microsoft Corp."},
-		{"AMD", "Advanced Micro Devices"},
-	}
-	for _, w := range watchlists {
-		if _, err := watchlistRepo.Add(userID, w.ticker, w.name); err != nil {
-			log.Printf("[SYNC-PROVISION-ERR] Failed to seed watchlist item %s: %v", w.ticker, err)
-		}
-	}
-
 	return nil
 }
