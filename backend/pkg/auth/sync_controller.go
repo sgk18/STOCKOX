@@ -3,6 +3,7 @@ package auth
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"stockox-backend/database/models"
@@ -146,6 +147,16 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 	if avatarURL == "" {
 		avatarURL = "https://avatar.vercel.sh/" + userID
 	}
+
+	// Add email validation
+	if !strings.Contains(email, "@") {
+		log.Printf("[AUTH] Sync failed: email does not contain @: email=%s, user_id=%s", email, userID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address"})
+		return
+	}
+
+	// Add debug logging
+	log.Printf("[AUTH] Sync details: Clerk User ID=%s, Primary Email=%s, Name=%s, Avatar URL=%s", userID, email, name, avatarURL)
 
 	// 3. Upsert Logic: Search by clerk_id first
 	existingUser, err := ctrl.userRepo.GetByClerkID(userID)

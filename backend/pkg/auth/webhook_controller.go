@@ -144,6 +144,16 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 			return
 		}
 
+		// Add email validation
+		if !strings.Contains(email, "@") {
+			log.Printf("[AUTH] Sync failed: email does not contain @: email=%s, user_id=%s", email, userID)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address"})
+			return
+		}
+
+		// Add debug logging
+		log.Printf("[AUTH] Sync details: Clerk User ID=%s, Primary Email=%s, Name=%s, Avatar URL=%s", userID, email, name, avatarURL)
+
 		user, err := ctrl.userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {

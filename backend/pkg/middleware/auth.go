@@ -157,6 +157,13 @@ func EnsureUserSynced(
 			email = userID + "@clerk.user"
 		}
 
+		// Add email validation
+		if !strings.Contains(email, "@") {
+			log.Printf("[AUTH] Sync failed in middleware: email does not contain @: email=%s, user_id=%s", email, userID)
+			c.Next()
+			return
+		}
+
 		existingUser, err := userRepo.GetByClerkID(userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {

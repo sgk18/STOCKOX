@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"stockox-backend/database/models"
@@ -22,6 +24,15 @@ func ProvisionUser(
 	avatarURL string,
 	role string,
 ) error {
+	// Add email validation
+	if !strings.Contains(email, "@") {
+		log.Printf("[AUTH] Sync failed: email does not contain @: email=%s, user_id=%s", email, userID)
+		return fmt.Errorf("email does not contain @: %s", email)
+	}
+
+	// Add debug logging
+	log.Printf("[AUTH] Sync details: Clerk User ID=%s, Primary Email=%s, Name=%s, Avatar URL=%s", userID, email, name, avatarURL)
+
 	// 1. Check if a user with this email already exists (e.g. mock seeded user)
 	existingUser, err := userRepo.GetByEmail(email)
 	if err == nil && existingUser != nil {

@@ -83,6 +83,15 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	}
 	log.Println("[DB] Schema updates executed")
 
+	// Clean up any incorrectly stored emails (emails that do not contain '@')
+	log.Println("[DB] Running cleanup for malformed emails...")
+	cleanupSQL := `UPDATE users SET email = id || '@clerk.user' WHERE email NOT LIKE '%@%';`
+	if err := db.Exec(cleanupSQL).Error; err != nil {
+		log.Printf("[DB-WARN] Failed to execute email cleanup: %v", err)
+	} else {
+		log.Println("[DB] Malformed emails cleaned up")
+	}
+
 	return db, nil
 }
 
