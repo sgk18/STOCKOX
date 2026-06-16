@@ -8,10 +8,12 @@ import { useEventStore } from "@/lib/eventStore";
 
 export default function EventStream() {
   const events = useEventStore((state) => state.events);
-  const containerEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    containerEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [events]);
 
   const getEventTextAndColor = (type: string, payload: any, timestampStr?: string) => {
@@ -32,7 +34,7 @@ export default function EventStream() {
         break;
       case "analysis_completed":
         text = `[SYSTEM] Audit finished. Signal: ${payload.recommendation} | Confidence: ${payload.confidence_score}%.`;
-        colorClass = "text-emerald-400 font-extrabold";
+        colorClass = "text-[#60A5FA] font-extrabold";
         break;
       case "analysis_failed":
         text = `[SYSTEM-ERROR] Audit aborted: ${payload.error}`;
@@ -78,7 +80,7 @@ export default function EventStream() {
       </div>
 
       {/* Screen logs */}
-      <div className="flex-grow p-4 overflow-y-auto font-mono text-[10px] flex flex-col gap-2 leading-relaxed">
+      <div ref={containerRef} className="flex-grow p-4 overflow-y-auto font-mono text-[10px] flex flex-col gap-2 leading-relaxed">
         {events.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-white/30">
             <Database className="w-8 h-8 opacity-20 animate-pulse mb-1" />
@@ -103,7 +105,6 @@ export default function EventStream() {
             })}
           </AnimatePresence>
         )}
-        <div ref={containerEndRef} />
       </div>
     </div>
   );

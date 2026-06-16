@@ -30,7 +30,7 @@ export default function MarketCard({ data }: MarketCardProps) {
         </div>
         
         <span className={`inline-flex items-center gap-0.5 text-[10px] font-black border-2 border-black px-1.5 py-0.5 rounded shadow-[1.5px_1.5px_0px_#000000] uppercase ${
-          isPositive ? "bg-[#22C55E] text-black" : "bg-[#EF4444] text-white"
+          isPositive ? "bg-[#2563EB] text-white" : "bg-[#EF4444] text-white"
         }`}>
           {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           <span>{isPositive ? "+" : ""}{data.changePercent}%</span>
@@ -44,14 +44,14 @@ export default function MarketCard({ data }: MarketCardProps) {
             <AreaChart data={data.history} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
               <defs>
                 <linearGradient id={`grad-${data.name}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={isPositive ? "#22C55E" : "#EF4444"} stopOpacity={0.4} />
-                  <stop offset="100%" stopColor={isPositive ? "#22C55E" : "#EF4444"} stopOpacity={0.0} />
+                  <stop offset="0%" stopColor={isPositive ? "#2563EB" : "#EF4444"} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={isPositive ? "#2563EB" : "#EF4444"} stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke={isPositive ? "#22C55E" : "#EF4444"}
+                stroke={isPositive ? "#2563EB" : "#EF4444"}
                 strokeWidth={2.5}
                 fill={`url(#grad-${data.name})`}
                 isAnimationActive={false}

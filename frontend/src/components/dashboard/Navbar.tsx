@@ -55,7 +55,7 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#2563EB]/10 border-2 border-black rounded-lg text-sm font-black text-[#2563EB] shadow-[2px_2px_0px_#000000]">
           <Sparkles className="w-4 h-4 text-[#2563EB] animate-spin" style={{ animationDuration: "8s" }} />
           <span className="uppercase text-[10px]">Agents Active</span>
-          <span className="w-2 h-2 rounded-full bg-[#22C55E] border border-black animate-ping" />
+          <span className="w-2 h-2 rounded-full bg-[#2563EB] border border-black animate-ping" />
         </div>
 
         {/* Notifications Bell */}

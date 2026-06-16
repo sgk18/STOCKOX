@@ -35,7 +35,7 @@ export default function AnalysisCard() {
                   <span className="text-[10px] font-black uppercase tracking-wider">{item.date}</span>
                 </div>
                 <span className={`text-[9px] font-black uppercase px-2 py-0.5 border border-black rounded shadow-[1px_1px_0px_#000000] ${
-                  isBuy ? "bg-[#22C55E] text-black" : "bg-[#FACC15] text-black"
+                  isBuy ? "bg-[#2563EB] text-white" : "bg-[#FACC15] text-black"
                 }`}>
                   {item.recommendation}
                 </span>

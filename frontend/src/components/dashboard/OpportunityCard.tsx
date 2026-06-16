@@ -45,9 +45,9 @@ export default function OpportunityCard() {
 
   const typeConfig = {
     "Strong Buy": {
-      color: "bg-[#22C55E]/15 border-[#22C55E] text-[#15803d]",
+      color: "bg-[#2563EB]/15 border-[#2563EB] text-[#2563EB]",
       icon: ShieldCheck,
-      badge: "bg-[#22C55E] text-black border-black",
+      badge: "bg-[#2563EB] text-white border-black",
     },
     "Watch": {
       color: "bg-[#2563EB]/15 border-[#2563EB] text-[#1e40af]",

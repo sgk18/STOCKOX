@@ -61,7 +61,7 @@ export default function WatchlistTable({ items, onRemove }: WatchlistTableProps)
                   {/* 24h Change */}
                   <td className="py-3.5 px-4">
                     <span className={`inline-flex items-center gap-0.5 font-bold ${
-                      isPositive ? "text-[#22C55E]" : "text-[#EF4444]"
+                      isPositive ? "text-[#2563EB]" : "text-[#EF4444]"
                     }`}>
                       {isPositive ? (
                         <ArrowUpRight className="w-4 h-4" />
@@ -86,7 +86,7 @@ export default function WatchlistTable({ items, onRemove }: WatchlistTableProps)
                         ? "bg-[#EF4444] text-white"
                         : item.risk === "Medium"
                         ? "bg-[#FACC15] text-black"
-                        : "bg-[#22C55E] text-black"
+                        : "bg-[#2563EB] text-white"
                     }`}>
                       {item.risk === "High" && <ShieldAlert className="w-3 h-3" />}
                       {item.risk}
@@ -97,7 +97,7 @@ export default function WatchlistTable({ items, onRemove }: WatchlistTableProps)
                   <td className="py-3.5 px-4 text-center">
                     <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-lg border-2 border-black shadow-[1.5px_1.5px_0px_#000000] ${
                       item.recommendation === "BUY"
-                        ? "bg-[#22C55E] text-black"
+                        ? "bg-[#2563EB] text-white"
                         : item.recommendation === "SELL"
                         ? "bg-[#EF4444] text-white"
                         : "bg-[#FACC15] text-black"

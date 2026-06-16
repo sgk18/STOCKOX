@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useDashboardStore } from "@/lib/store";
 import { 
   PieChart as PieChartIcon, 

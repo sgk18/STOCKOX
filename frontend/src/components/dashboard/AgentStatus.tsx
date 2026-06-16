@@ -40,9 +40,9 @@ export default function AgentStatus() {
                 <IconComp className="w-4 h-4" />
               </div>
               <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000000] ${
-                isIdle ? "bg-gray-100 text-gray-500" : "bg-[#22C55E]/15 text-[#15803d]"
+                isIdle ? "bg-gray-100 text-gray-500" : "bg-[#2563EB]/15 text-[#2563EB]"
               }`}>
-                {!isIdle && <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-ping" />}
+                {!isIdle && <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] animate-ping" />}
                 {agent.status}
               </span>
             </div>

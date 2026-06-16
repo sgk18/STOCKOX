@@ -81,12 +81,12 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex text-[#0F172A] font-sans overflow-x-hidden relative">
+    <div className="h-screen overflow-hidden bg-[#F8FAFC] flex text-[#0F172A] font-sans relative">
       {/* Background Dot pattern overlay */}
       <div className="absolute inset-0 dot-pattern-brutal pointer-events-none z-0" />
 
       {/* LEFT SIDEBAR - Permanent Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-[280px] border-r-4 border-black bg-white select-none relative z-30 shrink-0 h-screen sticky top-0">
+      <aside className="hidden lg:flex flex-col w-[280px] border-r-4 border-black bg-white select-none relative z-30 shrink-0 h-full">
         {/* Brand/Logo Section */}
         <div className="p-6 border-b-4 border-black flex items-center gap-3">
           <div className="w-10 h-10 bg-[#2563EB] border-3 border-black rounded-xl flex items-center justify-center shadow-[3px_3px_0px_#000000] rotate-[-2deg]">
@@ -209,7 +209,7 @@ export default function DashboardLayout({
       )}
 
       {/* MAIN CONTAINER */}
-      <div className="flex-grow flex flex-col min-w-0 pt-16 lg:pt-0 relative z-10 animate-fadeIn">
+      <div className="flex-grow flex flex-col min-w-0 pt-16 lg:pt-0 relative z-10 animate-fadeIn h-full overflow-hidden">
         
         {/* TOP BAR */}
         <header className="h-20 border-b-4 border-black bg-white/75 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-30 select-none">
@@ -312,16 +312,16 @@ export default function DashboardLayout({
         </header>
 
         {/* CONTENT ROW */}
-        <div className="flex-grow flex flex-col lg:flex-row relative">
+        <div className="flex-grow flex flex-col lg:flex-row relative overflow-hidden h-full">
           
           {/* FLUID RESPONSIVE CONTENT AREA */}
-          <main className="flex-grow p-6 lg:p-8 min-w-0">
+          <main className="flex-grow p-6 lg:p-8 min-w-0 overflow-y-auto h-full">
             {children}
           </main>
 
           {/* COLLAPSIBLE RIGHT PANEL - AI ACTIVITY FEED */}
           {showAgentFeed && (
-            <aside className="w-full lg:w-[360px] border-t-4 lg:border-t-0 lg:border-l-4 border-black bg-white select-none shrink-0 relative z-20 flex flex-col h-[500px] lg:h-[calc(100vh-80px)] lg:sticky lg:top-20">
+            <aside className="w-full lg:w-[360px] border-t-4 lg:border-t-0 lg:border-l-4 border-black bg-white select-none shrink-0 relative z-20 flex flex-col h-[500px] lg:h-full">
               <div className="flex-grow flex flex-col overflow-hidden h-full">
                 {/* Custom Wrapper to display AgentFeed */}
                 <div className="flex-grow overflow-hidden flex flex-col h-full bg-[#F8FAFC]">

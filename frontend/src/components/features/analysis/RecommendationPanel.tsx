@@ -26,10 +26,10 @@ export default function RecommendationPanel({ session, onReset }: Recommendation
     switch (rec) {
       case "BUY":
         return {
-          bg: "bg-[#22C55E]",
+          bg: "bg-[#2563EB]",
           textColor: "text-white",
           label: "Strong Buy Signal",
-          border: "border-[#22C55E]",
+          border: "border-[#2563EB]",
         };
       case "SELL":
         return {
@@ -53,7 +53,7 @@ export default function RecommendationPanel({ session, onReset }: Recommendation
   const agents = [
     { name: "Research Agent", initials: "R", bg: "bg-[#2563EB]" },
     { name: "News Agent", initials: "N", bg: "bg-[#FACC15] text-black" },
-    { name: "Fundamental Agent", initials: "F", bg: "bg-[#22C55E]" },
+    { name: "Fundamental Agent", initials: "F", bg: "bg-[#3B82F6]" },
     { name: "Technical Agent", initials: "T", bg: "bg-[#a855f7]" },
     { name: "Risk Agent", initials: "K", bg: "bg-[#EF4444]" },
   ];
@@ -96,7 +96,7 @@ export default function RecommendationPanel({ session, onReset }: Recommendation
               <span className="text-black/40 font-bold block uppercase text-[9px] tracking-wider mb-1">
                 Target Projection
               </span>
-              <span className="font-black text-[#22C55E] flex items-center gap-0.5">
+              <span className="font-black text-[#2563EB] flex items-center gap-0.5">
                 <TrendingUp className="w-4 h-4" />
                 <span>${session.targetPrice.toFixed(2)}</span>
               </span>
@@ -106,7 +106,7 @@ export default function RecommendationPanel({ session, onReset }: Recommendation
                 Risk Classification
               </span>
               <span className={`font-black flex items-center gap-1 ${
-                session.riskLevel === "HIGH" ? "text-[#EF4444]" : "text-[#22C55E]"
+                session.riskLevel === "HIGH" ? "text-[#EF4444]" : "text-[#2563EB]"
               }`}>
                 <ShieldAlert className="w-4 h-4" />
                 <span>{session.riskLevel}</span>

@@ -45,7 +45,7 @@ export default function PortfolioCard() {
           <span className="text-4xl md:text-5xl font-black tracking-tight text-[#0F172A]">
             ${portfolio.value.toLocaleString()}
           </span>
-          <span className="inline-flex items-center gap-1 text-xs font-black bg-[#22C55E] text-black border-2 border-black px-2.5 py-1 rounded-lg shadow-[2px_2px_0px_#000000]">
+          <span className="inline-flex items-center gap-1 text-xs font-black bg-[#2563EB] text-white border-2 border-black px-2.5 py-1 rounded-lg shadow-[2px_2px_0px_#000000]">
             <TrendingUp className="w-3.5 h-3.5" />
             <span>+{portfolio.changePercent}%</span>
           </span>
@@ -59,7 +59,7 @@ export default function PortfolioCard() {
           <span className="text-black font-black">94.8% Stable</span>
         </div>
         <div className="w-full bg-[#F8FAFC] border-2 border-black rounded-full h-4 overflow-hidden relative shadow-[1px_1px_0px_#000000]">
-          <div className="bg-[#22C55E] h-full rounded-full border-r-2 border-black" style={{ width: "94.8%" }} />
+          <div className="bg-[#2563EB] h-full rounded-full border-r-2 border-black" style={{ width: "94.8%" }} />
         </div>
       </div>
     </div>

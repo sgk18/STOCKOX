@@ -37,7 +37,7 @@ export default function Button({
       "font-bold text-center"
     ),
     success: cn(
-      "bg-[#22C55E] text-black border-black shadow-[4px_4px_0px_#000000]",
+      "bg-[#3B82F6] text-white border-black shadow-[4px_4px_0px_#000000]",
       "hover:shadow-[6px_6px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000]",
       "font-extrabold uppercase tracking-wider text-center"
     ),

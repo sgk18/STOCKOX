@@ -256,7 +256,7 @@ export default function AgentNetwork() {
 
               <div className="mt-4 bg-white border-2 border-black rounded-xl p-3 flex justify-between items-center shadow-[2px_2px_0px_#000000]">
                 <span className="text-xs text-black/60 font-black uppercase">Consensus Status</span>
-                <span className="text-xs font-black text-black bg-[#22C55E] px-2.5 py-0.5 rounded border border-black shadow-[1px_1px_0px_#000000]">
+                <span className="text-xs font-black text-white bg-[#2563EB] px-2.5 py-0.5 rounded border border-black shadow-[1px_1px_0px_#000000]">
                   {committeeAgent.metric}
                 </span>
               </div>
@@ -304,7 +304,7 @@ export default function AgentNetwork() {
                 <p className="text-xs font-bold text-black/70">{committeeAgent.metricLabel}</p>
               </div>
             </div>
-            <span className="text-sm font-black text-black bg-[#22C55E] px-3 py-1 rounded border border-black shadow-[2px_2px_0px_#000000]">
+            <span className="text-sm font-black text-white bg-[#2563EB] px-3 py-1 rounded border border-black shadow-[2px_2px_0px_#000000]">
               {committeeAgent.metric}
             </span>
           </div>

@@ -45,12 +45,12 @@ export default function AgentFeed() {
       timestamp: "10:16 AM",
     },
   ]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const feedEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto scroll logic
   useEffect(() => {
-    feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Connect socket on mount
@@ -245,7 +245,7 @@ export default function AgentFeed() {
       </div>
 
       {/* Feed Panel */}
-      <div className="flex-grow p-4 overflow-y-auto bg-[#F8FAFC] flex flex-col gap-3.5">
+      <div ref={containerRef} className="flex-grow p-4 overflow-y-auto bg-[#F8FAFC] flex flex-col gap-3.5">
         <AnimatePresence initial={false}>
           {messages.map((msg) => {
             const IconComp = agentIcons[msg.agentId] || Bot;
@@ -276,7 +276,6 @@ export default function AgentFeed() {
             );
           })}
         </AnimatePresence>
-        <div ref={feedEndRef} />
       </div>
     </div>
   );
