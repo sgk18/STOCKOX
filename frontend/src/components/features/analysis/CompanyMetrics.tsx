@@ -32,7 +32,7 @@ export default function CompanyMetrics({ profile, metrics }: CompanyMetricsProps
         label: "Earnings Per Share (EPS)",
         value: metrics.eps ? `$${metrics.eps.toFixed(2)}` : "N/A",
         icon: Wallet,
-        color: "text-[#22C55E]",
+        color: "text-[#2563EB]",
       },
       {
         label: "Return on Equity (ROE)",
@@ -44,7 +44,7 @@ export default function CompanyMetrics({ profile, metrics }: CompanyMetricsProps
         label: "Revenue Growth YOY",
         value: metrics.revenueGrowth ? `${metrics.revenueGrowth.toFixed(2)}%` : "N/A",
         icon: TrendingUp,
-        color: "text-[#22C55E]",
+        color: "text-[#3B82F6]",
       },
       {
         label: "Net Profit Margin",
@@ -62,7 +62,7 @@ export default function CompanyMetrics({ profile, metrics }: CompanyMetricsProps
         label: "Operating Cash Flow",
         value: formatLargeNumber(metrics.cashFlow),
         icon: DollarSign,
-        color: "text-[#22C55E]",
+        color: "text-[#60A5FA]",
       },
       {
         label: "Total Revenue TTM",
@@ -149,7 +149,7 @@ export default function CompanyMetrics({ profile, metrics }: CompanyMetricsProps
                         ? "bg-[#EF4444]"
                         : metrics.debtRatio > 0.8
                         ? "bg-[#FACC15]"
-                        : "bg-[#22C55E]"
+                        : "bg-[#2563EB]"
                     }`}
                     style={{ width: `${Math.min(metrics.debtRatio * 50, 100)}%` }} // Scaled relative to 2.0 max
                   />

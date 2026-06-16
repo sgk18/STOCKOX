@@ -238,8 +238,8 @@ export default function AgentFeed() {
           <MessageSquare className="w-5 h-5 text-[#2563EB]" />
           <span className="text-sm font-black uppercase tracking-wider text-[#0F172A]">Agent Comm Bus (Slack Link)</span>
         </div>
-        <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${socketConnected ? "text-[#22C55E]" : "text-amber-500"}`}>
-          <span className={`w-2 h-2 rounded-full border border-black ${socketConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+        <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${socketConnected ? "text-[#2563EB]" : "text-amber-500"}`}>
+          <span className={`w-2 h-2 rounded-full border border-black ${socketConnected ? "bg-[#2563EB] animate-ping" : "bg-amber-500 animate-pulse"}`} />
           {socketConnected ? "Live Connection" : "Simulated"}
         </span>
       </div>

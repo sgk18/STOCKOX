@@ -22,9 +22,9 @@ export default function AgentProgress({ agentStates }: AgentProgressProps) {
       case "completed":
         return {
           icon: CheckCircle2,
-          class: "bg-[#22C55E]/15 border-[#22C55E]/40 text-[#22C55E]",
+          class: "bg-[#2563EB]/15 border-[#2563EB]/40 text-[#2563EB]",
           label: "Audit Complete",
-          badgeColor: "bg-[#22C55E]",
+          badgeColor: "bg-[#2563EB]",
         };
       case "analyzing":
         return {

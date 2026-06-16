@@ -29,10 +29,10 @@ export default function AgentTimeline({ agents, isWsConnected }: AgentTimelinePr
         };
       case "completed":
         return {
-          bg: "bg-[#22C55E]/10",
+          bg: "bg-[#2563EB]/10",
           border: "border-black border-2",
-          iconColor: "text-[#22C55E]",
-          dotColor: "bg-[#22C55E]",
+          iconColor: "text-[#2563EB]",
+          dotColor: "bg-[#2563EB]",
         };
       case "error":
         return {
@@ -61,8 +61,8 @@ export default function AgentTimeline({ agents, isWsConnected }: AgentTimelinePr
             AI Committee Timeline Audit
           </span>
         </div>
-        <div className={`flex items-center gap-1.5 font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded border ${isWsConnected ? "bg-[#22C55E]/20 text-[#22C55E] border-[#22C55E]/50" : "bg-amber-500/20 text-amber-500 border-amber-500/50"}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${isWsConnected ? "bg-[#22C55E] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+        <div className={`flex items-center gap-1.5 font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded border ${isWsConnected ? "bg-[#2563EB]/20 text-[#2563EB] border-[#2563EB]/50" : "bg-amber-500/20 text-amber-500 border-amber-500/50"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isWsConnected ? "bg-[#2563EB] animate-ping" : "bg-amber-500 animate-pulse"}`} />
           <span>{isWsConnected ? "WS Live Feed" : "Simulated"}</span>
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function AgentTimeline({ agents, isWsConnected }: AgentTimelinePr
                   className={`w-9 h-9 rounded-lg flex items-center justify-center bg-white border-2 shadow-[2px_2px_0px_#000000] ${cfg.border}`}
                   whileHover={{ scale: 1.05 }}
                 >
-                  {agent.status === "completed" && <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />}
+                  {agent.status === "completed" && <CheckCircle2 className="w-5 h-5 text-[#2563EB]" />}
                   {agent.status === "error" && <AlertTriangle className="w-5 h-5 text-[#EF4444]" />}
                   {agent.status === "thinking" && <HelpCircle className="w-5 h-5 text-[#FACC15] animate-spin" />}
                   {agent.status === "analyzing" && <Bot className="w-5 h-5 text-[#2563EB] animate-pulse" />}
@@ -106,7 +106,7 @@ export default function AgentTimeline({ agents, isWsConnected }: AgentTimelinePr
                     {agent.name}
                   </span>
                   <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-black/15 ${
-                    agent.status === "completed" ? "bg-[#22C55E]/20 text-[#22C55E]" :
+                    agent.status === "completed" ? "bg-[#2563EB]/20 text-[#2563EB]" :
                     agent.status === "error" ? "bg-[#EF4444]/20 text-[#EF4444]" :
                     agent.status === "thinking" ? "bg-[#FACC15]/20 text-yellow-700" :
                     agent.status === "analyzing" ? "bg-[#2563EB]/20 text-[#2563EB]" :

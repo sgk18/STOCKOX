@@ -2,13 +2,20 @@
 
 @theme {
   --color-primary: #2563EB;
+  --color-primary-blue: #2563EB;
+  --color-electric-blue: #3B82F6;
+  --color-accent-blue: #60A5FA;
   --color-primary-light: #60A5FA;
-  --color-accent: #FACC15;
+  --color-accent: #60A5FA;
   --color-dark: #0F172A;
-  --color-success-brutal: #22C55E;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #64748B;
+  --color-success-brutal: #2563EB;
   --color-risk-brutal: #EF4444;
   --color-border-brutal: #000000;
   --color-bg-brutal: #F8FAFC;
+  --color-warning-brutal: #F59E0B;
+  --color-danger-brutal: #EF4444;
 
   --animate-float-slow: float 8s ease-in-out infinite;
   --animate-float-medium: float-med 6s ease-in-out infinite;
@@ -79,8 +86,8 @@ body {
 .stripes-brutal {
   background: repeating-linear-gradient(
     45deg,
-    #FACC15,
-    #FACC15 10px,
+    #60A5FA,
+    #60A5FA 10px,
     #000000 10px,
     #000000 20px
   );
@@ -114,6 +121,26 @@ body {
   box-shadow: 1px 1px 0px #000000;
 }
 
+/* Premium Brutalist Glassmorphism Card helper */
+.glass-brutal-card {
+  background-color: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(24px);
+  border: 3px solid #000000;
+  border-radius: 24px;
+  box-shadow: 4px 4px 0px #000000;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-brutal-card-hover:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 7px 7px 0px #000000;
+}
+
+.glass-brutal-card-hover:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000000;
+}
+
 /* Path signal glow for connections */
 .path-signal {
   stroke-dasharray: 8 6;
@@ -125,3 +152,15 @@ body {
     stroke-dashoffset: -1000;
   }
 }
+
+/* Hide Clerk development mode badge and footer branding elements */
+.cl-footer, 
+.cl-footerAction, 
+.cl-card__footer,
+.cl-internal-b38t62, 
+.cl-internal-1hpug9z, 
+.cl-internal-157s8x, 
+[data-testid="safe-active-session-badge"] + div {
+  display: none !important;
+}
+

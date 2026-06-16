@@ -37,7 +37,7 @@ export default function LightweightChart({ data }: LightweightChartProps) {
 
 		// 3. Add Candlestick Series
 		const candlestickSeries = chart.addSeries(CandlestickSeries, {
-			upColor: "#22C55E",
+			upColor: "#2563EB",
 			downColor: "#EF4444",
 			borderUpColor: "#000000",
 			borderDownColor: "#000000",
@@ -72,7 +72,7 @@ export default function LightweightChart({ data }: LightweightChartProps) {
 		const volumeData = sortedData.map((item) => ({
 			time: item.timestamp as UTCTimestamp,
 			value: item.volume,
-			color: item.close >= item.open ? "rgba(34, 197, 94, 0.45)" : "rgba(239, 68, 68, 0.45)",
+			color: item.close >= item.open ? "rgba(37, 99, 235, 0.45)" : "rgba(239, 68, 68, 0.45)",
 		}));
 		volumeSeries.setData(volumeData);
 

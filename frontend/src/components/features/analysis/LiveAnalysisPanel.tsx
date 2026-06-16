@@ -214,7 +214,7 @@ export default function LiveAnalysisPanel() {
                 nodeClass = "bg-[#2563EB]/20 border-[#2563EB] text-[#2563EB] border-3 shadow-[3px_3px_0px_#2563EB]/20";
                 pulseClass = "bg-[#2563EB] animate-ping opacity-75";
               } else if (isCompleted) {
-                nodeClass = "bg-[#22C55E]/20 border-[#22C55E] text-[#22C55E] border-2 shadow-[2px_2px_0px_#22C55E]/15";
+                nodeClass = "bg-[#2563EB]/20 border-[#2563EB] text-[#2563EB] border-2 shadow-[2px_2px_0px_#2563EB]/15";
               } else if (isError) {
                 nodeClass = "bg-[#EF4444]/20 border-[#EF4444] text-[#EF4444] border-3 shadow-[3px_3px_0px_#EF4444]/20";
               }
@@ -235,7 +235,7 @@ export default function LiveAnalysisPanel() {
                     {/* Solid static dot */}
                     {(isThinking || isAnalyzing || isCompleted || isError) && (
                       <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border border-black ${
-                        isCompleted ? "bg-[#22C55E]" :
+                        isCompleted ? "bg-[#2563EB]" :
                         isError ? "bg-[#EF4444]" :
                         isThinking ? "bg-[#FACC15]" : "bg-[#2563EB]"
                       }`} />

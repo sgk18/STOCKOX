@@ -12,7 +12,7 @@ export default function QuickActions() {
       label: "Analyze Stock",
       desc: "Deploy committee research",
       icon: SearchCode,
-      onClick: () => router.push("/dashboard/analysis"),
+      onClick: () => router.push("/dashboard/research-terminal"),
       variant: "primary" as const,
     },
     {
