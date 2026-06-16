@@ -1,16 +1,21 @@
 "use client";
 
 import React from "react";
-import { Activity, Bot, RefreshCw, Layers, Terminal } from "lucide-react";
+import { Activity, Bot } from "lucide-react";
 import { useDashboardStore } from "@/lib/store";
 import AgentFeed from "@/components/dashboard/AgentFeed";
+import { motion } from "framer-motion";
 
 export default function AgentActivityPage() {
   const agents = useDashboardStore((state) => state.agents);
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8 animate-fadeIn"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -33,7 +38,7 @@ export default function AgentActivityPage() {
           <h2 className="text-xs font-black uppercase tracking-wider text-[#64748B]">Active Agent Node Directories</h2>
           <div className="flex flex-col gap-4">
             {agents.map((agent) => (
-              <div key={agent.id} className="glass-brutal-card p-5 flex flex-col gap-2 bg-white">
+              <div key={agent.id} className="glass-brutal-card p-5 flex flex-col gap-2 bg-white hover:shadow-[6px_6px_0px_#000000] transition-shadow duration-200">
                 <div className="flex items-center justify-between border-b border-black/5 pb-2">
                   <div className="flex items-center gap-2">
                     <Bot className="w-5 h-5 text-[#2563EB]" />
@@ -61,6 +66,6 @@ export default function AgentActivityPage() {
 
       </div>
 
-    </div>
+    </motion.div>
   );
 }

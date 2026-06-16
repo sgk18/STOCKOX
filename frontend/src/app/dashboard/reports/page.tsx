@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { FileText, Download, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import { FileText, Download } from "lucide-react";
+import { motion } from "framer-motion";
 
 const REPORTS = [
   { id: "REP-9081", title: "NVIDIA Corp. Q1 Securities Audit Summary", date: "June 16, 2026", size: "142 KB", compiledBy: "AI Committee Consensus" },
@@ -12,8 +13,12 @@ const REPORTS = [
 
 export default function ReportsPage() {
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8 animate-fadeIn"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -31,7 +36,7 @@ export default function ReportsPage() {
       {/* Reports List */}
       <div className="flex flex-col gap-4">
         {REPORTS.map((report) => (
-          <div key={report.id} className="glass-brutal-card p-5 bg-white flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-x-0.5 transition-all">
+          <div key={report.id} className="glass-brutal-card p-5 bg-white flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:shadow-[6px_6px_0px_#000000] hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-start gap-4">
               <div className="p-3 border-2 border-black rounded-xl bg-[#2563EB]/10 text-[#2563EB] shrink-0 h-fit">
                 <FileText className="w-6 h-6" />
@@ -63,6 +68,6 @@ export default function ReportsPage() {
         ))}
       </div>
 
-    </div>
+    </motion.div>
   );
 }

@@ -24,7 +24,7 @@ interface AnalysisState {
   setSessionRecommendation: (rec: string, conf: number, risk: string, summary: string) => void;
 }
 
-export const useAnalysisStore = create<AnalysisState>((set, get) => ({
+export const useAnalysisStore = create<AnalysisState>((set) => ({
   currentSession: null,
   isAnalyzing: false,
   analysisFinished: false,

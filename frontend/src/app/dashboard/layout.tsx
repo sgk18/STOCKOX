@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
@@ -26,8 +26,7 @@ import {
   Sparkles,
   LogOut,
   Sliders,
-  Menu,
-  Shield
+  Menu
 } from "lucide-react";
 import AgentFeed from "@/components/dashboard/AgentFeed";
 
@@ -38,13 +37,29 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user: clerkUser, isLoaded: isUserLoaded } = useUser();
+  const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showAgentFeed, setShowAgentFeed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const commandResults = [
+    { type: "shortcut", label: "Go to Dashboard Home", path: "/dashboard" },
+    { type: "shortcut", label: "Go to Portfolio Command Center", path: "/dashboard/portfolio" },
+    { type: "shortcut", label: "Go to AI Committee Panel", path: "/dashboard/ai-committee" },
+    { type: "shortcut", label: "Go to Risk Analytics Dashboard", path: "/dashboard/risk-center" },
+    { type: "shortcut", label: "Go to Market Intelligence", path: "/dashboard/market-intelligence" },
+    { type: "shortcut", label: "Go to Watchlists Terminal", path: "/dashboard/watchlists" },
+    { type: "shortcut", label: "Go to Recommendations Feed", path: "/dashboard/recommendations" },
+    { type: "equity", label: "Audit NVDA - NVIDIA Corp", path: "/dashboard/research-terminal?ticker=NVDA" },
+    { type: "equity", label: "Audit AAPL - Apple Inc", path: "/dashboard/research-terminal?ticker=AAPL" },
+    { type: "equity", label: "Audit MSFT - Microsoft Corp", path: "/dashboard/research-terminal?ticker=MSFT" },
+    { type: "equity", label: "Audit TSLA - Tesla Inc", path: "/dashboard/research-terminal?ticker=TSLA" },
+    { type: "equity", label: "Audit AMD - Advanced Micro Devices", path: "/dashboard/research-terminal?ticker=AMD" }
+  ];
 
   const socketConnected = useWebSocketStore((state) => state.connected);
   const agents = useDashboardStore((state) => state.agents);
@@ -214,18 +229,55 @@ export default function DashboardLayout({
       <div className="flex-grow flex flex-col min-w-0 pt-16 lg:pt-0 relative z-10 animate-fadeIn h-full overflow-hidden">
         
         {/* TOP BAR */}
-        <header className="h-20 border-b-4 border-black bg-white/75 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-30 select-none">
+        <header className="h-[72px] border-b-4 border-black bg-white/75 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-30 select-none">
           {/* Left - Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center max-w-sm w-full relative">
-            <input
-              type="text"
-              placeholder="Search stocks, companies, news..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#F8FAFC] border-3 border-black rounded-xl py-2 pl-10 pr-4 font-bold text-xs text-[#0F172A] focus:outline-none focus:bg-white focus:shadow-[2px_2px_0px_#000000] placeholder:text-black/40 transition-all"
-            />
-            <Search className="w-4 h-4 text-black/50 absolute left-3.5 pointer-events-none" />
-          </form>
+          <div className="relative max-w-sm w-full z-45">
+            <form onSubmit={handleSearchSubmit} className="flex items-center w-full relative">
+              <input
+                type="text"
+                placeholder="Type ticker or command (e.g. NVDA, /risk)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                className="w-full bg-[#F8FAFC] border-3 border-black rounded-xl py-2 pl-10 pr-4 font-bold text-xs text-[#0F172A] focus:outline-none focus:bg-white focus:shadow-[2px_2px_0px_#000000] placeholder:text-black/40 transition-all"
+              />
+              <Search className="w-4 h-4 text-black/50 absolute left-3.5 pointer-events-none" />
+            </form>
+
+            {/* Floating Command Palette */}
+            {isFocused && (
+              <div className="absolute left-0 right-0 mt-2 bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_#000000] overflow-hidden max-h-72 overflow-y-auto z-50">
+                <div className="p-2 border-b-2 border-black bg-[#F8FAFC] text-[8px] font-black text-[#64748B] uppercase tracking-wider">
+                  Select Command Shortcut or Equity
+                </div>
+                <div className="p-1 flex flex-col gap-0.5">
+                  {commandResults
+                    .filter((item) =>
+                      searchQuery === ""
+                        ? true
+                        : item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          item.path.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          router.push(item.path);
+                          setSearchQuery("");
+                        }}
+                        className="w-full text-left flex items-center justify-between px-3 py-2 text-[10px] font-black text-black/75 hover:bg-[#2563EB] hover:text-white rounded-lg transition-colors uppercase font-sans cursor-pointer"
+                      >
+                        <span className="truncate">{item.label}</span>
+                        <span className="font-mono text-[8px] opacity-60">
+                          {item.type === "shortcut" ? "CMD" : "STOCK"}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Center - Committee Diagnostics */}
           <div className="hidden md:flex items-center gap-2.5 px-4 py-2 bg-[#2563EB]/10 border-2 border-black rounded-xl text-xs font-black text-[#2563EB] shadow-[2.5px_2.5px_0px_#000000]">
@@ -265,8 +317,8 @@ export default function DashboardLayout({
                 onClick={() => setDemoMode(false)}
                 className={`px-3 py-1.5 text-[9px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer ${
                   !isDemoMode 
-                    ? "bg-[#EF4444] text-white border-black shadow-[1px_1px_0px_#000000]" 
-                    : "bg-white text-[#64748B] border-transparent hover:text-black"
+                    ? 'bg-[#EF4444] text-white border-black shadow-[1px_1px_0px_#000000]' 
+                    : 'bg-white text-[#64748B] border-transparent hover:text-black'
                 }`}
               >
                 Live
@@ -275,8 +327,8 @@ export default function DashboardLayout({
                 onClick={() => setDemoMode(true)}
                 className={`px-3 py-1.5 text-[9px] font-black uppercase rounded-lg border-2 transition-all cursor-pointer ${
                   isDemoMode 
-                    ? "bg-[#2563EB] text-white border-black shadow-[1px_1px_0px_#000000]" 
-                    : "bg-white text-[#64748B] border-transparent hover:text-black"
+                    ? 'bg-[#2563EB] text-white border-black shadow-[1px_1px_0px_#000000]' 
+                    : 'bg-white text-[#64748B] border-transparent hover:text-black'
                 }`}
               >
                 Demo

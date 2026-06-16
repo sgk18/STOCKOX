@@ -4,10 +4,9 @@ import React from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/lib/store";
+import { motion } from "framer-motion";
 import { 
   PieChart as PieChartIcon, 
-  TrendingUp, 
-  TrendingDown, 
   ShieldAlert, 
   Bot, 
   Briefcase, 
@@ -135,7 +134,6 @@ export default function PortfolioPage() {
   }, {} as Record<string, number>);
 
   // Include remaining cash balance in "Other" or "Cash" sector if desired, or group stock value only
-  const totalHoldingsValue = holdings.reduce((sum, s) => sum + s.value, 0);
   if (cashBalance > 0 && totalValue > 0) {
     sectorAllocations["Cash / Liquid Assets"] = cashBalance;
   }
@@ -147,7 +145,12 @@ export default function PortfolioPage() {
   })).filter(s => s.value > 0);
 
   return (
-    <div className="flex flex-col gap-8">
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8"
+    >
       
       {/* Header card */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
@@ -169,7 +172,7 @@ export default function PortfolioPage() {
             <span className="text-xl font-black text-[#2563EB] font-mono">${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div className="bg-[#2563EB]/10 border-2 border-black rounded-xl p-4 shadow-[2px_2px_0px_#000000] flex flex-col min-w-[120px]">
-            <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">TODAY'S RETURN</span>
+            <span className="text-[8px] font-black uppercase text-black/40 tracking-wider">TODAY&apos;S RETURN</span>
             <span className="text-xl font-black text-[#2563EB] font-mono">
               {dailyChangeAmount >= 0 ? "+" : ""}{dailyChangePercent.toFixed(2)}%
             </span>
@@ -322,7 +325,7 @@ export default function PortfolioPage() {
                 ) : (
                   <tr>
                     <td colSpan={9} className="py-8 text-center font-mono text-xs uppercase text-black/55">
-                      No assets found in advisor holdings. Toggle "Demo Mode" to simulate portfolio.
+                      No assets found in advisor holdings. Toggle &quot;Demo Mode&quot; to simulate portfolio.
                     </td>
                   </tr>
                 )}
@@ -390,6 +393,6 @@ export default function PortfolioPage() {
 
       </div>
 
-    </div>
+    </motion.div>
   );
 }

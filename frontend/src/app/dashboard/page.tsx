@@ -5,9 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useDashboardStore } from "@/lib/store";
+import { motion } from "framer-motion";
 import {
-  TrendingUp,
-  TrendingDown,
   Landmark,
   Bot,
   Globe,
@@ -16,9 +15,7 @@ import {
   ShieldAlert,
   Newspaper,
   Calendar,
-  Zap,
-  Sparkles,
-  ArrowRight
+  Zap
 } from "lucide-react";
 
 interface WatchlistItem {
@@ -52,14 +49,6 @@ interface AnalysisItem {
   confidence_score: number;
   risk_level: string;
   created_at: string;
-}
-
-interface OpportunityItem {
-  type: string;
-  ticker: string;
-  score: number;
-  reason: string;
-  source_agent: string;
 }
 
 const MOCK_EVENTS = [
@@ -178,11 +167,15 @@ export default function DashboardPage() {
   const marketOverview: MarketItem[] = dashboardData?.marketOverview || [];
   const agentStatuses = dashboardData?.agentStatuses || [];
   const recentAnalyses: AnalysisItem[] = dashboardData?.recentAnalyses || [];
-  const opportunities: OpportunityItem[] = dashboardData?.opportunities || [];
   const agentActivity: AgentActivityItem[] = dashboardData?.agentActivity || [];
 
   return (
-    <div className="flex flex-col gap-10">
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-10"
+    >
       
       {/* SECTION 1: Portfolio Command Center */}
       <section className="flex flex-col gap-4">
@@ -211,7 +204,7 @@ export default function DashboardPage() {
           {/* Card 2: Today's P&L */}
           <div className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
             <div>
-              <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Today's P&L</span>
+              <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Today&apos;s P&L</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
                 {portfolio.change_amount >= 0 ? "+" : ""}${portfolio.change_amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </h3>
@@ -616,6 +609,6 @@ export default function DashboardPage() {
 
       </div>
       
-    </div>
+    </motion.div>
   );
 }

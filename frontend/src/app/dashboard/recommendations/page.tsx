@@ -4,6 +4,7 @@ import React from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
 import { Award } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface RecommendationItem {
   ticker: string;
@@ -52,8 +53,12 @@ export default function RecommendationsPage() {
   const recommendationList = recs || [];
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -104,7 +109,7 @@ export default function RecommendationsPage() {
             ) : (
               <tr>
                 <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#64748B]">
-                  No trade recommendations active. Search a ticker to start analysis.
+                  No active recommendations. Click &quot;AI Committee&quot; or search a ticker to evaluate signals.
                 </td>
               </tr>
             )}
@@ -112,6 +117,6 @@ export default function RecommendationsPage() {
         </table>
       </div>
 
-    </div>
+    </motion.div>
   );
 }

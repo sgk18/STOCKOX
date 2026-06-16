@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Newspaper, Calendar, Globe, Layers, ArrowUpRight } from "lucide-react";
+import { Newspaper } from "lucide-react";
+import { motion } from "framer-motion";
 
 const CALENDAR_EVENTS = [
   { title: "Fed Interest Rate Decision", date: "June 18, 2026", type: "FOMC", desc: "Hawkish dot-plot projection audit", tagColor: "bg-[#2563EB]/10 text-[#2563EB]" },
@@ -12,8 +13,12 @@ const CALENDAR_EVENTS = [
 
 export default function NewsEventsPage() {
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8 animate-fadeIn"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -35,7 +40,7 @@ export default function NewsEventsPage() {
           <h2 className="text-xs font-black uppercase tracking-wider text-[#64748B] font-mono">Macroeconomic Schedule</h2>
           <div className="glass-brutal-card p-6 flex flex-col gap-4 bg-white">
             {CALENDAR_EVENTS.map((event, idx) => (
-              <div key={idx} className="flex gap-4 p-4 border-2 border-black rounded-xl bg-[#F8FAFC] shadow-[2px_2px_0px_#000000]">
+              <div key={idx} className="flex gap-4 p-4 border-2 border-black rounded-xl bg-[#F8FAFC] shadow-[2px_2px_0px_#000000] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_#000000] transition-all duration-200">
                 <div className={`px-2.5 py-1.5 h-fit rounded border-2 border-black font-mono text-[9px] font-black uppercase tracking-wider ${event.tagColor}`}>
                   {event.type}
                 </div>
@@ -76,6 +81,6 @@ export default function NewsEventsPage() {
 
       </div>
 
-    </div>
+    </motion.div>
   );
 }

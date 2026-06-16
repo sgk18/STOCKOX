@@ -35,7 +35,7 @@ export default function RootLayout({
         layout: {
           unsafe_disableDevelopmentModeWarnings: true,
         },
-      } as any}
+      } as React.ComponentProps<typeof ClerkProvider>["appearance"]}
     >
       <html
         lang="en"

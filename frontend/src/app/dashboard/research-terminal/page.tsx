@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +15,6 @@ import {
 
 // Stores
 import { useSearchStore, SearchStockResult } from "@/lib/searchStore";
-import { useWatchlistStore } from "@/lib/watchlistStore";
 
 // Components & UI Elements
 import SearchBar from "@/components/features/search/SearchBar";
@@ -160,7 +159,7 @@ function ResearchTerminalContent() {
     router.push(`/dashboard/research-terminal?ticker=${stock.ticker}`);
   };
 
-  const generateAIReport = () => {
+  const generateAIReport = useCallback(() => {
     if (!researchData) return;
     setGeneratingReport(true);
     setTimeout(() => {
@@ -189,13 +188,16 @@ ${researchData.company_name} exhibits positive market structural indicators. Sup
       setReportText(report.trim());
       setGeneratingReport(false);
     }, 1500);
-  };
+  }, [researchData]);
 
   useEffect(() => {
     if (researchData) {
-      generateAIReport();
+      const timer = setTimeout(() => {
+        generateAIReport();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [researchData]);
+  }, [researchData, generateAIReport]);
 
   const isPositive = researchData ? researchData.quote.daily_change >= 0 : true;
 
@@ -256,7 +258,7 @@ ${researchData.company_name} exhibits positive market structural indicators. Sup
       {researchError && (
         <div className="bg-[#EF4444]/10 border-4 border-black p-4 rounded-2xl flex items-center gap-3 text-[#EF4444] font-black text-xs max-w-lg mx-auto w-full">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span>{(researchError as any).message || "Advisory ticker details could not be loaded."}</span>
+          <span>{(researchError as Error).message || "Advisory ticker details could not be loaded."}</span>
         </div>
       )}
 
@@ -330,17 +332,19 @@ ${researchData.company_name} exhibits positive market structural indicators. Sup
 
           {/* Sub Navigation tabs within Research workspace */}
           <div className="flex gap-2.5 border-b-4 border-black pb-3 select-none">
-            {[
-              { id: "overview", label: "Profile Overview", icon: Globe },
-              { id: "financials", label: "Financial Audits", icon: Layers },
-              { id: "report", label: "AI Research Report", icon: FileText },
-              { id: "debate", label: "Agent Debates", icon: MessageSquare }
-            ].map((tab) => {
+            {(
+              [
+                { id: "overview", label: "Profile Overview", icon: Globe },
+                { id: "financials", label: "Financial Audits", icon: Layers },
+                { id: "report", label: "AI Research Report", icon: FileText },
+                { id: "debate", label: "Agent Debates", icon: MessageSquare }
+              ] as const
+            ).map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-4 py-2 border-3 rounded-xl font-black text-xs uppercase transition-all duration-150 ${
                     activeTab === tab.id
                       ? "bg-black text-white border-black shadow-[2px_2px_0px_#2563EB] translate-y-[-1px]"
@@ -441,7 +445,10 @@ ${researchData.company_name} exhibits positive market structural indicators. Sup
 
               {activeTab === "financials" && mappedProfile && (
                 <div className="flex flex-col gap-6">
-                  <CompanyMetricsComponent profile={mappedProfile as any} metrics={mappedMetrics as any} />
+                  <CompanyMetricsComponent
+                    profile={mappedProfile as React.ComponentProps<typeof CompanyMetricsComponent>["profile"]}
+                    metrics={mappedMetrics as React.ComponentProps<typeof CompanyMetricsComponent>["metrics"]}
+                  />
                 </div>
               )}
 

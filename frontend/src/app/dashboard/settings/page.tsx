@@ -1,20 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings, CheckCircle2, ShieldCheck, UserCheck, Bot } from "lucide-react";
+import { Settings, UserCheck, Bot } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
+import { motion } from "framer-motion";
 
 export default function SettingsPage() {
   const { user } = useUser();
-  const [apiKeys, setApiKeys] = useState({
+  const [apiKeys] = useState({
     sec: "••••••••••••••••••••••••••••",
     finnhub: "••••••••••••••••••••••••••••",
     polygon: "••••••••••••••••••••••••••••",
   });
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8 animate-fadeIn"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -85,6 +90,6 @@ export default function SettingsPage() {
 
       </div>
 
-    </div>
+    </motion.div>
   );
 }

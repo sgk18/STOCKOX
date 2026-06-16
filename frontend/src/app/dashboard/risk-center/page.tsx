@@ -4,7 +4,9 @@ import React from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/lib/store";
-import { ShieldAlert, Zap, ShieldCheck, Activity, Award } from "lucide-react";
+import { ShieldAlert, Zap, ShieldCheck, Activity } from "lucide-react";
+import { motion } from "framer-motion";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 interface SectorExposureItem {
   name: string;
@@ -16,6 +18,16 @@ interface AssetPerformanceItem {
   ticker: string;
   change_percent: number;
 }
+
+const customTooltipStyle = {
+  backgroundColor: "#FFFFFF",
+  border: "3px solid #000000",
+  borderRadius: "12px",
+  fontFamily: "monospace",
+  fontSize: "10px",
+  fontWeight: "bold",
+  boxShadow: "3px 3px 0px #000000"
+};
 
 export default function RiskCenterPage() {
   const { getToken, isSignedIn } = useAuth();
@@ -63,8 +75,12 @@ export default function RiskCenterPage() {
   const worstPerformers: AssetPerformanceItem[] = riskData?.worst_performing_assets || [];
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8 animate-fadeIn"
+    >
       {/* Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex justify-between items-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
@@ -74,7 +90,7 @@ export default function RiskCenterPage() {
             <span>Risk Management Center</span>
           </h1>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-1.5 font-mono">
-            {isDemoMode ? "DEMO MODE: Simulating Nvidia, Apple, Microsoft, Tesla, and AMD risk vectors" : "Authenticempty client portfolio (Cash Account Balance)"}
+            {isDemoMode ? "DEMO MODE: Simulating Nvidia, Apple, Microsoft, Tesla, and AMD risk vectors" : "Active Client Portfolio Risk Audit Overview"}
           </p>
         </div>
       </section>
@@ -116,23 +132,47 @@ export default function RiskCenterPage() {
             <span>Exposure breakdowns</span>
           </h3>
 
-          <div className="flex flex-col gap-4">
-            {sectorExposure.length > 0 ? (
-              sectorExposure.map((sect) => (
-                <div key={sect.name}>
-                  <div className="flex items-center justify-between text-[10px] font-mono font-black mb-1">
-                    <span>{sect.name.toUpperCase()}</span>
-                    <span>{sect.value.toFixed(0)}%</span>
+          {sectorExposure.length > 0 ? (
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-grow flex flex-col gap-4 w-full md:w-1/2">
+                {sectorExposure.map((sect) => (
+                  <div key={sect.name}>
+                    <div className="flex items-center justify-between text-[10px] font-mono font-black mb-1">
+                      <span>{sect.name.toUpperCase()}</span>
+                      <span>{sect.value.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-black/5 h-2 rounded-full overflow-hidden border border-black/10">
+                      <div className="h-full rounded-full" style={{ width: `${sect.value}%`, backgroundColor: sect.color }} />
+                    </div>
                   </div>
-                  <div className="w-full bg-black/5 h-2 rounded-full overflow-hidden border border-black/10">
-                    <div className="h-full rounded-full animate-growWidth" style={{ width: `${sect.value}%`, backgroundColor: sect.color }} />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <span className="font-mono text-[9px] text-[#64748B] uppercase">No sector allocations active.</span>
-            )}
-          </div>
+                ))}
+              </div>
+
+              {/* Responsive Donut Chart for Sector Allocation */}
+              <div className="w-full md:w-1/2 h-[180px] font-mono text-[9px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sectorExposure}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {sectorExposure.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#000000" strokeWidth={2.5} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={customTooltipStyle} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <span className="font-mono text-[9px] text-[#64748B] uppercase">No sector allocations active.</span>
+          )}
         </section>
 
       </div>
@@ -182,6 +222,6 @@ export default function RiskCenterPage() {
 
       </div>
 
-    </div>
+    </motion.div>
   );
 }

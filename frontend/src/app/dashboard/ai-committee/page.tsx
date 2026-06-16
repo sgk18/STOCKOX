@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useDashboardStore } from "@/lib/store";
-import { useWebSocketStore } from "@/lib/websocketStore";
+import { useQuery } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Bot, 
   Database, 
@@ -14,14 +14,21 @@ import {
   Cpu, 
   ArrowRight, 
   Sparkles,
-  MessageSquare,
   Activity,
-  Layers,
-  HelpCircle,
-  ThumbsUp,
-  AlertTriangle,
   Play
 } from "lucide-react";
+
+interface CommitteeDecision {
+  ticker: string;
+  research_vote: string;
+  technical_vote: string;
+  news_vote: string;
+  risk_vote: string;
+  committee_decision: string;
+  confidence: number;
+  reasoning: string;
+  created_at: string;
+}
 
 interface TimelineEvent {
   id: string;
@@ -31,25 +38,55 @@ interface TimelineEvent {
   message: string;
   confidence: number;
   timestamp: string;
+  vote: string;
 }
 
 export default function AICommitteePage() {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const router = useRouter();
-  const socketConnected = useWebSocketStore((state) => state.connected);
-  const agents = useDashboardStore((state) => state.agents);
   const [selectedTicker, setSelectedTicker] = useState("NVDA");
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(4); // Default to completed consensus view
   
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([
+  const { data: decisions, refetch } = useQuery<CommitteeDecision[]>({
+    queryKey: ["committee-ticker-decision", selectedTicker],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/committee?ticker=${selectedTicker.toUpperCase()}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load committee decision.");
+      return res.json();
+    },
+    enabled: isSignedIn,
+  });
+
+  const activeDecision = decisions && decisions.length > 0 ? decisions[0] : null;
+
+  // Fallback defaults if no decision is found in the database yet
+  const resolvedDecision: CommitteeDecision = activeDecision || {
+    ticker: selectedTicker,
+    research_vote: "BUY",
+    technical_vote: "BUY",
+    news_vote: "HOLD",
+    risk_vote: "BUY",
+    committee_decision: "BUY",
+    confidence: 88,
+    reasoning: `Audit vector for ${selectedTicker} indicates stable margin acceleration and breakout momentum above key daily EMAs.`,
+    created_at: new Date().toLocaleDateString()
+  };
+
+  const staticTimeline: TimelineEvent[] = resolvedDecision ? [
     {
       id: "e1",
       agentId: "research",
       agentName: "Research Agent",
       phase: "Fundamental Valuation",
-      message: "Initiated DCF model audit. Projected cash flows adjusted for 28% YoY data center revenue growth. Fair value estimate calculated at $205.40.",
-      confidence: 94,
+      message: `Initiated DCF model audit for ${resolvedDecision.ticker}. Projected cash flows model strong scaling. Research Agent issues a ${resolvedDecision.research_vote} signal.`,
+      confidence: 90,
+      vote: resolvedDecision.research_vote,
       timestamp: "10:14:02 AM"
     },
     {
@@ -57,8 +94,9 @@ export default function AICommitteePage() {
       agentId: "technical",
       agentName: "Technical Agent",
       phase: "Momentum Scanning",
-      message: "RSI is currently neutral at 58. Short-term support detected at $182.20. MACD shows a bullish crossover on the 4H charts.",
-      confidence: 88,
+      message: `RSI is currently constructive on the 4H charts. Moving averages indicate key accumulation boundaries. Technical Agent issues a ${resolvedDecision.technical_vote} signal.`,
+      confidence: 85,
+      vote: resolvedDecision.technical_vote,
       timestamp: "10:15:15 AM"
     },
     {
@@ -66,8 +104,9 @@ export default function AICommitteePage() {
       agentId: "news",
       agentName: "News Agent",
       phase: "Sentiment Scraping",
-      message: "Analyzed 142 recent regulatory releases and media articles. Bullish sentiment dominance detected (74/100). Institutional tech coverage is highly favorable.",
-      confidence: 85,
+      message: `Analyzed institutional coverage and social chatter pools. Overall news sentiment indexes as highly favorable. News Agent issues a ${resolvedDecision.news_vote} signal.`,
+      confidence: 80,
+      vote: resolvedDecision.news_vote,
       timestamp: "10:15:48 AM"
     },
     {
@@ -75,8 +114,9 @@ export default function AICommitteePage() {
       agentId: "risk",
       agentName: "Risk Management",
       phase: "Stress Testing",
-      message: "Value at Risk (VaR) projection stable. Covariance matrix modeling suggests NVDA correlation with sector benchmarks is standard. Asset cap limits set to 8.5%.",
-      confidence: 91,
+      message: `Ran Value at Risk (VaR) matrices and exposure stress simulations. Volatility parameters remain within healthy bounds. Risk Agent issues a ${resolvedDecision.risk_vote} signal.`,
+      confidence: 95,
+      vote: resolvedDecision.risk_vote,
       timestamp: "10:16:10 AM"
     },
     {
@@ -84,34 +124,33 @@ export default function AICommitteePage() {
       agentId: "committee",
       agentName: "Committee Synthesizer",
       phase: "Consensus Finalization",
-      message: "Synthesizing multi-modal agent audits. Overall score yields 88/100. Signal issued: STRONG BUY. Execution ticket generated for portfolio adjustment.",
-      confidence: 92,
+      message: `Synthesizing independent agent votes. Consensus resolved: ${resolvedDecision.committee_decision} at ${resolvedDecision.confidence}% confidence score.`,
+      confidence: resolvedDecision.confidence,
+      vote: resolvedDecision.committee_decision,
       timestamp: "10:16:35 AM"
     }
-  ]);
+  ] : [];
 
-  const agentDetails = {
-    research: { name: "Research Agent", icon: Database, color: "bg-[#2563EB] text-white border-[#1D4ED8]", desc: "Analyzes balance sheets, cash flow statement history, and SEC filings to produce valuation models." },
-    technical: { name: "Technical Agent", icon: LineChart, color: "bg-[#3B82F6] text-white border-black", desc: "Monitors moving average crossovers, breakouts, trend vectors, volume profiles, and chart patterns." },
-    news: { name: "News Agent", icon: Globe, color: "bg-[#60A5FA] text-black border-black", desc: "Scours global news feeds, press releases, social channels, and analyst rating shifts in real-time." },
-    risk: { name: "Risk Agent", icon: ShieldCheck, color: "bg-[#0F172A] text-white border-black", desc: "Calculates Sharpe ratio adjustments, maximum drawdowns, covariance risks, and exposure ceilings." },
-    committee: { name: "Committee Agent", icon: Cpu, color: "bg-[#2563EB]/20 text-[#2563EB] border-[#2563EB]", desc: "Aggregates independent agent outputs and synthesizes absolute consensus signals and tickets." }
-  };
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const displayTimeline = isSynthesizing ? timeline : staticTimeline;
 
-  const handleStartAnalysis = () => {
+  const handleStartAnalysis = async () => {
     setIsSynthesizing(true);
-    setActiveStep(0);
+    setActiveStep(-1);
     setTimeline([]);
+    
+    // Refetch latest DB metrics for selected ticker
+    await refetch();
 
-    // Simulate step by step execution
     const steps: TimelineEvent[] = [
       {
         id: "s1",
         agentId: "research",
         agentName: "Research Agent",
         phase: "Fundamental Valuation",
-        message: `Running valuation formulas for ${selectedTicker}. Modeling discounted cash flows based on trailing financial quarters.`,
+        message: `Running fundamental models for ${selectedTicker}. Modeling discount factors and free cash flow yields. Vote: ${resolvedDecision.research_vote}.`,
         confidence: 90,
+        vote: resolvedDecision.research_vote,
         timestamp: new Date().toLocaleTimeString()
       },
       {
@@ -119,8 +158,9 @@ export default function AICommitteePage() {
         agentId: "technical",
         agentName: "Technical Agent",
         phase: "Momentum Scanning",
-        message: `Analyzing daily EMA overlays and volume breakout matrices for ${selectedTicker}. Technical strength is supportive.`,
+        message: `Calculating daily EMA indicators and support/resistance zones for ${selectedTicker}. Vote: ${resolvedDecision.technical_vote}.`,
         confidence: 85,
+        vote: resolvedDecision.technical_vote,
         timestamp: new Date().toLocaleTimeString()
       },
       {
@@ -128,8 +168,9 @@ export default function AICommitteePage() {
         agentId: "news",
         agentName: "News Agent",
         phase: "Sentiment Scraping",
-        message: `Scanning news alerts, earnings call transcripts, and sector headlines relating to ${selectedTicker}.`,
+        message: `Scouring institutional news streams, earnings releases, and media wires for ${selectedTicker}. Vote: ${resolvedDecision.news_vote}.`,
         confidence: 80,
+        vote: resolvedDecision.news_vote,
         timestamp: new Date().toLocaleTimeString()
       },
       {
@@ -137,8 +178,9 @@ export default function AICommitteePage() {
         agentId: "risk",
         agentName: "Risk Management",
         phase: "Stress Testing",
-        message: `Running asset covariance risk stress tests. Volatility limits are within normal thresholds.`,
+        message: `Simulating beta covariance stress matrices and drawing maximum drawdowns. Vote: ${resolvedDecision.risk_vote}.`,
         confidence: 95,
+        vote: resolvedDecision.risk_vote,
         timestamp: new Date().toLocaleTimeString()
       },
       {
@@ -146,8 +188,9 @@ export default function AICommitteePage() {
         agentId: "committee",
         agentName: "Committee Synthesizer",
         phase: "Consensus Finalization",
-        message: `Compiling consensus. Signal calculated: BUY. Risk parameters are fully validated.`,
-        confidence: 90,
+        message: `Aggregating audit logs. Multi-agent consensus issued: ${resolvedDecision.committee_decision} (${resolvedDecision.confidence}% confidence).`,
+        confidence: resolvedDecision.confidence,
+        vote: resolvedDecision.committee_decision,
         timestamp: new Date().toLocaleTimeString()
       }
     ];
@@ -162,14 +205,42 @@ export default function AICommitteePage() {
         clearInterval(interval);
         setIsSynthesizing(false);
       }
-    }, 2000);
+    }, 1200);
+  };
+
+  const getVoteColor = (vote: string) => {
+    switch (vote?.toUpperCase()) {
+      case "BUY":
+      case "STRONG BUY":
+        return "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25";
+      case "HOLD":
+        return "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25";
+      case "SELL":
+      case "STRONG SELL":
+        return "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/25";
+      default:
+        return "bg-black/5 text-[#64748B] border-black/10";
+    }
+  };
+
+  const agentDetails = {
+    research: { name: "Research Agent", icon: Database, color: "bg-[#2563EB] text-white border-[#2563EB]", desc: "Audits SEC filings, balance sheet ratios, and DCF growth models to map intrinsic corporate valuations." },
+    technical: { name: "Technical Agent", icon: LineChart, color: "bg-[#3B82F6] text-white border-black", desc: "Tracks daily exponential moving average crossovers, support channels, resistance zones, and volumes." },
+    news: { name: "News Agent", icon: Globe, color: "bg-[#60A5FA] text-black border-black", desc: "Monitors media coverage, press release sentiment, and options activity feeds in real-time." },
+    risk: { name: "Risk Agent", icon: ShieldCheck, color: "bg-[#0F172A] text-white border-black", desc: "Evaluates drawdown thresholds, Sharpe ratio adjustments, covariance matrices, and sector concentration exposure." },
+    committee: { name: "Committee Agent", icon: Cpu, color: "bg-[#2563EB]/20 text-[#2563EB] border-[#2563EB]", desc: "Aggregates independent agent vectors to resolve consensus recommendations and audit outcomes." }
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex flex-col gap-8"
+    >
       {/* Page Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#2563EB]/5 rounded-bl-full pointer-events-none" />
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-[#0F172A] flex items-center gap-2.5">
             <Bot className="w-8 h-8 text-[#2563EB]" />
@@ -181,7 +252,7 @@ export default function AICommitteePage() {
         </div>
 
         {/* Action controllers */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 relative z-10">
           <input 
             type="text" 
             placeholder="TICKER" 
@@ -193,7 +264,7 @@ export default function AICommitteePage() {
           <button
             onClick={handleStartAnalysis}
             disabled={isSynthesizing}
-            className="flex items-center gap-2 bg-[#2563EB] text-white border-3 border-black rounded-xl px-5 py-2 text-xs font-black uppercase hover:shadow-[3px_3px_0px_#000000] hover:-translate-y-0.5 active:translate-y-[1px] disabled:opacity-50 disabled:pointer-events-none transition-all"
+            className="flex items-center gap-2 bg-[#2563EB] text-white border-3 border-black rounded-xl px-5 py-2 text-xs font-black uppercase hover:shadow-[3px_3px_0px_#000000] hover:-translate-y-0.5 active:translate-y-[1px] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
           >
             <Play className="w-4 h-4" />
             <span>{isSynthesizing ? "Synthesizing..." : "Trigger Committee Audit"}</span>
@@ -212,7 +283,11 @@ export default function AICommitteePage() {
           }`}>
             <Database className="w-8 h-8 mb-2 text-[#2563EB]" />
             <span className="text-[10px] font-black uppercase tracking-wider">Research</span>
-            <span className="text-[8px] font-mono text-black/50 mt-1 uppercase">Fundamental</span>
+            {activeStep >= 0 && (
+              <span className={`text-[8px] font-mono font-black border px-1.5 py-0.5 mt-2 rounded ${getVoteColor(resolvedDecision.research_vote)}`}>
+                {resolvedDecision.research_vote}
+              </span>
+            )}
           </div>
 
           <div className="lg:col-span-1 flex justify-center">
@@ -225,7 +300,11 @@ export default function AICommitteePage() {
           }`}>
             <LineChart className="w-8 h-8 mb-2 text-[#3B82F6]" />
             <span className="text-[10px] font-black uppercase tracking-wider">Technical</span>
-            <span className="text-[8px] font-mono text-black/50 mt-1 uppercase">Patterns</span>
+            {activeStep >= 1 && (
+              <span className={`text-[8px] font-mono font-black border px-1.5 py-0.5 mt-2 rounded ${getVoteColor(resolvedDecision.technical_vote)}`}>
+                {resolvedDecision.technical_vote}
+              </span>
+            )}
           </div>
 
           <div className="lg:col-span-1 flex justify-center">
@@ -237,8 +316,12 @@ export default function AICommitteePage() {
             activeStep >= 2 ? "border-[#2563EB] bg-[#2563EB]/5 text-[#0F172A] shadow-[2.5px_2.5px_0px_#2563EB]" : "border-black bg-white opacity-40"
           }`}>
             <Globe className="w-8 h-8 mb-2 text-[#60A5FA]" />
-            <span className="text-[10px] font-black uppercase tracking-wider">News Agent</span>
-            <span className="text-[8px] font-mono text-black/50 mt-1 uppercase">Sentiment</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">News</span>
+            {activeStep >= 2 && (
+              <span className={`text-[8px] font-mono font-black border px-1.5 py-0.5 mt-2 rounded ${getVoteColor(resolvedDecision.news_vote)}`}>
+                {resolvedDecision.news_vote}
+              </span>
+            )}
           </div>
 
           <div className="lg:col-span-1 flex justify-center">
@@ -251,7 +334,11 @@ export default function AICommitteePage() {
           }`}>
             <ShieldCheck className="w-8 h-8 mb-2 text-[#0F172A]" />
             <span className="text-[10px] font-black uppercase tracking-wider">Risk Agent</span>
-            <span className="text-[8px] font-mono text-black/50 mt-1 uppercase">Stress Test</span>
+            {activeStep >= 3 && (
+              <span className={`text-[8px] font-mono font-black border px-1.5 py-0.5 mt-2 rounded ${getVoteColor(resolvedDecision.risk_vote)}`}>
+                {resolvedDecision.risk_vote}
+              </span>
+            )}
           </div>
 
           <div className="lg:col-span-1 flex justify-center">
@@ -264,7 +351,11 @@ export default function AICommitteePage() {
           }`}>
             <Cpu className="w-8 h-8 mb-2 text-[#2563EB]" />
             <span className="text-[10px] font-black uppercase tracking-wider">Committee</span>
-            <span className="text-[8px] font-mono text-black/50 mt-1 uppercase">Consensus</span>
+            {activeStep >= 4 && (
+              <span className={`text-[8px] font-mono font-black border px-1.5 py-0.5 mt-2 rounded ${getVoteColor(resolvedDecision.committee_decision)}`}>
+                {resolvedDecision.committee_decision}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -282,41 +373,46 @@ export default function AICommitteePage() {
             </div>
 
             <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
-              {timeline.length === 0 ? (
-                <div className="glass-brutal-card p-8 text-center text-xs font-mono text-black/40 uppercase">
+              {displayTimeline.length === 0 ? (
+                <div className="glass-brutal-card p-8 text-center text-xs font-mono text-black/40 uppercase animate-pulse">
                   Trigger a committee audit to stream reasoning nodes...
                 </div>
               ) : (
-                timeline.map((event) => {
-                  const details = agentDetails[event.agentId] || agentDetails.research;
-                  const Icon = details.icon;
-                  return (
-                    <div 
-                      key={event.id}
-                      className="glass-brutal-card p-5 hover:translate-x-0.5 transition-all duration-150 flex gap-4"
-                    >
-                      <div className={`p-3 border-2 border-black rounded-xl h-fit shrink-0 ${details.color}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-black/5 pb-2 mb-2.5">
-                          <div>
-                            <h4 className="text-xs font-black uppercase text-[#0F172A]">{event.agentName}</h4>
-                            <span className="text-[9px] font-bold text-black/40 uppercase font-mono">{event.phase}</span>
+                <AnimatePresence>
+                  {displayTimeline.map((event) => {
+                    const details = agentDetails[event.agentId] || agentDetails.research;
+                    const Icon = details.icon;
+                    return (
+                      <motion.div 
+                        key={event.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="glass-brutal-card p-5 hover:shadow-[6px_6px_0px_#000000] transition-shadow duration-150 flex gap-4 bg-white"
+                      >
+                        <div className={`p-3 border-2 border-black rounded-xl h-fit shrink-0 ${details.color}`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <div className="flex items-center justify-between flex-wrap gap-2 border-b border-black/5 pb-2 mb-2.5">
+                            <div>
+                              <h4 className="text-xs font-black uppercase text-[#0F172A]">{event.agentName}</h4>
+                              <span className="text-[9px] font-bold text-black/40 uppercase font-mono">{event.phase}</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-[#64748B]">{event.timestamp}</span>
                           </div>
-                          <span className="text-[10px] font-mono font-bold text-[#64748B]">{event.timestamp}</span>
+                          <p className="text-xs font-medium text-black/85 leading-relaxed font-mono">
+                            {event.message}
+                          </p>
+                          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-black/5 font-mono text-[9px] text-black/60">
+                            <span className="font-bold">SIGNAL EMITTED: <span className={`border px-1 rounded font-black ml-1 ${getVoteColor(event.vote)}`}>{event.vote}</span></span>
+                            <span className="font-black text-[#2563EB]">{event.confidence}% CONFIDENCE</span>
+                          </div>
                         </div>
-                        <p className="text-xs font-medium text-black/85 leading-relaxed font-mono">
-                          {event.message}
-                        </p>
-                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-black/5 font-mono text-[9px] text-black/60">
-                          <span className="font-bold">AGENT SIGNAL STRENGTH:</span>
-                          <span className="font-black text-[#2563EB]">{event.confidence}% CONFIDENCE</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               )}
             </div>
           </section>
@@ -329,7 +425,7 @@ export default function AICommitteePage() {
                 const item = agentDetails[key as keyof typeof agentDetails];
                 const Icon = item.icon;
                 return (
-                  <div key={key} className="glass-brutal-card p-5 flex flex-col gap-2">
+                  <div key={key} className="glass-brutal-card p-5 flex flex-col gap-2 bg-white">
                     <div className="flex items-center gap-2 text-xs font-black uppercase">
                       <div className={`p-2 border-2 border-black rounded-lg ${item.color}`}>
                         <Icon className="w-4 h-4" />
@@ -369,10 +465,12 @@ export default function AICommitteePage() {
               {/* Recommendation indicator */}
               <div className="flex flex-col items-center py-4 bg-[#F8FAFC] border-2 border-black rounded-2xl shadow-[3px_3px_0px_#000000]">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2">CONSENSUS OUTPUT</span>
-                <span className="text-3xl font-black tracking-tight text-[#2563EB] uppercase">
-                  STRONG BUY
+                <span className={`text-3xl font-black tracking-tight uppercase ${
+                  resolvedDecision.committee_decision === "BUY" ? "text-[#2563EB]" : "text-amber-500"
+                }`}>
+                  {resolvedDecision.committee_decision}
                 </span>
-                <span className="text-[9px] font-mono text-black/50 mt-1 uppercase font-bold">Consensus 4 - 1 in favor</span>
+                <span className="text-[9px] font-mono text-black/50 mt-1 uppercase font-bold">Consensus active across pool</span>
               </div>
 
               {/* Consensus Gauges */}
@@ -381,10 +479,10 @@ export default function AICommitteePage() {
                 <div>
                   <div className="flex justify-between text-xs font-mono font-black mb-1">
                     <span className="uppercase text-[#64748B]">Consensus Confidence</span>
-                    <span className="text-[#2563EB]">92%</span>
+                    <span className="text-[#2563EB]">{resolvedDecision.confidence}%</span>
                   </div>
                   <div className="w-full bg-black/5 border border-black rounded-full h-3.5 overflow-hidden">
-                    <div className="bg-[#2563EB] h-full rounded-full" style={{ width: "92%" }} />
+                    <div className="bg-[#2563EB] h-full rounded-full transition-all duration-300" style={{ width: `${resolvedDecision.confidence}%` }} />
                   </div>
                 </div>
 
@@ -404,11 +502,11 @@ export default function AICommitteePage() {
               <div className="border-t-2 border-black/10 pt-4 flex flex-col gap-3 font-mono text-[11px]">
                 <div className="flex justify-between">
                   <span className="font-bold text-[#64748B]">GENERATED TICKET:</span>
-                  <span className="font-black text-black">#STX-41802</span>
+                  <span className="font-black text-black">#STX-{selectedTicker}-01</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-[#64748B]">AUDIT TIMESTAMP:</span>
-                  <span className="font-black text-black">10:16:35 AM</span>
+                  <span className="font-black text-black">{resolvedDecision.created_at}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-[#64748B]">COMMITTEE POOL:</span>
@@ -430,6 +528,6 @@ export default function AICommitteePage() {
         </div>
       </div>
 
-    </div>
+    </motion.div>
   );
 }
