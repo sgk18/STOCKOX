@@ -53,6 +53,7 @@ func init() {
 	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
 
 	dashboardSrv := service.NewDashboardService(
+		db,
 		portfolioRepo,
 		watchlistRepo,
 		marketRepo,
