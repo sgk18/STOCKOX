@@ -59,7 +59,7 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			errors.NotFoundError(c, "User profile not found")
+			c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 			return
 		}
 		errors.InternalServerError(c, "Failed to retrieve user: "+err.Error())
@@ -128,7 +128,7 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
-		errors.NotFoundError(c, "User profile not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 		return
 	}
 
@@ -182,7 +182,7 @@ func (ctrl *ProfileController) CompleteOnboarding(c *gin.Context) {
 
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
-		errors.NotFoundError(c, "User profile not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 		return
 	}
 
@@ -236,7 +236,7 @@ func (ctrl *ProfileController) SwitchMode(c *gin.Context) {
 
 	user, err := ctrl.userRepo.GetByID(userID)
 	if err != nil {
-		errors.NotFoundError(c, "User profile not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 		return
 	}
 

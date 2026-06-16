@@ -62,17 +62,37 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		}
 	}
 
+	// Drop old unique constraints if they exist so GORM does not attempt to drop them with wrong names
+	_ = db.Exec("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_clerk_id_key;")
+	_ = db.Exec("ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_clerk_id;")
+	_ = db.Exec("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;")
+	_ = db.Exec("ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_email;")
+
+	// Proactively run ALTER TABLE queries to ensure columns exist
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255);")
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_mode VARCHAR(50) DEFAULT 'demo';")
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_level VARCHAR(50);")
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS investment_goal VARCHAR(100);")
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS risk_preference VARCHAR(50);")
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT false;")
+
 	// Run GORM AutoMigrate for new and upgraded tables
 	log.Println("[DB] Running GORM AutoMigrate...")
-	if err := db.AutoMigrate(
+	migrateModels := []interface{}{
+		&models.User{},
 		&models.StockMetadata{},
+		&models.Portfolio{},
+		&models.PortfolioHolding{},
 		&models.PortfolioSnapshot{},
 		&models.CommitteeDecision{},
 		&models.Recommendation{},
-	); err != nil {
-		log.Printf("[DB-WARN] GORM AutoMigrate failed: %v", err)
-	} else {
-		log.Println("[DB] GORM AutoMigrate completed successfully")
+	}
+	for _, model := range migrateModels {
+		if err := db.AutoMigrate(model); err != nil {
+			log.Printf("[DB-WARN] GORM AutoMigrate failed for model %T: %v", model, err)
+		} else {
+			log.Printf("[DB] GORM AutoMigrate completed for model %T", model)
+		}
 	}
 
 	// Verify required tables exist without attempting creation
@@ -109,7 +129,7 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	// Run schema migrations for user synchronization
 	log.Println("[DB] Running schema updates for Clerk user synchronization...")
 	migrationSQLs := []string{
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE;`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
 	}

@@ -242,5 +242,3 @@ func (ctrl *WebhookController) HandleClerkWebhook(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Clerk webhook processed successfully"})
 }
-)
-}

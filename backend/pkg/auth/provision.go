@@ -8,8 +8,6 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-
-	"github.com/google/uuid"
 )
 
 // ProvisionUser handles local profile creation and seeding for a Clerk authenticated user.

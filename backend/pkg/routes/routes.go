@@ -75,6 +75,12 @@ func SetupRoutes(
 		// Clerk Sync Callback
 		api.POST("/auth/sync", syncCtrl.SyncUser)
 
+		// Profile & Onboarding routes
+		api.GET("/profile", profileCtrl.GetProfile)
+		api.PUT("/profile", profileCtrl.UpdateProfile)
+		api.POST("/onboarding", profileCtrl.CompleteOnboarding)
+		api.POST("/profile/switch-mode", profileCtrl.SwitchMode)
+
 		api.GET("/dashboard", dbCtrl.GetDashboard)
 		api.GET("/dashboard/portfolio", dbCtrl.GetPortfolioSummary)
 		api.GET("/dashboard/watchlist", dbCtrl.GetWatchlist)

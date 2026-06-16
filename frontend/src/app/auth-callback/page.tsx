@@ -29,16 +29,23 @@ export default function AuthCallbackPage() {
             })
           });
 
+          let onboarded = true; // Default to true if check fails to prevent lockout
           if (res.ok) {
-            console.log("[SYNC] User synced successfully");
+            const data = await res.json();
+            console.log("[SYNC] User synced successfully. Onboarded status:", data.onboarded);
+            onboarded = data.onboarded === true;
           } else {
             console.error("[SYNC] Sync failed with status:", res.status);
           }
+          
+          if (onboarded) {
+            router.push("/dashboard");
+          } else {
+            router.push("/onboarding");
+          }
         } catch (err) {
           console.error("[SYNC-ERR] Error calling sync-user endpoint:", err);
-        } finally {
-          // Always redirect to dashboard, even if sync fails (middleware will JIT-sync as fallback)
-          router.push("/dashboard");
+          router.push("/dashboard"); // Fallback safety
         }
       } else if (isLoaded && !isSignedIn) {
         router.push("/");

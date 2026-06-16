@@ -104,6 +104,7 @@ func main() {
 	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
 	healthCtrl := health.NewHealthController(db, rdb)
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+	profileCtrl := auth.NewProfileController(db, userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 	marketCtrl := marketController.NewMarketController(marketSrv)
@@ -118,6 +119,7 @@ func main() {
 		dashboardCtrl,
 		healthCtrl,
 		syncCtrl,
+		profileCtrl,
 		v1Ctrl,
 		marketCtrl,
 		webhookCtrl,

@@ -39,7 +39,50 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const [isOnboardingChecked, setIsOnboardingChecked] = useState(false);
+  const isDemoMode = useDashboardStore((state) => state.isDemoMode);
+  const setDemoMode = useDashboardStore((state) => state.setDemoMode);
+
+  useEffect(() => {
+    let active = true;
+    async function checkOnboarding() {
+      if (!isLoaded || !isSignedIn) return;
+      try {
+        const token = await getToken();
+        const res = await fetch("/api/profile", {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        if (res.ok && active) {
+          const profile = await res.json();
+          if (profile.onboarded === false) {
+            router.push("/onboarding");
+          } else {
+            setIsOnboardingChecked(true);
+            setDemoMode(profile.account_mode === "demo");
+          }
+        } else if (res.status === 404 && active) {
+          router.push("/onboarding");
+        } else if (active) {
+          setIsOnboardingChecked(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile onboarding status", err);
+        if (active) setIsOnboardingChecked(true);
+      }
+    }
+
+    if (isLoaded && isSignedIn) {
+      checkOnboarding();
+    } else if (isLoaded && !isSignedIn) {
+      setIsOnboardingChecked(true);
+    }
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isSignedIn, getToken, router, setDemoMode]);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -96,8 +139,6 @@ export default function DashboardLayout({
 
   const socketConnected = useWebSocketStore((state) => state.connected);
   const agents = useDashboardStore((state) => state.agents);
-  const isDemoMode = useDashboardStore((state) => state.isDemoMode);
-  const setDemoMode = useDashboardStore((state) => state.setDemoMode);
   const activeAgentCount = agents.filter(a => a.status !== "Idle").length || 5;
 
   const user = {
@@ -129,6 +170,22 @@ export default function DashboardLayout({
       setSearchQuery("");
     }
   };
+
+  if (!isOnboardingChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] relative">
+        <div className="absolute inset-0 dot-pattern-brutal pointer-events-none z-0" />
+        <div className="flex flex-col items-center gap-4 relative z-10">
+          <div className="w-12 h-12 rounded-xl bg-[#2563EB] border-4 border-black shadow-[4px_4px_0px_#000000] animate-bounce flex items-center justify-center font-black text-white animate-pulse">
+            SO
+          </div>
+          <span className="font-mono text-xs uppercase tracking-widest text-[#0F172A] font-bold">
+            Verifying account configuration...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-[#F8FAFC] flex text-[#0F172A] font-sans relative">
@@ -171,6 +228,15 @@ export default function DashboardLayout({
 
         {/* Bottom Section */}
         <div className="p-4 border-t-4 border-black bg-[#F8FAFC] flex flex-col gap-3 font-mono text-[10px]">
+          {/* Profile link */}
+          <Link
+            href="/dashboard/profile"
+            className="flex items-center justify-between border-2 border-black bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg px-2.5 py-2 shadow-[2px_2px_0px_#000000] font-black text-center uppercase tracking-wider transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 text-[10px] cursor-pointer"
+          >
+            <span>My Profile</span>
+            <Sliders className="w-3.5 h-3.5 text-white" />
+          </Link>
+
           {/* Market Status */}
           <div className="flex items-center justify-between border-2 border-black bg-white rounded-lg px-2.5 py-1.5 shadow-[2px_2px_0px_#000000]">
             <span className="font-bold text-[#64748B]">MARKET STATUS</span>

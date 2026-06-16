@@ -67,6 +67,7 @@ func init() {
 	dashboardCtrl := controller.NewDashboardController(dashboardSrv)
 	healthCtrl := health.NewHealthController(db, nil)
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
+	profileCtrl := auth.NewProfileController(db, userRepo, portfolioRepo, watchlistRepo)
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 
 	// 6. Init WebSocket Hub
@@ -84,6 +85,7 @@ func init() {
 		dashboardCtrl,
 		healthCtrl,
 		syncCtrl,
+		profileCtrl,
 		v1Ctrl,
 		marketCtrl,
 		webhookCtrl,
