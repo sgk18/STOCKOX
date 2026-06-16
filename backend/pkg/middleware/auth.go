@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"crypto/rsa"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -12,28 +12,16 @@ import (
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/errors"
 
+	"github.com/clerk/clerk-sdk-go/v2"
+	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
-var clerkRSAPublicKey *rsa.PublicKey
-
-func init() {
-	pemKey := os.Getenv("CLERK_PEM_PUBLIC_KEY")
-	if pemKey != "" {
-		// Replace escaped newlines if passed in inline format
-		pemKey = strings.ReplaceAll(pemKey, "\\n", "\n")
-		pubKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(pemKey))
-		if err == nil {
-			clerkRSAPublicKey = pubKey
-			log.Println("[CLERK-AUTH] Successfully parsed RSA public key from CLERK_PEM_PUBLIC_KEY environment variable")
-		} else {
-			log.Printf("[CLERK-AUTH-WARN] Failed to parse CLERK_PEM_PUBLIC_KEY from environment: %v. RS256 signature verification will fail.", err)
-		}
-	} else {
-		log.Println("[CLERK-AUTH-INFO] CLERK_PEM_PUBLIC_KEY environment variable not set. Signature verification will be skipped in development mode.")
-	}
+type ClerkCustomClaims struct {
+	Email  string   `json:"email"`
+	Emails []string `json:"emails"`
 }
 
 func Auth(
@@ -78,33 +66,57 @@ func Auth(
 		}
 
 		tokenStr := parts[1]
-		claims := jwt.MapClaims{}
-
 		var tokenValid bool
 		var parseErr error
+		var userID string
+		var email string
 
-		if clerkRSAPublicKey != nil {
-			// Strict RS256 validation using parsed Clerk PEM key
-			token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return clerkRSAPublicKey, nil
+		secretKey := os.Getenv("CLERK_SECRET_KEY")
+
+		if secretKey != "" {
+			clerk.SetKey(secretKey)
+			claims, err := clerkjwt.Verify(c.Request.Context(), &clerkjwt.VerifyParams{
+				Token: tokenStr,
+				CustomClaimsConstructor: func(ctx context.Context) any {
+					return &ClerkCustomClaims{}
+				},
 			})
-			parseErr = err
-			tokenValid = err == nil && token.Valid
+			if err == nil && claims != nil {
+				tokenValid = true
+				userID = claims.Subject
+				if customClaims, ok := claims.Custom.(*ClerkCustomClaims); ok && customClaims != nil {
+					if customClaims.Email != "" {
+						email = customClaims.Email
+					} else if len(customClaims.Emails) > 0 {
+						email = customClaims.Emails[0]
+					}
+				}
+			} else {
+				parseErr = err
+			}
 		} else if appEnv == "development" {
 			// Dev fallback: parse token claims without checking the signature to simplify local setup
+			claims := jwt.MapClaims{}
 			parser := jwt.Parser{}
 			_, _, err := parser.ParseUnverified(tokenStr, claims)
 			parseErr = err
 			tokenValid = err == nil
 			if err == nil {
 				log.Println("[CLERK-AUTH-DEV-WARN] Parsed token claims WITHOUT signature verification")
+				if sub, ok := claims["sub"].(string); ok {
+					userID = sub
+				}
+				if emailVal, ok := claims["email"].(string); ok {
+					email = emailVal
+				} else if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
+					if emailStr, ok := emailsList[0].(string); ok {
+						email = emailStr
+					}
+				}
 			}
 		} else {
-			// Production mode but no PEM key configured -> fail secure
-			log.Println("[CLERK-AUTH-ERR] Production environment detected but CLERK_PEM_PUBLIC_KEY is not configured")
+			// Production mode but no secret key configured -> fail secure
+			log.Println("[CLERK-AUTH-ERR] Production environment detected but CLERK_SECRET_KEY is not configured")
 			errors.UnauthorizedError(c, "Security verification keys are missing on the server")
 			return
 		}
@@ -114,24 +126,12 @@ func Auth(
 			return
 		}
 
-		// Extract Clerk User ID
-		if sub, ok := claims["sub"].(string); ok {
-			c.Set("UserID", sub)
-		} else {
-			errors.UnauthorizedError(c, "Invalid token claims: missing sub (user ID)")
-			return
-		}
-
-		// Extract email if present
-		if email, ok := claims["email"].(string); ok {
+		// Inject User Context
+		c.Set("UserID", userID)
+		if email != "" {
 			c.Set("UserEmail", email)
-		} else if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
-			if emailStr, ok := emailsList[0].(string); ok {
-				c.Set("UserEmail", emailStr)
-			}
 		}
 
-		userID := c.GetString("UserID")
 		log.Printf("[AUTH] Clerk user detected: user_id=%s", userID)
 
 		c.Next()
@@ -208,39 +208,54 @@ func EnsureUserSynced(
 
 // VerifyJWTToken parses and validates a JWT token using Clerk's public key or dev fallback
 func VerifyJWTToken(tokenStr string) (string, string, error) {
-	claims := jwt.MapClaims{}
-	var tokenValid bool
-	var parseErr error
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "development"
+	}
 
-	if clerkRSAPublicKey != nil {
-		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return clerkRSAPublicKey, nil
+	secretKey := os.Getenv("CLERK_SECRET_KEY")
+
+	if secretKey != "" {
+		clerk.SetKey(secretKey)
+		claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{
+			Token: tokenStr,
+			CustomClaimsConstructor: func(ctx context.Context) any {
+				return &ClerkCustomClaims{}
+			},
 		})
-		parseErr = err
-		tokenValid = err == nil && token.Valid
-	} else {
+		if err != nil {
+			return "", "", fmt.Errorf("invalid token: %w", err)
+		}
+		
+		var email string
+		if customClaims, ok := claims.Custom.(*ClerkCustomClaims); ok && customClaims != nil {
+			if customClaims.Email != "" {
+				email = customClaims.Email
+			} else if len(customClaims.Emails) > 0 {
+				email = customClaims.Emails[0]
+			}
+		}
+		return claims.Subject, email, nil
+	} else if appEnv == "development" {
 		// Dev fallback
+		claims := jwt.MapClaims{}
 		parser := jwt.Parser{}
 		_, _, err := parser.ParseUnverified(tokenStr, claims)
-		parseErr = err
-		tokenValid = err == nil
-	}
+		if err != nil {
+			return "", "", fmt.Errorf("invalid token: %w", err)
+		}
 
-	if !tokenValid {
-		return "", "", fmt.Errorf("invalid token: %w", parseErr)
-	}
-
-	userID, _ := claims["sub"].(string)
-	email, _ := claims["email"].(string)
-	if email == "" {
-		if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
+		userID, _ := claims["sub"].(string)
+		var email string
+		if emailVal, ok := claims["email"].(string); ok {
+			email = emailVal
+		} else if emailsList, ok := claims["emails"].([]interface{}); ok && len(emailsList) > 0 {
 			if emailStr, ok := emailsList[0].(string); ok {
 				email = emailStr
 			}
 		}
+		return userID, email, nil
+	} else {
+		return "", "", fmt.Errorf("security verification keys are missing on the server")
 	}
-	return userID, email, nil
 }
