@@ -5,17 +5,24 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
 export default function AuthCallbackPage() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
+  const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded: isUserLoaded, user } = useUser();
   const router = useRouter();
   const syncAttempted = useRef(false);
 
   useEffect(() => {
     async function syncUser() {
-      if (isLoaded && isSignedIn && user && !syncAttempted.current) {
+      const isLoaded = isAuthLoaded && isUserLoaded;
+      if (isLoaded && isSignedIn && !syncAttempted.current) {
         syncAttempted.current = true;
         try {
           const token = await getToken();
+          
+          // Get user details with fallbacks if user object is not fully populated
+          const name = user?.fullName || user?.username || user?.firstName || "Adviser";
+          const email = user?.primaryEmailAddress?.emailAddress || "";
+          const avatarUrl = user?.imageUrl || "";
+
           const res = await fetch("/api/v1/auth/sync-user", {
             method: "POST",
             headers: {
@@ -23,9 +30,9 @@ export default function AuthCallbackPage() {
               "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
-              name: user.fullName || user.username || user.firstName || "Adviser",
-              email: user.primaryEmailAddress?.emailAddress || "",
-              avatar_url: user.imageUrl || ""
+              name: name,
+              email: email,
+              avatar_url: avatarUrl
             })
           });
 
@@ -53,7 +60,7 @@ export default function AuthCallbackPage() {
     }
 
     syncUser();
-  }, [isLoaded, isSignedIn, user, getToken, router]);
+  }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">

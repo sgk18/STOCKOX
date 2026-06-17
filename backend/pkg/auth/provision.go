@@ -8,6 +8,8 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+
+	"github.com/google/uuid"
 )
 
 // ProvisionUser handles local profile creation and seeding for a Clerk authenticated user.
@@ -88,6 +90,38 @@ func ProvisionUser(
 		return err
 	}
 	log.Printf("[DATABASE] User inserted: email=%s, user_id=%s", email, userID)
+
+	// Seed default demo portfolio
+	portfolio := models.Portfolio{
+		ID:                 uuid.New(),
+		UserID:             userID,
+		AccountMode:        "demo",
+		TotalValue:         125400.00,
+		CashBalance:        12000.00,
+		DailyChange:        5062.00,
+		DailyChangePercent: 4.21,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	if err := portfolioRepo.Create(&portfolio); err != nil {
+		log.Printf("[DATABASE] Database error: failed to seed default portfolio for user %s: %v", userID, err)
+	}
+
+	// Seed 3 default watchlist items
+	watchlists := []struct {
+		ticker string
+		name   string
+	}{
+		{"TSLA", "Tesla Inc."},
+		{"MSFT", "Microsoft Corp."},
+		{"AMD", "Advanced Micro Devices"},
+	}
+	for _, w := range watchlists {
+		_, err = watchlistRepo.Add(userID, w.ticker, w.name)
+		if err != nil {
+			log.Printf("[DATABASE] Database error: failed to seed default watchlist item %s for user %s: %v", w.ticker, userID, err)
+		}
+	}
 
 	return nil
 }

@@ -59,8 +59,8 @@ const MOCK_EVENTS = [
 ];
 
 export default function DashboardPage() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
+  const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded: isUserLoaded, user } = useUser();
   const router = useRouter();
   const [isSynced, setIsSynced] = useState(false);
   const isDemoMode = useDashboardStore((state) => state.isDemoMode);
@@ -68,9 +68,15 @@ export default function DashboardPage() {
   // Synchronize User profile with local DB on load
   useEffect(() => {
     async function syncProfile() {
-      if (isLoaded && isSignedIn && user) {
+      const isLoaded = isAuthLoaded && isUserLoaded;
+      if (isLoaded && isSignedIn) {
         try {
           const token = await getToken();
+          
+          const name = user?.fullName || user?.username || user?.firstName || "Adviser";
+          const email = user?.primaryEmailAddress?.emailAddress || "";
+          const avatarUrl = user?.imageUrl || "";
+
           const res = await fetch("/api/v1/auth/sync-user", {
             method: "POST",
             headers: {
@@ -78,9 +84,9 @@ export default function DashboardPage() {
               "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
-              name: user.fullName || user.username || user.firstName || "Adviser",
-              email: user.primaryEmailAddress?.emailAddress || "",
-              avatar_url: user.imageUrl || ""
+              name: name,
+              email: email,
+              avatar_url: avatarUrl
             })
           });
           if (res.ok) {
@@ -96,7 +102,7 @@ export default function DashboardPage() {
       }
     }
     syncProfile();
-  }, [isLoaded, isSignedIn, user, getToken]);
+  }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken]);
 
   // 1. Fetch dynamic dashboard aggregates via React Query
   const { data: dashboardData, isLoading: isDashLoading, error: dashError } = useQuery({
@@ -153,11 +159,13 @@ export default function DashboardPage() {
 
   // Redirect if not signed in
   useEffect(() => {
+    const isLoaded = isAuthLoaded && isUserLoaded;
     if (isLoaded && !isSignedIn) {
       router.push("/");
     }
-  }, [isLoaded, isSignedIn, router]);
+  }, [isAuthLoaded, isUserLoaded, isSignedIn, router]);
 
+  const isLoaded = isAuthLoaded && isUserLoaded;
   if (!isLoaded || (isSignedIn && !isSynced)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">

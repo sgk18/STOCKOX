@@ -113,6 +113,14 @@ func (m *MockPortfolioRepository) GetByUserID(userID string) (*models.Portfolio,
 	return p, nil
 }
 
+func (m *MockPortfolioRepository) GetByUserIDAndMode(userID string, mode string) (*models.Portfolio, error) {
+	p, ok := m.portfolios[userID]
+	if !ok {
+		return nil, errors.New("record not found")
+	}
+	return p, nil
+}
+
 func (m *MockPortfolioRepository) GetHoldings(portfolioID uuid.UUID) ([]models.PortfolioHolding, error) {
 	var result []models.PortfolioHolding
 	for _, h := range m.holdings {
