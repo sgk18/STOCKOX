@@ -62,7 +62,7 @@ export default function DashboardPage() {
   const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useAuth();
   const { isLoaded: isUserLoaded, user } = useUser();
   const router = useRouter();
-  const [isSynced, setIsSynced] = useState(false);
+  const [isSynced, setIsSynced] = useState(true);
   const isDemoMode = useDashboardStore((state) => state.isDemoMode);
 
   // Synchronize User profile with local DB on load

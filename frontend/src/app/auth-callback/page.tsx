@@ -6,34 +6,23 @@ import { useRouter } from "next/navigation";
 
 export default function AuthCallbackPage() {
   const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useAuth();
-  const { isLoaded: isUserLoaded, user } = useUser();
   const router = useRouter();
   const syncAttempted = useRef(false);
 
   useEffect(() => {
     async function syncUser() {
-      const isLoaded = isAuthLoaded && isUserLoaded;
-      if (isLoaded && isSignedIn && !syncAttempted.current) {
+      if (isAuthLoaded && isSignedIn && !syncAttempted.current) {
         syncAttempted.current = true;
         try {
           const token = await getToken();
           
-          // Get user details with fallbacks if user object is not fully populated
-          const name = user?.fullName || user?.username || user?.firstName || "Adviser";
-          const email = user?.primaryEmailAddress?.emailAddress || "";
-          const avatarUrl = user?.imageUrl || "";
-
           const res = await fetch("/api/v1/auth/sync-user", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify({
-              name: name,
-              email: email,
-              avatar_url: avatarUrl
-            })
+            body: JSON.stringify({}) // Fast mode: backend resolves user from token claims
           });
 
           let onboarded = true; // Default to true if check fails to prevent lockout
@@ -54,13 +43,13 @@ export default function AuthCallbackPage() {
           console.error("[SYNC-ERR] Error calling sync-user endpoint:", err);
           router.push("/dashboard"); // Fallback safety
         }
-      } else if (isLoaded && !isSignedIn) {
+      } else if (isAuthLoaded && !isSignedIn) {
         router.push("/");
       }
     }
 
     syncUser();
-  }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken, router]);
+  }, [isAuthLoaded, isSignedIn, getToken, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">

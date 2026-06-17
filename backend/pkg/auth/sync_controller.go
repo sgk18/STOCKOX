@@ -192,8 +192,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 			return
 		}
 		log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
-	} else {
-		// If linked by email, cascade update User ID in tables
+		needsUpdate := false
 		if existingUser.ClerkID == "" {
 			log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s)", email, userID)
 			oldID := existingUser.ID
@@ -204,25 +203,33 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 			}
 			existingUser.ID = userID
 			existingUser.ClerkID = userID
+			needsUpdate = true
 		}
 
-		userToUpsert := models.User{
-			ID:        existingUser.ID,
-			ClerkID:   userID,
-			Email:     email,
-			Name:      name,
-			AvatarURL: avatarURL,
-			Role:      existingUser.Role,
-			CreatedAt: existingUser.CreatedAt,
-			UpdatedAt: time.Now(),
+		if existingUser.Name != name || existingUser.Email != email || existingUser.AvatarURL != avatarURL {
+			needsUpdate = true
 		}
-		if err := ctrl.userRepo.Upsert(&userToUpsert); err != nil {
-			log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
-			return
+
+		if needsUpdate {
+			userToUpsert := models.User{
+				ID:        existingUser.ID,
+				ClerkID:   userID,
+				Email:     email,
+				Name:      name,
+				AvatarURL: avatarURL,
+				Role:      existingUser.Role,
+				CreatedAt: existingUser.CreatedAt,
+				UpdatedAt: time.Now(),
+			}
+			if err := ctrl.userRepo.Upsert(&userToUpsert); err != nil {
+				log.Printf("[AUTH] Sync failed: user_id=%s, error=%v", userID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
+				return
+			}
+			log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
+		} else {
+			log.Printf("[AUTH] User profile already up-to-date, skipping DB write: user_id=%s", userID)
 		}
-		log.Printf("[AUTH] User updated: email=%s, user_id=%s", email, userID)
-	}
 
 	// Find user to know their onboarded status
 	dbUser, _ := ctrl.userRepo.GetByClerkID(userID)
