@@ -9,7 +9,7 @@ import (
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 )

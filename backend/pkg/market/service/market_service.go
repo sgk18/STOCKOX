@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/market/dto"
 	"stockox-backend/pkg/market/providers"
 )

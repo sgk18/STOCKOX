@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 	"stockox-backend/config"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/market/providers"
 )
 

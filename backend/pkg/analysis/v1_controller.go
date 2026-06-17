@@ -9,7 +9,7 @@ import (
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/agents"
 	"stockox-backend/pkg/errors"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/websocket"
 
 	"github.com/gin-gonic/gin"

@@ -9,7 +9,7 @@ import (
 	"stockox-backend/database"
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"

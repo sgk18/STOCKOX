@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"stockox-backend/database/models"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/eventbus"
 
 	"github.com/google/uuid"

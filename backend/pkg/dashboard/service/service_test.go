@@ -7,7 +7,7 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 
 	"github.com/google/uuid"
 )

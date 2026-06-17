@@ -10,7 +10,7 @@ import (
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/health"
-	"stockox-backend/internal/cache"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
