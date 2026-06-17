@@ -506,7 +506,7 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-3.5 px-5 text-right">
                             <button
-                              onClick={() => router.push(`/dashboard/research-terminal?ticker=${stock.ticker}`)}
+                              onClick={() => router.push(`/research/${stock.ticker}`)}
                               className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-[#2563EB] hover:text-white hover:shadow-[1.5px_1.5px_0px_#000000] active:translate-y-[1px] transition-all"
                             >
                               Analyze

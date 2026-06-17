@@ -124,7 +124,7 @@ export default function WatchlistsPage() {
                     </td>
                     <td className="py-4 px-6 text-right">
                       <button
-                        onClick={() => router.push(`/dashboard/research-terminal?ticker=${item.ticker}`)}
+                        onClick={() => router.push(`/research/${item.ticker}`)}
                         className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-black hover:text-white transition-all shadow-[1.5px_1.5px_0px_#000000] cursor-pointer"
                       >
                         Audit
@@ -145,7 +145,7 @@ export default function WatchlistsPage() {
             Your custom tracking profile does not contain any monitored assets. Use the search bar in the top navigation or click below to audit stock options.
           </p>
           <button
-            onClick={() => router.push("/dashboard/research-terminal?ticker=NVDA")}
+            onClick={() => router.push("/research/NVDA")}
             className="border-3 border-black bg-white hover:bg-[#2563EB] hover:text-white rounded-xl py-2 px-5 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0.5 transition-all cursor-pointer mt-2"
           >
             Audit NVIDIA Corp

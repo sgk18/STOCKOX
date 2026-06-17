@@ -130,11 +130,11 @@ export default function DashboardLayout({
     { type: "shortcut", label: "Go to Market Intelligence", path: "/dashboard/market-intelligence" },
     { type: "shortcut", label: "Go to Watchlists Terminal", path: "/dashboard/watchlists" },
     { type: "shortcut", label: "Go to Recommendations Feed", path: "/dashboard/recommendations" },
-    { type: "equity", label: "Audit NVDA - NVIDIA Corp", path: "/dashboard/research-terminal?ticker=NVDA" },
-    { type: "equity", label: "Audit AAPL - Apple Inc", path: "/dashboard/research-terminal?ticker=AAPL" },
-    { type: "equity", label: "Audit MSFT - Microsoft Corp", path: "/dashboard/research-terminal?ticker=MSFT" },
-    { type: "equity", label: "Audit TSLA - Tesla Inc", path: "/dashboard/research-terminal?ticker=TSLA" },
-    { type: "equity", label: "Audit AMD - Advanced Micro Devices", path: "/dashboard/research-terminal?ticker=AMD" }
+    { type: "equity", label: "Audit NVDA - NVIDIA Corp", path: "/research/NVDA" },
+    { type: "equity", label: "Audit AAPL - Apple Inc", path: "/research/AAPL" },
+    { type: "equity", label: "Audit MSFT - Microsoft Corp", path: "/research/MSFT" },
+    { type: "equity", label: "Audit TSLA - Tesla Inc", path: "/research/TSLA" },
+    { type: "equity", label: "Audit AMD - Advanced Micro Devices", path: "/research/AMD" }
   ];
 
   const socketConnected = useWebSocketStore((state) => state.connected);

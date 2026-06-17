@@ -336,7 +336,7 @@ export default function PortfolioPage() {
                         </td>
                         <td className="py-3.5 px-5 text-right">
                           <a
-                            href={`/dashboard/research-terminal?ticker=${stock.ticker}`}
+                            href={`/research/${stock.ticker}`}
                             className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-black hover:text-white hover:shadow-[1.5px_1.5px_0px_#2563EB] active:translate-y-[1px] transition-all"
                           >
                             Analyze

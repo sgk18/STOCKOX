@@ -535,7 +535,7 @@ export default function AICommitteePage() {
 
               {/* Actions */}
               <button
-                onClick={() => router.push(`/dashboard/research-terminal?ticker=${selectedTicker}`)}
+                onClick={() => router.push(`/research/${selectedTicker}`)}
                 className="w-full border-3 border-black bg-white hover:bg-[#2563EB] hover:text-white rounded-xl py-3 text-xs font-black uppercase text-center shadow-[3px_3px_0px_#000000] hover:translate-y-[-2px] active:translate-y-[1px] transition-all cursor-pointer"
               >
                 Open in Research Terminal
