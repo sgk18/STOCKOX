@@ -50,7 +50,7 @@ export default function ProfilePage() {
   async function fetchProfile() {
     try {
       const token = await getToken();
-      const res = await fetch("/api/profile", {
+      const res = await fetch("/api/profile?stats=true", {
         headers: {
           "Authorization": `Bearer ${token}`
         }

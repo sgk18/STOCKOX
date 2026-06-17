@@ -66,25 +66,7 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		return
 	}
 
-	// Calculate dynamic usage stats
-	var totalAnalyses int64 = 0
-	_ = ctrl.db.Table("analysis_sessions").Where("user_id = ?", userID).Count(&totalAnalyses).Error
-
-	var watchlistCount int64 = 0
-	_ = ctrl.db.Table("watchlists").Where("user_id = ?", userID).Count(&watchlistCount).Error
-
-	var stocksTracked int64 = 0
-	var portfolioValue float64 = 0.0
-	port, err := ctrl.portfolioRepo.GetByUserIDAndMode(userID, user.AccountMode)
-	if err == nil && port != nil {
-		portfolioValue = port.TotalValue
-		_ = ctrl.db.Table("portfolio_holdings").Where("portfolio_id = ?", port.ID).Count(&stocksTracked).Error
-	}
-
-	var recsCount int64 = 0
-	_ = ctrl.db.Table("committee_decisions").Count(&recsCount).Error
-
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"id":               user.ID,
 		"clerk_id":         user.ClerkID,
 		"email":            user.Email,
@@ -97,14 +79,37 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		"risk_preference":  user.RiskPreference,
 		"onboarded":        user.Onboarded,
 		"created_at":       user.CreatedAt,
-		"stats": gin.H{
-			"total_analyses":   totalAnalyses,
-			"stocks_tracked":   stocksTracked,
-			"watchlist_count":  watchlistCount,
-			"portfolio_value":  portfolioValue,
+	}
+
+	if c.Query("stats") == "true" {
+		// Calculate dynamic usage stats
+		var totalAnalyses int64 = 0
+		_ = ctrl.db.Table("analysis_sessions").Where("user_id = ?", userID).Count(&totalAnalyses).Error
+
+		var watchlistCount int64 = 0
+		_ = ctrl.db.Table("watchlists").Where("user_id = ?", userID).Count(&watchlistCount).Error
+
+		var stocksTracked int64 = 0
+		var portfolioValue float64 = 0.0
+		port, err := ctrl.portfolioRepo.GetByUserIDAndMode(userID, user.AccountMode)
+		if err == nil && port != nil {
+			portfolioValue = port.TotalValue
+			_ = ctrl.db.Table("portfolio_holdings").Where("portfolio_id = ?", port.ID).Count(&stocksTracked).Error
+		}
+
+		var recsCount int64 = 0
+		_ = ctrl.db.Table("committee_decisions").Count(&recsCount).Error
+
+		response["stats"] = gin.H{
+			"total_analyses":    totalAnalyses,
+			"stocks_tracked":    stocksTracked,
+			"watchlist_count":   watchlistCount,
+			"portfolio_value":   portfolioValue,
 			"ai_recs_generated": recsCount,
-		},
-	})
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // PUT /api/profile

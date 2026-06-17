@@ -183,7 +183,7 @@ export default function DashboardPage() {
   }, [isAuthLoaded, isUserLoaded, isSignedIn, router]);
 
   const isLoaded = isAuthLoaded && isUserLoaded;
-  if (!isLoaded || (isSignedIn && !isSynced)) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
         <div className="flex flex-col items-center gap-4 animate-pulse">
