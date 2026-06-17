@@ -6,12 +6,14 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/dashboard/dto"
+	marketDto "stockox-backend/pkg/market/dto"
 	marketService "stockox-backend/pkg/market/service"
 
 	"gorm.io/gorm"
@@ -690,10 +692,49 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 	var exchange string = "US Exchange"
 	var country string = "US"
 
+	var (
+		profile *marketDto.CompanyProfileDTO
+		metrics *marketDto.FinancialMetricsDTO
+		news    []marketDto.NewsDTO
+		candles []marketDto.CandleDTO
+		quote   *marketDto.QuoteDTO
+
+		profileErr, metricsErr, newsErr, candlesErr, quoteErr error
+		wg                                                    sync.WaitGroup
+	)
+
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		profile, profileErr = s.marketSrv.GetCompanyProfile(ticker)
+	}()
+
+	go func() {
+		defer wg.Done()
+		metrics, metricsErr = s.marketSrv.GetFinancialMetrics(ticker)
+	}()
+
+	go func() {
+		defer wg.Done()
+		news, newsErr = s.marketSrv.GetCompanyNews(ticker)
+	}()
+
+	go func() {
+		defer wg.Done()
+		candles, candlesErr = s.marketSrv.GetHistoricalCandles(ticker, "D")
+	}()
+
+	go func() {
+		defer wg.Done()
+		quote, quoteErr = s.marketSrv.GetQuote(ticker)
+	}()
+
+	wg.Wait()
+
 	var profileError, metricsError, newsError, historyError string
 
-	profile, err := s.marketSrv.GetCompanyProfile(ticker)
-	if err == nil && profile != nil {
+	if profileErr == nil && profile != nil {
 		companyName = profile.Name
 		industry = profile.Industry
 		sector = getSectorByTicker(ticker)
@@ -702,14 +743,13 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 		marketCap = fmt.Sprintf("%.2f Billion", float64(profile.MarketCap)/1e9)
 		exchange = profile.Exchange
 		country = profile.Country
-	} else if err != nil {
-		profileError = err.Error()
+	} else if profileErr != nil {
+		profileError = profileErr.Error()
 	}
 
 	var pe, eps, roe, debtRatio, revenueGrowth, profitMargin, currentRatio float64 = 0, 0, 0, 0, 0, 0, 0
 	var revenue, cashFlow int64 = 0, 0
-	metrics, err := s.marketSrv.GetFinancialMetrics(ticker)
-	if err == nil && metrics != nil {
+	if metricsErr == nil && metrics != nil {
 		pe = metrics.PE
 		eps = metrics.EPS
 		roe = metrics.ROE
@@ -719,13 +759,12 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 		profitMargin = metrics.ProfitMargin
 		currentRatio = metrics.CurrentRatio
 		cashFlow = metrics.CashFlow
-	} else if err != nil {
-		metricsError = err.Error()
+	} else if metricsErr != nil {
+		metricsError = metricsErr.Error()
 	}
 
-	news, err := s.marketSrv.GetCompanyNews(ticker)
 	newsResponses := make([]dto.NewsResponse, 0)
-	if err == nil {
+	if newsErr == nil {
 		for _, n := range news {
 			newsResponses = append(newsResponses, dto.NewsResponse{
 				Title:   n.Title,
@@ -736,12 +775,11 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 			})
 		}
 	} else {
-		newsError = err.Error()
+		newsError = newsErr.Error()
 	}
 
-	candles, err := s.marketSrv.GetHistoricalCandles(ticker, "D")
 	candleResponses := make([]dto.CandleResponse, 0)
-	if err == nil {
+	if candlesErr == nil {
 		for _, c := range candles {
 			candleResponses = append(candleResponses, dto.CandleResponse{
 				Time:  time.Unix(c.Timestamp, 0).Format("2006-01-02"),
@@ -749,7 +787,7 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 			})
 		}
 	} else {
-		historyError = err.Error()
+		historyError = candlesErr.Error()
 	}
 
 	ratings := dto.AnalystRatingsResponse{Buy: 78, Hold: 18, Sell: 4}
@@ -809,7 +847,7 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 
 	var currentPrice, dailyChange, dailyChangePercent, highPrice, lowPrice, openPrice, prevClosePrice float64 = 0, 0, 0, 0, 0, 0, 0
 	var vol, avgVol int64 = 0, 0
-	if quote, errQuote := s.marketSrv.GetQuote(ticker); errQuote == nil && quote != nil {
+	if quoteErr == nil && quote != nil {
 		currentPrice = quote.CurrentPrice
 		dailyChange = quote.DailyChange
 		dailyChangePercent = quote.DailyChangePercent
