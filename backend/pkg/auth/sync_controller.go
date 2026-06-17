@@ -192,6 +192,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 			return
 		}
 		log.Printf("[AUTH] User created: email=%s, user_id=%s", email, userID)
+	} else {
 		needsUpdate := false
 		if existingUser.ClerkID == "" {
 			log.Printf("[AUTH] Linking existing user record (%s) by email to Clerk ID (%s)", email, userID)
@@ -230,6 +231,7 @@ func (ctrl *SyncController) SyncUserV1(c *gin.Context) {
 		} else {
 			log.Printf("[AUTH] User profile already up-to-date, skipping DB write: user_id=%s", userID)
 		}
+	}
 
 	// Find user to know their onboarded status
 	dbUser, _ := ctrl.userRepo.GetByClerkID(userID)

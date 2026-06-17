@@ -700,6 +700,8 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 	var exchange string = "US Exchange"
 	var country string = "US"
 
+	var profileError, metricsError, newsError, historyError string
+
 	profile, err := s.marketSrv.GetCompanyProfile(ticker)
 	if err == nil && profile != nil {
 		companyName = profile.Name
@@ -710,6 +712,8 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 		marketCap = fmt.Sprintf("%.2f Billion", float64(profile.MarketCap)/1e9)
 		exchange = profile.Exchange
 		country = profile.Country
+	} else if err != nil {
+		profileError = err.Error()
 	}
 
 	var pe, eps, roe, debtRatio, revenueGrowth, profitMargin, currentRatio float64 = 0, 0, 0, 0, 0, 0, 0
@@ -725,6 +729,8 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 		profitMargin = metrics.ProfitMargin
 		currentRatio = metrics.CurrentRatio
 		cashFlow = metrics.CashFlow
+	} else if err != nil {
+		metricsError = err.Error()
 	}
 
 	news, err := s.marketSrv.GetCompanyNews(ticker)
@@ -739,6 +745,8 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 				Summary: n.Summary,
 			})
 		}
+	} else {
+		newsError = err.Error()
 	}
 
 	candles, err := s.marketSrv.GetHistoricalCandles(ticker, "D")
@@ -750,6 +758,8 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 				Value: c.Close,
 			})
 		}
+	} else {
+		historyError = err.Error()
 	}
 
 	ratings := dto.AnalystRatingsResponse{Buy: 78, Hold: 18, Sell: 4}
@@ -854,6 +864,10 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 		CommitteeDecision: decResp,
 		AgentTimeline:     timelineResponses,
 		InvestmentThesis:  investmentThesis,
+		ProfileError:      profileError,
+		MetricsError:      metricsError,
+		HistoryError:      historyError,
+		NewsError:         newsError,
 	}, nil
 }
 

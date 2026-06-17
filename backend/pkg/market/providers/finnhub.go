@@ -3,8 +3,10 @@ package providers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"stockox-backend/pkg/market/dto"
@@ -233,11 +235,15 @@ func (p *FinnhubProvider) GetHistoricalCandles(ticker string, resolution string,
 	}
 
 	u := fmt.Sprintf("%s/stock/candle?symbol=%s&resolution=%s&from=%d&to=%d&token=%s", p.baseURL, url.QueryEscape(ticker), res, from, to, p.apiKey)
+	log.Printf("[OBSERVABILITY-AUDIT] Requesting Finnhub Candle URL: %s", strings.Replace(u, p.apiKey, "SECRET", 1))
 	resp, err := p.client.Get(u)
 	if err != nil {
+		log.Printf("[OBSERVABILITY-ERR] Finnhub GetHistoricalCandles Get failed: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[OBSERVABILITY-AUDIT] Finnhub Candle Response Status Code: %d for %s", resp.StatusCode, ticker)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("finnhub candles returned status: %d", resp.StatusCode)
@@ -254,8 +260,11 @@ func (p *FinnhubProvider) GetHistoricalCandles(ticker string, resolution string,
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		log.Printf("[OBSERVABILITY-ERR] Finnhub GetHistoricalCandles Decode failed: %v", err)
 		return nil, err
 	}
+
+	log.Printf("[OBSERVABILITY-AUDIT] Finnhub Candle status: %s | Returned candle count: %d for %s", raw.S, len(raw.T), ticker)
 
 	if raw.S != "ok" || len(raw.T) == 0 {
 		// Fallback mock generation if no candles exist for symbol

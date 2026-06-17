@@ -188,6 +188,10 @@ type ResearchTerminalResponse struct {
 	CommitteeDecision CommitteeDecisionResponse `json:"committee_decision"`
 	AgentTimeline     []AgentTimelineItem       `json:"agent_timeline"`
 	InvestmentThesis  string                    `json:"investment_thesis"`
+	ProfileError      string                    `json:"profile_error,omitempty"`
+	MetricsError      string                    `json:"metrics_error,omitempty"`
+	HistoryError      string                    `json:"history_error,omitempty"`
+	NewsError         string                    `json:"news_error,omitempty"`
 }
 
 type DashboardResponse struct {
