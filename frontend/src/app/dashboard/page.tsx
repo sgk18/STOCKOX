@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   Newspaper,
   Calendar,
-  Zap
+  Zap,
+  Sparkles
 } from "lucide-react";
 
 interface WatchlistItem {
@@ -716,6 +717,54 @@ export default function DashboardPage() {
         {/* RIGHT COLUMN (4/12) */}
         <div className="col-span-1 lg:col-span-4 flex flex-col gap-10">
           
+          {/* SECTION 6.5: Top AI Recommendations */}
+          <section className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#2563EB]" />
+              <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">Top AI Recommendations</h2>
+            </div>
+
+            <div className="glass-brutal-card p-5 flex flex-col gap-4 bg-white">
+              {isDashLoading ? (
+                <div className="text-center font-mono text-xs uppercase py-4 text-[#64748B] animate-pulse">
+                  Loading recommendations...
+                </div>
+              ) : dashError ? (
+                <div className="text-center font-mono text-xs uppercase py-4 text-[#EF4444]">
+                  Failed to load recommendations
+                </div>
+              ) : dashboardData?.topRecommendations && dashboardData.topRecommendations.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {dashboardData.topRecommendations.map((rec: { ticker: string; recommendation: string; confidence: number }) => (
+                    <div 
+                      key={rec.ticker} 
+                      onClick={() => router.push(`/research/${rec.ticker}`)}
+                      className="flex items-center justify-between bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[2px_2px_0px_#000000] hover:translate-y-[-1.5px] transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-mono font-black text-xs text-[#2563EB] uppercase">{rec.ticker}</span>
+                        <span className={`px-2 py-0.5 rounded border text-[9px] font-black uppercase ${
+                          rec.recommendation === "BUY" 
+                            ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" 
+                            : "bg-amber-500/10 text-amber-600 border-amber-500/25"
+                        }`}>
+                          {rec.recommendation}
+                        </span>
+                      </div>
+                      <span className="font-mono font-black text-[10px] text-black/75">
+                        CONFIDENCE: <span className="text-[#2563EB]">{rec.confidence}%</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center font-mono text-[10px] uppercase py-4 text-black/45">
+                  No active recommendations
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* SECTION 7: Risk Dashboard */}
           <section className="flex flex-col gap-4">
             <div className="flex items-center gap-2">

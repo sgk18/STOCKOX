@@ -12,6 +12,7 @@ import (
 	"stockox-backend/pkg/cache"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // SetupRoutes registers all route handlers with their respective middlewares
@@ -137,7 +138,15 @@ func SetupRoutes(
 			// Committee Room Endpoints
 			v1.POST("/committee/start", commCtrl.StartRoom)
 			v1.GET("/committee/recent", commCtrl.GetRecentRooms)
-			v1.GET("/committee/:id", commCtrl.GetRoom)
+			v1.GET("/committee/:id", func(c *gin.Context) {
+				param := c.Param("id")
+				if _, err := uuid.Parse(param); err == nil {
+					commCtrl.GetRoom(c)
+				} else {
+					c.Params = gin.Params{gin.Param{Key: "symbol", Value: param}}
+					dbCtrl.GetCommitteeAnalysis(c)
+				}
+			})
 			v1.GET("/committee/:id/messages", commCtrl.GetMessages)
 			v1.POST("/committee/:id/message", commCtrl.PostMessage)
 			v1.GET("/committee/:id/decision", commCtrl.GetDecision)

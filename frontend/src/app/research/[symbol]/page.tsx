@@ -377,6 +377,24 @@ export default function ResearchPage({ params }: { params: any }) {
     refetchInterval: 30000,
   });
 
+  // Fetch dynamic committee analysis via React Query
+  const { data: committeeData, isLoading: isLoadingCommittee, error: committeeError } = useQuery({
+    queryKey: ["committee-analysis", symbol],
+    queryFn: async () => {
+      if (!symbol) throw new Error("Symbol is required");
+      const token = await getToken();
+      const res = await fetch(`/api/v1/committee/${symbol.toUpperCase()}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error(`Committee analysis for ${symbol.toUpperCase()} could not be resolved.`);
+      return res.json();
+    },
+    enabled: isSignedIn && !!symbol,
+    refetchInterval: 30000,
+  });
+
   useEffect(() => {
     if (rawResearchData) {
       console.log("[DEBUG] API Response received:", rawResearchData);
@@ -1105,14 +1123,18 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">Consensus decision output</h2>
               </div>
 
-              {isLoadingResearch ? (
+              {isLoadingCommittee ? (
                 <CommitteeSkeleton />
+              ) : committeeError ? (
+                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] text-center p-8 text-xs font-mono text-[#EF4444] uppercase bg-red-50/50">
+                  <span className="font-black">Failed to load committee analysis</span>
+                </div>
               ) : (
                 <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5">
                   <div className="text-center pb-4 border-b-2 border-black/10">
                     <span className="text-[8px] font-black uppercase tracking-widest text-[#64748B] block mb-1">AUDIT SYMBOL</span>
                     <span className="text-xl font-black font-mono bg-black text-[#FACC15] px-3.5 py-1.5 rounded-xl border-3 border-black shadow-[2px_2px_0px_#2563EB]">
-                      {researchData.symbol}
+                      {committeeData.symbol}
                     </span>
                   </div>
 
@@ -1120,9 +1142,9 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                   <div className="flex flex-col items-center py-5 bg-[#F8FAFC] border-3 border-black rounded-2xl shadow-[3.5px_3.5px_0px_#000000]">
                     <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 font-mono">COMMITTEE RECOMMENDATION</span>
                     <span className={`text-4xl font-black tracking-tighter uppercase font-mono ${
-                      researchData.committee_decision?.committee_decision.includes("BUY") ? "text-[#2563EB]" : "text-amber-500"
+                      committeeData.recommendation === "BUY" ? "text-[#2563EB]" : committeeData.recommendation === "SELL" ? "text-[#EF4444]" : "text-amber-500"
                     }`}>
-                      {researchData.committee_decision?.committee_decision || "BUY"}
+                      {committeeData.recommendation}
                     </span>
                     <span className="text-[9px] font-mono text-black/55 mt-2 uppercase font-black">Consensus target verified</span>
                   </div>
@@ -1132,12 +1154,12 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                     <div>
                       <div className="flex justify-between text-[10px] font-black mb-1">
                         <span className="uppercase text-[#64748B]">Confidence Score</span>
-                        <span className="text-[#2563EB]">{researchData.committee_decision?.confidence || 85}%</span>
+                        <span className="text-[#2563EB]">{committeeData.confidence}%</span>
                       </div>
                       <div className="w-full bg-black/5 border-2 border-black rounded-full h-4 overflow-hidden">
                         <div 
                           className="bg-[#2563EB] h-full rounded-full transition-all duration-300 border-r-2 border-black" 
-                          style={{ width: `${researchData.committee_decision?.confidence || 85}%` }} 
+                          style={{ width: `${committeeData.confidence}%` }} 
                         />
                       </div>
                     </div>
@@ -1161,13 +1183,13 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                       <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
                         <span className="font-bold text-[#64748B] uppercase block">Target Price</span>
                         <span className="font-black text-[#0F172A] text-xs">
-                          ${(researchData.quote.current_price * 1.22).toFixed(2)}
+                          ${(researchData.quote.current_price * (committeeData.recommendation === "BUY" ? 1.22 : committeeData.recommendation === "SELL" ? 0.88 : 1.02)).toFixed(2)}
                         </span>
                       </div>
                       <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
                         <span className="font-bold text-[#64748B] uppercase block">Committee Vote</span>
                         <span className="font-black text-[#0F172A] text-xs">
-                          {researchData.committee_decision?.research_vote === "BUY" ? "4/5 Buy" : "3/5 Hold"}
+                          {committeeData.votes.buy}/5 Buy
                         </span>
                       </div>
                     </div>
@@ -1183,60 +1205,28 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">AI Committee Sub-Auditors</h2>
               </div>
 
-              {isLoadingResearch ? (
+              {isLoadingCommittee ? (
                 <SubAuditorsSkeleton />
+              ) : committeeError ? (
+                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] text-center p-8 text-xs font-mono text-[#EF4444] uppercase bg-red-50/50">
+                  <span className="font-black">Failed to load sub-agents</span>
+                </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  {[
-                    {
-                      name: "Research Agent",
-                      vote: researchData.committee_decision?.research_vote || "BUY",
-                      confidence: "91%",
-                      status: "Completed",
-                      desc: "Audits intrinsic valuation margins, long term revenue growth channels, and free cash flows."
-                    },
-                    {
-                      name: "Technical Agent",
-                      vote: researchData.committee_decision?.technical_vote || "BUY",
-                      confidence: "85%",
-                      status: "Completed",
-                      desc: "Scans daily exponential moving average trends, support levels, and RSI bounds."
-                    },
-                    {
-                      name: "News Agent",
-                      vote: researchData.committee_decision?.news_vote || "HOLD",
-                      confidence: "80%",
-                      status: "Completed",
-                      desc: "Analyzes social sentiment indices, institutional press releases, and options volumes."
-                    },
-                    {
-                      name: "Risk Agent",
-                      vote: researchData.committee_decision?.risk_vote || "BUY",
-                      confidence: "95%",
-                      status: "Completed",
-                      desc: "Simulates value at risk drawdown metrics, Sharpe ratios, and sector exposure limits."
-                    },
-                    {
-                      name: "Committee Synthesizer",
-                      vote: researchData.committee_decision?.committee_decision || "BUY",
-                      confidence: `${researchData.committee_decision?.confidence || 85}%`,
-                      status: "Consensus Resolved",
-                      desc: "Resolves dynamic vote weight allocations and final thesis reports."
-                    }
-                  ].map((agent, idx) => (
+                  {committeeData.agents.map((agent: any, idx: number) => (
                     <div key={idx} className="bg-white border-4 border-black p-4 rounded-[24px] shadow-[4px_4px_0px_#000000] hover:-translate-y-0.5 transition-all">
                       <div className="flex items-center justify-between border-b border-black/5 pb-2 mb-2 font-mono text-[9px] font-black uppercase">
                         <span className="text-[#0F172A]">{agent.name}</span>
                         <span className="text-[#2563EB]">{agent.status}</span>
                       </div>
                       <p className="text-[10px] font-medium text-[#64748B] leading-relaxed font-mono mb-3 uppercase">
-                        {agent.desc}
+                        {agent.reasoning}
                       </p>
                       <div className="flex items-center justify-between border-t border-black/5 pt-2 font-mono text-[9px] text-[#64748B]">
-                        <span>RECOMMENDATION: <span className={`border px-1.5 py-0.5 rounded font-black ml-1 ${
-                          agent.vote.includes("BUY") ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-amber-500/10 text-amber-600 border-amber-500/25"
-                        }`}>{agent.vote}</span></span>
-                        <span>CONFIDENCE: <span className="font-black text-[#2563EB]">{agent.confidence}</span></span>
+                        <span>SIGNAL: <span className={`border px-1.5 py-0.5 rounded font-black ml-1 ${
+                          agent.output.includes("Bullish") || agent.output.includes("Low Risk") || agent.output.includes("Undervalued") ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-amber-500/10 text-amber-600 border-amber-500/25"
+                        }`}>{agent.output}</span></span>
+                        <span>CONFIDENCE: <span className="font-black text-[#2563EB]">{agent.confidence}%</span></span>
                       </div>
                     </div>
                   ))}
@@ -1258,18 +1248,37 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 </div>
                 
                 <div className="flex flex-col gap-3.5 max-h-[300px] overflow-y-auto pr-1">
-                  {researchData.agent_timeline && researchData.agent_timeline.length > 0 ? (
-                    researchData.agent_timeline.map((msg: any, idx: number) => (
-                      <div key={idx} className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
-                        <div className="flex items-center justify-between border-b border-black/5 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-black/50">
-                          <span>{msg.agent_name}</span>
-                          <span>{msg.time}</span>
+                  {isLoadingCommittee ? (
+                    <div className="p-8 text-center text-xs font-mono text-black/40 uppercase animate-pulse">
+                      Analyzing ticker streams...
+                    </div>
+                  ) : committeeError ? (
+                    <div className="p-8 text-center text-xs font-mono text-[#EF4444] uppercase">
+                      Feed unavailable
+                    </div>
+                  ) : committeeData && committeeData.agents && committeeData.agents.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                      {committeeData.agents.map((agent: any, idx: number) => (
+                        <div key={idx} className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
+                          <div className="flex items-center justify-between border-b border-black/5 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-black/50">
+                            <span>{agent.name}</span>
+                            <span>Audit Completed</span>
+                          </div>
+                          <p className="text-[10px] font-medium text-black/75 leading-relaxed font-mono uppercase">
+                            Resolved signal as {agent.output} with {agent.confidence}% confidence.
+                          </p>
                         </div>
-                        <p className="text-[10px] font-medium text-black/75 leading-relaxed font-mono">
-                          {msg.activity}
+                      ))}
+                      <div className="bg-[#2563EB]/5 border-2 border-[#2563EB]/40 p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#2563EB] animate-fadeIn">
+                        <div className="flex items-center justify-between border-b border-[#2563EB]/10 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-[#2563EB]">
+                          <span>Committee Synthesizer</span>
+                          <span>Consensus Resolved</span>
+                        </div>
+                        <p className="text-[10px] font-black text-[#2563EB] leading-relaxed font-mono uppercase">
+                          Reached final consensus of {committeeData.recommendation} ({committeeData.votes.buy} Buy, {committeeData.votes.hold} Hold, {committeeData.votes.sell} Sell) with {committeeData.confidence}% confidence.
                         </p>
                       </div>
-                    ))
+                    </div>
                   ) : (
                     <div className="p-8 text-center text-xs font-mono text-black/40 uppercase">
                       No active logs registered in room.

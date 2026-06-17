@@ -194,15 +194,22 @@ type ResearchTerminalResponse struct {
 	NewsError         string                    `json:"news_error,omitempty"`
 }
 
+type TopRecommendationResponse struct {
+	Ticker         string `json:"ticker"`
+	Recommendation string `json:"recommendation"`
+	Confidence     int    `json:"confidence"`
+}
+
 type DashboardResponse struct {
-	Portfolio      PortfolioResponse           `json:"portfolio"`
-	Watchlist      []WatchlistResponse         `json:"watchlist"`
-	MarketOverview []MarketOverviewResponse    `json:"marketOverview"`
-	AgentActivity  []AgentActivityResponse     `json:"agentActivity"`
-	AgentStatuses  []AgentStatusResponse       `json:"agentStatuses"`
-	RecentAnalyses []AnalysisResponse          `json:"recentAnalyses"`
-	Opportunities  []OpportunityResponse       `json:"opportunities"`
-	Decisions      []CommitteeDecisionResponse `json:"decisions"`
+	Portfolio          PortfolioResponse           `json:"portfolio"`
+	Watchlist          []WatchlistResponse         `json:"watchlist"`
+	MarketOverview     []MarketOverviewResponse    `json:"marketOverview"`
+	AgentActivity      []AgentActivityResponse     `json:"agentActivity"`
+	AgentStatuses      []AgentStatusResponse       `json:"agentStatuses"`
+	RecentAnalyses     []AnalysisResponse          `json:"recentAnalyses"`
+	Opportunities      []OpportunityResponse       `json:"opportunities"`
+	Decisions          []CommitteeDecisionResponse `json:"decisions"`
+	TopRecommendations []TopRecommendationResponse `json:"topRecommendations"`
 }
 
 type SearchAssetResponse struct {

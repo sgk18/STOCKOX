@@ -277,3 +277,17 @@ func (ctrl *DashboardController) SearchAssetsV1(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func (ctrl *DashboardController) GetCommitteeAnalysis(c *gin.Context) {
+	symbol := strings.ToUpper(strings.TrimSpace(c.Param("symbol")))
+	if symbol == "" {
+		errors.BadRequestError(c, "Symbol parameter is required")
+		return
+	}
+	resp, err := ctrl.srv.GetCommitteeAnalysis(symbol)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve committee analysis: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
