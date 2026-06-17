@@ -43,11 +43,11 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 	}
 	log.Println("[DB] Ping successful")
 
-	// Drop old stock_metadata if it has old schema (Symbol as primary key)
+	// Drop old stock_metadata if it has old schema or lacks columns
 	if db.Migrator().HasTable("stock_metadata") {
-		// Check if ID column exists. If not, drop table to recreate it with the new schema.
-		if !db.Migrator().HasColumn("stock_metadata", "id") {
-			log.Println("[DB] Dropping old stock_metadata table to apply new primary key schema...")
+		// Check if ID column or provider_symbol column exists. If not, drop table to recreate it.
+		if !db.Migrator().HasColumn("stock_metadata", "id") || !db.Migrator().HasColumn("stock_metadata", "provider_symbol") {
+			log.Println("[DB] Dropping old stock_metadata table to apply new columns...")
 			_ = db.Migrator().DropTable("stock_metadata")
 		}
 	}

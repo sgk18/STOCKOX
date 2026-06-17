@@ -51,7 +51,7 @@ func init() {
 	// 4. Init Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
 	noopCache := cache.NewNoopCache()
-	marketSrv := marketService.NewMarketService(providerFactory, noopCache)
+	marketSrv := marketService.NewMarketService(providerFactory, noopCache, db)
 
 	dashboardSrv := service.NewDashboardService(
 		db,

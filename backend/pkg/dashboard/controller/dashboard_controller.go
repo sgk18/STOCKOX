@@ -176,6 +176,20 @@ func (ctrl *DashboardController) GetResearchTerminal(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (ctrl *DashboardController) ResolveAsset(c *gin.Context) {
+	symbol := strings.ToUpper(strings.TrimSpace(c.Param("symbol")))
+	if symbol == "" {
+		errors.BadRequestError(c, "Symbol parameter is required")
+		return
+	}
+	resp, err := ctrl.srv.ResolveAsset(symbol)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to resolve asset: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (ctrl *DashboardController) GetDebugDashboard(c *gin.Context) {
 	resp, err := ctrl.srv.GetDebugDashboard()
 	if err != nil {

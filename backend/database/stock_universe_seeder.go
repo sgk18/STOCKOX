@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"stockox-backend/database/models"
@@ -136,20 +137,22 @@ func SeedStockUniverse(db *gorm.DB) error {
 		}
 		seenSymbols[ie.Symbol] = true
 		assets = append(assets, models.StockMetadata{
-			ID:          uuid.New().String(),
-			Symbol:      ie.Symbol,
-			CompanyName: ie.Name,
-			Exchange:    "NSE",
-			Country:     "India",
-			AssetType:   "equity",
-			Sector:      ie.Sector,
-			Industry:    ie.Industry,
-			Currency:    "INR",
-			MarketCap:   ie.MarketCap,
-			LogoURL:     "https://logo.clearbit.com/nseindia.com",
-			IsActive:    true,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:             uuid.New().String(),
+			Symbol:         ie.Symbol,
+			CompanyName:    ie.Name,
+			Exchange:       "NSE",
+			Country:        "India",
+			AssetType:      "equity",
+			Sector:         ie.Sector,
+			Industry:       ie.Industry,
+			Currency:       "INR",
+			MarketCap:      ie.MarketCap,
+			LogoURL:        "https://logo.clearbit.com/nseindia.com",
+			Website:        "https://www.nseindia.com",
+			ProviderSymbol: ie.Symbol + ".NS",
+			IsActive:       true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		})
 	}
 
@@ -266,20 +269,22 @@ func SeedStockUniverse(db *gorm.DB) error {
 		}
 		seenSymbols[ue.Symbol] = true
 		assets = append(assets, models.StockMetadata{
-			ID:          uuid.New().String(),
-			Symbol:      ue.Symbol,
-			CompanyName: ue.Name,
-			Exchange:    "NASDAQ", // Set default NASDAQ for simplicity
-			Country:     "United States",
-			AssetType:   "equity",
-			Sector:      ue.Sector,
-			Industry:    ue.Industry,
-			Currency:    "USD",
-			MarketCap:   ue.MarketCap,
-			LogoURL:     "https://logo.clearbit.com/nasdaq.com",
-			IsActive:    true,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:             uuid.New().String(),
+			Symbol:         ue.Symbol,
+			CompanyName:    ue.Name,
+			Exchange:       "NASDAQ", // Set default NASDAQ for simplicity
+			Country:        "United States",
+			AssetType:      "equity",
+			Sector:         ue.Sector,
+			Industry:       ue.Industry,
+			Currency:       "USD",
+			MarketCap:      ue.MarketCap,
+			LogoURL:        "https://logo.clearbit.com/nasdaq.com",
+			Website:        "https://www." + strings.ToLower(ue.Symbol) + ".com",
+			ProviderSymbol: ue.Symbol,
+			IsActive:       true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		})
 	}
 
@@ -316,20 +321,22 @@ func SeedStockUniverse(db *gorm.DB) error {
 		}
 		seenSymbols[etf.Symbol] = true
 		assets = append(assets, models.StockMetadata{
-			ID:          uuid.New().String(),
-			Symbol:      etf.Symbol,
-			CompanyName: etf.Name,
-			Exchange:    "NYSE Arca",
-			Country:     "United States",
-			AssetType:   "etf",
-			Sector:      "Investment Funds",
-			Industry:    "Exchange Traded Fund (ETF)",
-			Currency:    "USD",
-			MarketCap:   etf.MarketCap,
-			LogoURL:     "https://logo.clearbit.com/stateformat.com",
-			IsActive:    true,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:             uuid.New().String(),
+			Symbol:         etf.Symbol,
+			CompanyName:    etf.Name,
+			Exchange:       "NYSE Arca",
+			Country:        "United States",
+			AssetType:      "etf",
+			Sector:         "Investment Funds",
+			Industry:       "Exchange Traded Fund (ETF)",
+			Currency:       "USD",
+			MarketCap:      etf.MarketCap,
+			LogoURL:        "https://logo.clearbit.com/stateformat.com",
+			Website:        "https://www.sec.gov",
+			ProviderSymbol: etf.Symbol,
+			IsActive:       true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		})
 	}
 
@@ -366,20 +373,22 @@ func SeedStockUniverse(db *gorm.DB) error {
 		}
 		seenSymbols[cr.Symbol] = true
 		assets = append(assets, models.StockMetadata{
-			ID:          uuid.New().String(),
-			Symbol:      cr.Symbol,
-			CompanyName: cr.Name,
-			Exchange:    "Crypto Network",
-			Country:     "Global",
-			AssetType:   "crypto",
-			Sector:      "Decentralized Assets",
-			Industry:    "Cryptocurrency Token",
-			Currency:    "USD",
-			MarketCap:   cr.MarketCap,
-			LogoURL:     "https://logo.clearbit.com/bitcoin.org",
-			IsActive:    true,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:             uuid.New().String(),
+			Symbol:         cr.Symbol,
+			CompanyName:    cr.Name,
+			Exchange:       "Crypto Network",
+			Country:        "Global",
+			AssetType:      "crypto",
+			Sector:         "Decentralized Assets",
+			Industry:       "Cryptocurrency Token",
+			Currency:       "USD",
+			MarketCap:      cr.MarketCap,
+			LogoURL:        "https://logo.clearbit.com/bitcoin.org",
+			Website:        "https://bitcoin.org",
+			ProviderSymbol: cr.Symbol + "-USD",
+			IsActive:       true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		})
 	}
 
@@ -405,20 +414,22 @@ func SeedStockUniverse(db *gorm.DB) error {
 		}
 		seenSymbols[idx.Symbol] = true
 		assets = append(assets, models.StockMetadata{
-			ID:          uuid.New().String(),
-			Symbol:      idx.Symbol,
-			CompanyName: idx.Name,
-			Exchange:    "Indices Board",
-			Country:     idx.Region,
-			AssetType:   "index",
-			Sector:      "Economic Indices",
-			Industry:    "Market Benchmark Portfolio",
-			Currency:    "USD", // Default indices currency standard
-			MarketCap:   0,
-			LogoURL:     "https://logo.clearbit.com/spglobal.com",
-			IsActive:    true,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:             uuid.New().String(),
+			Symbol:         idx.Symbol,
+			CompanyName:    idx.Name,
+			Exchange:       "Indices Board",
+			Country:        idx.Region,
+			AssetType:      "index",
+			Sector:         "Economic Indices",
+			Industry:       "Market Benchmark Portfolio",
+			Currency:       "USD", // Default indices currency standard
+			MarketCap:      0,
+			LogoURL:        "https://logo.clearbit.com/spglobal.com",
+			Website:        "https://www.spglobal.com",
+			ProviderSymbol: idx.Symbol,
+			IsActive:       true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		})
 	}
 

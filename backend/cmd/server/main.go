@@ -98,7 +98,7 @@ func main() {
 
 	// 5. Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
-	marketSrv := marketService.NewMarketService(providerFactory, cacheClient)
+	marketSrv := marketService.NewMarketService(providerFactory, cacheClient, db)
 
 	dashboardSrv := service.NewDashboardService(
 		db,

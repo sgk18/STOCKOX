@@ -43,6 +43,7 @@ type CompanyProfileDTO struct {
 	FiftyTwoWLow       float64 `json:"fiftyTwoWLow"`
 	Volume             int64   `json:"volume"`
 	AvgVolume          int64   `json:"avgVolume"`
+	Source             string  `json:"source,omitempty"`
 }
 
 type FinancialMetricsDTO struct {
@@ -80,4 +81,12 @@ type EarningsDTO struct {
 	Actual   float64 `json:"actual"`
 	Estimate float64 `json:"estimate"`
 	Surprise float64 `json:"surprise"`
+}
+
+type ResolvedAsset struct {
+	Symbol         string `json:"symbol"`
+	Exchange       string `json:"exchange"`
+	ProviderSymbol string `json:"providerSymbol"`
+	Country        string `json:"country"`
+	AssetType      string `json:"assetType"`
 }

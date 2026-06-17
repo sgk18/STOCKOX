@@ -14,6 +14,7 @@ import (
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/dashboard/dto"
 	marketDto "stockox-backend/pkg/market/dto"
+	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
 
 	"gorm.io/gorm"
@@ -42,6 +43,7 @@ type DashboardService interface {
 	GetUSAssets() ([]dto.SearchAssetResponse, error)
 	GetCryptoAssets() ([]dto.SearchAssetResponse, error)
 	GetIndicesAssets() ([]dto.SearchAssetResponse, error)
+	ResolveAsset(symbol string) (*marketDto.ResolvedAsset, error)
 }
 
 type dashboardService struct {
@@ -737,12 +739,25 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 	if profileErr == nil && profile != nil {
 		companyName = profile.Name
 		industry = profile.Industry
-		sector = getSectorByTicker(ticker)
+		if profile.Sector != "" {
+			sector = profile.Sector
+		} else {
+			sector = getSectorByTicker(ticker)
+		}
 		logo = profile.Logo
 		desc = profile.Description
-		marketCap = fmt.Sprintf("%.2f Billion", float64(profile.MarketCap)/1e9)
+		if profile.MarketCap > 0 {
+			marketCap = fmt.Sprintf("%.2f Billion", float64(profile.MarketCap)/1e9)
+		} else {
+			marketCap = "N/A"
+		}
 		exchange = profile.Exchange
 		country = profile.Country
+		if profile.Source == "local" {
+			profileError = "Using Local Market Metadata"
+		} else if profile.Source == "cache" {
+			profileError = "Using Cached Company Information"
+		}
 	} else if profileErr != nil {
 		profileError = profileErr.Error()
 	}
@@ -1095,5 +1110,9 @@ func convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAs
 		}
 	}
 	return res
+}
+
+func (s *dashboardService) ResolveAsset(symbol string) (*marketDto.ResolvedAsset, error) {
+	return marketProviders.ResolveAsset(s.db, symbol)
 }
 

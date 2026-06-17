@@ -115,6 +115,7 @@ interface ResearchResponse {
     time: string;
   }[];
   investment_thesis: string;
+  profile_error?: string;
 }
 
 interface PortfolioHolding {
@@ -509,11 +510,6 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               Loading Company Data...
             </span>
           </div>
-        ) : (researchData as any).profile_error ? (
-          <div className="p-6 bg-red-50 border-4 border-black text-[#EF4444] rounded-[24px] shadow-[6px_6px_0px_#000000] font-mono text-xs uppercase">
-            <span className="font-black text-sm block mb-1">Failed to load stock profile</span>
-            {(researchData as any).profile_error}
-          </div>
         ) : (
           <section className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-[7px_7px_0px_#000000] transition-shadow duration-200">
             <div className="flex items-center gap-4">
@@ -543,6 +539,15 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                     <span className="w-1.5 h-1.5 bg-[#2563EB] rounded-full animate-ping" />
                     Exchange Status: Active
                   </span>
+                  {researchData.profile_error && (
+                    <span className={`inline-flex items-center gap-1.5 border-2 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase font-mono ${
+                      researchData.profile_error.includes("Using")
+                        ? "bg-amber-100 border-amber-400 text-amber-800"
+                        : "bg-red-100 border-red-400 text-red-800"
+                    }`}>
+                      {researchData.profile_error}
+                    </span>
+                  )}
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 font-mono text-[9px] font-black uppercase text-[#64748B] tracking-wider">

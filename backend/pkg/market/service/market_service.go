@@ -7,20 +7,25 @@ import (
 	"strings"
 	"time"
 
+	"stockox-backend/database/models"
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/market/dto"
 	"stockox-backend/pkg/market/providers"
+
+	"gorm.io/gorm"
 )
 
 type MarketService struct {
 	factory *providers.ProviderFactory
 	cache   cache.Cache
+	db      *gorm.DB
 }
 
-func NewMarketService(factory *providers.ProviderFactory, cache cache.Cache) *MarketService {
+func NewMarketService(factory *providers.ProviderFactory, cache cache.Cache, db *gorm.DB) *MarketService {
 	return &MarketService{
 		factory: factory,
 		cache:   cache,
+		db:      db,
 	}
 }
 
@@ -97,25 +102,118 @@ func (s *MarketService) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO
         var profile dto.CompanyProfileDTO
 
         err := s.cache.GetStaleOrFetch(context.Background(), cacheKey, &profile, cache.TTLProfile, 7*24*time.Hour, func() (interface{}, error) {
-                p, err := s.factory.GetProvider("")
-                if err != nil {
-                        return nil, err
-                }
-                prof, err := p.GetCompanyProfile(ticker)
-                if err != nil {
-                        log.Printf("[OBSERVABILITY-WARN] GetCompanyProfile ticker %s failed on default provider: %v. Attempting Alpha Vantage fallback...", ticker, err)
-                        if fallbackProv, errFallback := s.factory.GetProvider("alphavantage"); errFallback == nil && fallbackProv != nil {
-                                prof, err = fallbackProv.GetCompanyProfile(ticker)
+                // 1. Try database first
+                var dbMeta models.StockMetadata
+                var dbFound bool
+                if s.db != nil {
+                        if errDb := s.db.First(&dbMeta, "symbol = ?", ticker).Error; errDb == nil {
+                                dbFound = true
                         }
                 }
 
-                // Fallback for logos
-                if prof != nil && prof.Logo == "" {
-                    domain := strings.ToLower(ticker) + ".com"
-                    prof.Logo = fmt.Sprintf("https://logo.clearbit.com/%s", domain)
+                // If Indian Stock, bypass external APIs entirely and build from db
+                if dbFound && (dbMeta.Country == "India" || dbMeta.Exchange == "NSE" || dbMeta.Exchange == "BSE") {
+                        logoURL := dbMeta.LogoURL
+                        if logoURL == "" {
+                                logoURL = fmt.Sprintf("https://logo.clearbit.com/%s", strings.ToLower(ticker)+".com")
+                        }
+                        prof := &dto.CompanyProfileDTO{
+                                Name:        dbMeta.CompanyName,
+                                Ticker:      dbMeta.Symbol,
+                                Logo:        logoURL,
+                                Industry:    dbMeta.Industry,
+                                Sector:      dbMeta.Sector,
+                                MarketCap:   dbMeta.MarketCap,
+                                Website:     dbMeta.Website,
+                                Description: dbMeta.Description,
+                                Country:     dbMeta.Country,
+                                Exchange:    dbMeta.Exchange,
+                                Source:      "local",
+                        }
+                        // Merge quote info
+                        quote, _ := s.GetQuote(ticker)
+                        if quote != nil {
+                                prof.CurrentPrice = quote.CurrentPrice
+                                prof.DailyChange = quote.DailyChange
+                                prof.DailyChangePercent = quote.DailyChangePercent
+                                prof.FiftyTwoWHigh = quote.HighPrice
+                                prof.FiftyTwoWLow = quote.LowPrice
+                                prof.Volume = quote.Volume
+                                prof.AvgVolume = quote.AvgVolume
+                        }
+                        return prof, nil
                 }
 
-                return prof, err
+                // For US stocks or others, attempt calling provider
+                p, errProv := s.factory.GetProvider("")
+                if errProv == nil && p != nil {
+                        prof, errCall := p.GetCompanyProfile(ticker)
+                        if errCall == nil && prof != nil {
+                                prof.Source = "api"
+                                if dbFound {
+                                        if prof.Website == "" {
+                                                prof.Website = dbMeta.Website
+                                        }
+                                        if prof.Logo == "" {
+                                                prof.Logo = dbMeta.LogoURL
+                                        }
+                                }
+                                return prof, nil
+                        }
+                        log.Printf("[OBSERVABILITY-WARN] GetCompanyProfile ticker %s failed on default provider: %v. Attempting Alpha Vantage fallback...", ticker, errCall)
+                }
+
+                // Attempt Alpha Vantage fallback
+                if fallbackProv, errFallback := s.factory.GetProvider("alphavantage"); errFallback == nil && fallbackProv != nil {
+                        prof, errCall := fallbackProv.GetCompanyProfile(ticker)
+                        if errCall == nil && prof != nil {
+                                prof.Source = "api"
+                                if dbFound {
+                                        if prof.Website == "" {
+                                                prof.Website = dbMeta.Website
+                                        }
+                                        if prof.Logo == "" {
+                                                prof.Logo = dbMeta.LogoURL
+                                        }
+                                }
+                                return prof, nil
+                        }
+                }
+
+                // 2. If APIs failed, fall back to GORM DB if found
+                if dbFound {
+                        logoURL := dbMeta.LogoURL
+                        if logoURL == "" {
+                                logoURL = fmt.Sprintf("https://logo.clearbit.com/%s", strings.ToLower(ticker)+".com")
+                        }
+                        prof := &dto.CompanyProfileDTO{
+                                Name:        dbMeta.CompanyName,
+                                Ticker:      dbMeta.Symbol,
+                                Logo:        logoURL,
+                                Industry:    dbMeta.Industry,
+                                Sector:      dbMeta.Sector,
+                                MarketCap:   dbMeta.MarketCap,
+                                Website:     dbMeta.Website,
+                                Description: dbMeta.Description,
+                                Country:     dbMeta.Country,
+                                Exchange:    dbMeta.Exchange,
+                                Source:      "local",
+                        }
+                        // Merge quote info
+                        quote, _ := s.GetQuote(ticker)
+                        if quote != nil {
+                                prof.CurrentPrice = quote.CurrentPrice
+                                prof.DailyChange = quote.DailyChange
+                                prof.DailyChangePercent = quote.DailyChangePercent
+                                prof.FiftyTwoWHigh = quote.HighPrice
+                                prof.FiftyTwoWLow = quote.LowPrice
+                                prof.Volume = quote.Volume
+                                prof.AvgVolume = quote.AvgVolume
+                        }
+                        return prof, nil
+                }
+
+                return nil, fmt.Errorf("failed to fetch company profile from API or database")
         })
 
 	if err != nil || profile.Name == "" {
@@ -141,6 +239,7 @@ func (s *MarketService) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO
 			FiftyTwoWLow:       90.00,
 			Volume:             45000000,
 			AvgVolume:          40000000,
+			Source:             "local",
 		}, nil
 	}
 

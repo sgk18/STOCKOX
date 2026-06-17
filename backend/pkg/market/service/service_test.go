@@ -12,7 +12,7 @@ func TestMarketServiceCreation(t *testing.T) {
 	factory := providers.NewProviderFactory(cfg)
 	noopCache := cache.NewNoopCache()
 
-	srv := NewMarketService(factory, noopCache)
+	srv := NewMarketService(factory, noopCache, nil)
 	if srv == nil {
 		t.Fatal("Expected non-nil service instance")
 	}

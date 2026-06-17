@@ -14,8 +14,10 @@ type StockMetadata struct {
 	Currency    string    `gorm:"type:varchar(50)" json:"currency"`
 	MarketCap   int64     `gorm:"type:bigint" json:"market_cap"`
 	LogoURL     string    `gorm:"type:varchar(255)" json:"logo_url"`
-	Description string    `gorm:"type:text" json:"description"`
-	IsActive    bool      `gorm:"type:boolean;default:true" json:"is_active"`
-	CreatedAt   time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt   time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	Description    string    `gorm:"type:text" json:"description"`
+	IsActive       bool      `gorm:"type:boolean;default:true" json:"is_active"`
+	Website        string    `gorm:"type:varchar(255)" json:"website"`
+	ProviderSymbol string    `gorm:"type:varchar(50)" json:"provider_symbol"`
+	CreatedAt      time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt      time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
 }

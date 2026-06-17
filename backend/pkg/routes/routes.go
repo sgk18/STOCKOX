@@ -96,6 +96,7 @@ func SetupRoutes(
 		api.GET("/dashboard/recommendations", dbCtrl.GetRecommendations)
 		api.GET("/dashboard/risk", dbCtrl.GetRiskMetrics)
 		api.GET("/research/:ticker", dbCtrl.GetResearchTerminal)
+		api.GET("/resolve/:symbol", dbCtrl.ResolveAsset)
 		api.GET("/admin/cache/stats", func(c *gin.Context) {
 			c.JSON(200, cache.Shared.GetStats(c.Request.Context()))
 		})
