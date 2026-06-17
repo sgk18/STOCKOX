@@ -138,6 +138,23 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
+  // Fetch recent agent rooms
+  const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError } = useQuery({
+    queryKey: ["recent-rooms"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/v1/committee/recent`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load recent agent rooms.");
+      return res.json();
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 15000,
+  });
+
   // Console logging React Query variables (Step 5)
   useEffect(() => {
     console.log("[REACT-QUERY-AGGREGATE] Status:", {
@@ -501,6 +518,81 @@ export default function DashboardPage() {
                       <tr>
                         <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-black/55">
                           No watchlist entries found. Search ticker above to track.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 4.5: Recent Agent Rooms */}
+          <section className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-[#2563EB]" />
+              <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">Recent Agent Rooms</h2>
+            </div>
+
+            <div className="bg-white border-3 border-black rounded-[24px] overflow-hidden shadow-[4px_4px_0px_#000000]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse select-none">
+                  <thead>
+                    <tr className="border-b-3 border-black bg-[#F8FAFC] font-mono text-[10px] font-black uppercase text-[#64748B] tracking-wider">
+                      <th className="py-3 px-5">Room ID / Ticker</th>
+                      <th className="py-3 px-5">Status</th>
+                      <th className="py-3 px-5">Created At</th>
+                      <th className="py-3 px-5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
+                    {isRoomsLoading ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
+                          Loading recent agent rooms...
+                        </td>
+                      </tr>
+                    ) : roomsError ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
+                          Failed to load agent rooms
+                        </td>
+                      </tr>
+                    ) : recentRooms && recentRooms.length > 0 ? (
+                      recentRooms.map((room: any) => (
+                        <tr key={room.id} className="hover:bg-[#F8FAFC] transition-colors">
+                          <td className="py-3.5 px-5 font-mono">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-[#2563EB] uppercase">{room.ticker}</span>
+                              <span className="text-[10px] text-black/40">({room.id.slice(0, 8)}...)</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <span className={`px-2 py-0.5 rounded border text-[9px] font-black uppercase ${
+                              room.status === "completed" 
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-200" 
+                                : "bg-amber-50 text-amber-600 border-amber-200 animate-pulse"
+                            }`}>
+                              {room.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-5 font-mono text-black/45 text-[10px]">
+                            {new Date(room.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            <button
+                              onClick={() => router.push(`/committee/${room.id}`)}
+                              className="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-[9px] font-black uppercase hover:bg-[#2563EB] hover:text-white hover:shadow-[1.5px_1.5px_0px_#000000] active:translate-y-[1px] transition-all"
+                            >
+                              Enter Room
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center font-mono text-xs uppercase text-black/55">
+                          No active multi-agent rooms found. Trigger analysis to start.
                         </td>
                       </tr>
                     )}

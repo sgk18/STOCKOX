@@ -46,6 +46,7 @@ func init() {
 	marketRepo := repositories.NewMarketRepository(db)
 	agentRepo := repositories.NewAgentRepository(db)
 	analysisRepo := repositories.NewAnalysisRepository(db)
+	roomRepo := repositories.NewAgentRoomRepository(db)
 
 	// 4. Init Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
@@ -73,6 +74,7 @@ func init() {
 	// 6. Init WebSocket Hub
 	wsHub := websocket.NewHub()
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
+	commCtrl := analysis.NewCommitteeController(db, roomRepo, wsHub)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
 	// 7. Setup Gin Engine
@@ -87,6 +89,7 @@ func init() {
 		syncCtrl,
 		profileCtrl,
 		v1Ctrl,
+		commCtrl,
 		marketCtrl,
 		webhookCtrl,
 		userRepo,

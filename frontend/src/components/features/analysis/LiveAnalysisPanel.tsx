@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { Bot, HelpCircle, Network, ShieldCheck, Database, Globe, LineChart, Cpu } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -21,6 +22,8 @@ import EventStream from "./EventStream";
 
 export default function LiveAnalysisPanel() {
   const { getToken } = useAuth();
+  const router = useRouter();
+  const [analyzingRoom, setAnalyzingRoom] = useState(false);
   
   // Stores states
   const socketConnected = useWebSocketStore((state) => state.connected);
@@ -44,8 +47,28 @@ export default function LiveAnalysisPanel() {
 
   const handleRunAnalysis = async () => {
     if (!selectedStock) return;
-    const token = await getToken();
-    await runAnalysis(selectedStock.ticker, token);
+    setAnalyzingRoom(true);
+    try {
+      const token = await getToken();
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      
+      const res = await fetch(`${baseUrl}/api/v1/committee/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ ticker: selectedStock.ticker }),
+      });
+
+      if (!res.ok) throw new Error("Failed to start committee room");
+      const room = await res.json();
+      router.push(`/committee/${room.id}`);
+    } catch (err) {
+      console.error("[COMMITTEE-START-ERR]", err);
+    } finally {
+      setAnalyzingRoom(false);
+    }
   };
 
   // 1. Establish WebSocket Connection
@@ -275,7 +298,7 @@ export default function LiveAnalysisPanel() {
           <Button
             variant="primary"
             onClick={handleRunAnalysis}
-            isLoading={isAnalyzing}
+            isLoading={isAnalyzing || analyzingRoom}
             className="text-xs font-black uppercase border-2 shadow-[2px_2px_0px_#000000] px-8 py-3.5 cursor-pointer"
           >
             Run Advisory Analysis

@@ -73,8 +73,9 @@ func main() {
 	analysisRepo := repositories.NewAnalysisRepository(db)
 	recommendationRepo := repositories.NewRecommendationRepository(db)
 	_ = recommendationRepo
+	roomRepo := repositories.NewAgentRoomRepository(db)
 
-	// 5. Initialize Services (MarketService first to allow injection into DashboardService)
+	// 5. Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
 	marketRedisCache := marketCache.NewMarketCache(rdb)
 	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
@@ -106,6 +107,7 @@ func main() {
 	syncCtrl := auth.NewSyncController(userRepo, portfolioRepo, watchlistRepo)
 	profileCtrl := auth.NewProfileController(db, userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
+	commCtrl := analysis.NewCommitteeController(db, roomRepo, wsHub)
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
@@ -121,6 +123,7 @@ func main() {
 		syncCtrl,
 		profileCtrl,
 		v1Ctrl,
+		commCtrl,
 		marketCtrl,
 		webhookCtrl,
 		userRepo,

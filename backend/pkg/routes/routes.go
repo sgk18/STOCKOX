@@ -21,6 +21,7 @@ func SetupRoutes(
 	syncCtrl *auth.SyncController,
 	profileCtrl *auth.ProfileController,
 	v1Ctrl *analysis.V1Controller,
+	commCtrl *analysis.CommitteeController,
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
 	userRepo repositories.UserRepository,
@@ -125,6 +126,14 @@ func SetupRoutes(
 			v1.GET("/watchlist", v1Ctrl.GetWatchlist)
 			v1.POST("/watchlist", v1Ctrl.AddWatchlist)
 			v1.DELETE("/watchlist/:ticker", v1Ctrl.RemoveWatchlist)
+
+			// Committee Room Endpoints
+			v1.POST("/committee/start", commCtrl.StartRoom)
+			v1.GET("/committee/recent", commCtrl.GetRecentRooms)
+			v1.GET("/committee/:id", commCtrl.GetRoom)
+			v1.GET("/committee/:id/messages", commCtrl.GetMessages)
+			v1.POST("/committee/:id/message", commCtrl.PostMessage)
+			v1.GET("/committee/:id/decision", commCtrl.GetDecision)
 		}
 
 		// Compatibility endpoints mapping directly to frontend queries
