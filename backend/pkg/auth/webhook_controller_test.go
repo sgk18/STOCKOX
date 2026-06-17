@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"stockox-backend/database/models"
 
@@ -168,12 +169,33 @@ func (m *MockWatchlistRepository) GetByUserID(userID string) ([]models.Watchlist
 	return result, nil
 }
 
+func (m *MockWatchlistRepository) GetByUserIDPaginated(userID string, page, limit int) ([]models.Watchlist, int64, error) {
+	var result []models.Watchlist
+	var count int64
+	for _, w := range m.items {
+		if w.UserID == userID {
+			result = append(result, w)
+			count++
+		}
+	}
+	// Basic slicing for pagination
+	start := (page - 1) * limit
+	if start > len(result) {
+		return []models.Watchlist{}, count, nil
+	}
+	end := start + limit
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[start:end], count, nil
+}
+
 func (m *MockWatchlistRepository) Add(userID string, ticker string, companyName string) (*models.Watchlist, error) {
 	item := models.Watchlist{
-		ID:          uuid.New(),
-		UserID:      userID,
-		Ticker:      ticker,
-		CompanyName: companyName,
+		ID:        uuid.New(),
+		UserID:    userID,
+		Ticker:    ticker,
+		CreatedAt: time.Now(),
 	}
 	m.items = append(m.items, item)
 	return &item, nil

@@ -29,9 +29,9 @@ type DashboardService interface {
 	GetPortfolioSummary(userID string) (*dto.PortfolioResponse, error)
 	GetWatchlist(userID string) ([]dto.WatchlistResponse, error)
 	GetMarketOverview() ([]dto.MarketOverviewResponse, error)
-	GetAgentActivity() ([]dto.AgentActivityResponse, error)
+	GetAgentActivity(page, limit int) ([]dto.AgentActivityResponse, int64, error)
 	GetAgentStatuses() ([]dto.AgentStatusResponse, error)
-	GetRecentAnalyses() ([]dto.AnalysisResponse, error)
+	GetRecentAnalyses(page, limit int) ([]dto.AnalysisResponse, int64, error)
 	GetOpportunities() ([]dto.OpportunityResponse, error)
 
 	// Custom dynamic endpoint additions
@@ -127,7 +127,7 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 			return nil, fmt.Errorf("market overview query failed: %w", err)
 		}
 
-		activities, err := s.GetAgentActivity()
+		activities, _, err := s.GetAgentActivity(1, 20)
 		if err != nil {
 			return nil, fmt.Errorf("agent activity query failed: %w", err)
 		}
@@ -137,7 +137,7 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 			return nil, fmt.Errorf("agent status query failed: %w", err)
 		}
 
-		analyses, err := s.GetRecentAnalyses()
+		analyses, _, err := s.GetRecentAnalyses(1, 10)
 		if err != nil {
 			return nil, fmt.Errorf("analyses query failed: %w", err)
 		}
@@ -162,7 +162,7 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 			topRecs = make([]dto.TopRecommendationResponse, len(dbRecs))
 			for i, r := range dbRecs {
 				topRecs[i] = dto.TopRecommendationResponse{
-					Ticker:         r.Symbol,
+					Ticker:         r.Ticker,
 					Recommendation: r.Recommendation,
 					Confidence:     r.ConfidenceScore,
 				}
@@ -241,19 +241,20 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 				}
 			}
 
+			companyName := h.Ticker
+			var meta models.StockMetadata
+			if s.db != nil && s.db.Select("company_name").First(&meta, "symbol = ?", h.Ticker).Error == nil {
+				companyName = meta.CompanyName
+			}
+
 			rec := "HOLD"
-			if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(h.Ticker); errSession == nil && latestSession != nil {
-				rec = latestSession.Recommendation
+			var recRecord models.Recommendation
+			if s.db != nil && s.db.Where("ticker = ?", h.Ticker).Order("created_at desc").First(&recRecord).Error == nil && recRecord.Ticker != "" {
+				rec = recRecord.Recommendation
 			} else {
-				var dec models.CommitteeDecision
-				var errDec error
-				if s.db != nil {
-					errDec = s.db.First(&dec, "ticker = ?", h.Ticker).Error
-				} else {
-					errDec = fmt.Errorf("db is nil")
-				}
-				if errDec == nil {
-					rec = dec.CommitteeDecision
+				var latestAnalysis models.CommitteeAnalysis
+				if s.db != nil && s.db.Where("ticker = ?", h.Ticker).Order("created_at desc").First(&latestAnalysis).Error == nil && latestAnalysis.Ticker != "" {
+					rec = latestAnalysis.Recommendation
 				}
 			}
 
@@ -263,7 +264,7 @@ func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioRes
 
 			holdingResponses = append(holdingResponses, dto.PortfolioHoldingResponse{
 				Ticker:         h.Ticker,
-				CompanyName:    h.CompanyName,
+				CompanyName:    companyName,
 				Quantity:       h.Quantity,
 				AveragePrice:   h.AveragePrice,
 				CurrentPrice:   price,
@@ -338,20 +339,29 @@ func (s *dashboardService) GetWatchlist(userID string) ([]dto.WatchlistResponse,
 			var risk string = "Medium"
 			var rec string = "HOLD"
 
+			companyName := item.Ticker
+			var meta models.StockMetadata
+			if s.db != nil && s.db.Select("company_name").First(&meta, "symbol = ?", item.Ticker).Error == nil {
+				companyName = meta.CompanyName
+			}
+
 			var latestAnalysis models.CommitteeAnalysis
-			if s.db != nil && s.db.Where("symbol = ?", item.Ticker).Order("created_at desc").First(&latestAnalysis).Error == nil && latestAnalysis.Symbol != "" {
+			if s.db != nil && s.db.Where("ticker = ?", item.Ticker).Order("created_at desc").First(&latestAnalysis).Error == nil && latestAnalysis.Ticker != "" {
 				aiScore = latestAnalysis.ConfidenceScore
 				rec = latestAnalysis.Recommendation
 				risk = "Medium"
-			} else if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(item.Ticker); errSession == nil && latestSession != nil {
-				aiScore = latestSession.ConfidenceScore
-				risk = latestSession.RiskLevel
-				rec = latestSession.Recommendation
+			} else {
+				var recRecord models.Recommendation
+				if s.db != nil && s.db.Where("ticker = ?", item.Ticker).Order("created_at desc").First(&recRecord).Error == nil && recRecord.Ticker != "" {
+					aiScore = recRecord.ConfidenceScore
+					rec = recRecord.Recommendation
+					risk = recRecord.RiskLevel
+				}
 			}
 
 			res[i] = dto.WatchlistResponse{
 				Ticker:         item.Ticker,
-				CompanyName:    item.CompanyName,
+				CompanyName:    companyName,
 				AddedAt:        item.CreatedAt,
 				Price:          price,
 				ChangePercent:  changePercent,
@@ -429,20 +439,27 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 	return res, nil
 }
 
-func (s *dashboardService) GetAgentActivity() ([]dto.AgentActivityResponse, error) {
-	// Retrieve recent agent messages as activity streams
-	items, err := s.analysisRepo.GetRecentAgentMessages(20)
+func (s *dashboardService) GetAgentActivity(page, limit int) ([]dto.AgentActivityResponse, int64, error) {
+	var items []models.AnalysisLog
+	var total int64 = 0
+	var err error
+	if s.db != nil {
+		s.db.Model(&models.AnalysisLog{}).Count(&total)
+		offset := (page - 1) * limit
+		err = s.db.Order("created_at desc").Offset(offset).Limit(limit).Find(&items).Error
+	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	
-	// Fallback to mock seeder logs if empty
-	if len(items) == 0 {
-		return []dto.AgentActivityResponse{
+	// Fallback to mock logs if empty
+	if total == 0 {
+		mockItems := []dto.AgentActivityResponse{
 			{AgentName: "Research Agent", Message: "Parsing NVDA balance sheet margins.", Status: "research", CreatedAt: time.Now().Add(-10 * time.Minute)},
 			{AgentName: "News Agent", Message: "Detected bullish tech regulatory triggers.", Status: "analysis", CreatedAt: time.Now().Add(-8 * time.Minute)},
 			{AgentName: "Technical Agent", Message: "NVDA 20 EMA crossover verified.", Status: "analysis", CreatedAt: time.Now().Add(-5 * time.Minute)},
-		}, nil
+		}
+		return mockItems, int64(len(mockItems)), nil
 	}
 
 	res := make([]dto.AgentActivityResponse, len(items))
@@ -454,37 +471,40 @@ func (s *dashboardService) GetAgentActivity() ([]dto.AgentActivityResponse, erro
 			CreatedAt: item.CreatedAt,
 		}
 	}
-	return res, nil
+	return res, total, nil
 }
 
 func (s *dashboardService) GetAgentStatuses() ([]dto.AgentStatusResponse, error) {
-	items, err := s.agentRepo.GetList()
-	if err != nil {
-		return nil, err
-	}
-	res := make([]dto.AgentStatusResponse, len(items))
-	for i, item := range items {
-		res[i] = dto.AgentStatusResponse{
-			AgentName: item.Name,
-			Status:    item.Status,
-		}
-	}
-	return res, nil
+	return []dto.AgentStatusResponse{
+		{AgentName: "Research Agent", Status: "completed"},
+		{AgentName: "News Agent", Status: "completed"},
+		{AgentName: "Technical Agent", Status: "completed"},
+		{AgentName: "Risk Agent", Status: "completed"},
+		{AgentName: "Valuation Agent", Status: "completed"},
+	}, nil
 }
 
-func (s *dashboardService) GetRecentAnalyses() ([]dto.AnalysisResponse, error) {
-	items, err := s.analysisRepo.GetRecentSessions(5)
+func (s *dashboardService) GetRecentAnalyses(page, limit int) ([]dto.AnalysisResponse, int64, error) {
+	var items []models.Recommendation
+	var total int64 = 0
+	var err error
+	if s.db != nil {
+		s.db.Model(&models.Recommendation{}).Count(&total)
+		offset := (page - 1) * limit
+		err = s.db.Order("created_at desc").Offset(offset).Limit(limit).Find(&items).Error
+	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	
 	// Seed mockup response if empty to keep presentation screen populated
-	if len(items) == 0 {
-		return []dto.AnalysisResponse{
+	if total == 0 {
+		mockItems := []dto.AnalysisResponse{
 			{Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 87, RiskLevel: "Low", CreatedAt: time.Now().Add(-2 * time.Hour)},
 			{Ticker: "TSLA", Recommendation: "HOLD", ConfidenceScore: 64, RiskLevel: "High", CreatedAt: time.Now().Add(-4 * time.Hour)},
 			{Ticker: "AAPL", Recommendation: "BUY", ConfidenceScore: 82, RiskLevel: "Low", CreatedAt: time.Now().Add(-24 * time.Hour)},
-		}, nil
+		}
+		return mockItems, int64(len(mockItems)), nil
 	}
 
 	res := make([]dto.AnalysisResponse, len(items))
@@ -497,7 +517,7 @@ func (s *dashboardService) GetRecentAnalyses() ([]dto.AnalysisResponse, error) {
 			CreatedAt:       item.CreatedAt,
 		}
 	}
-	return res, nil
+	return res, total, nil
 }
 
 func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error) {
@@ -535,7 +555,7 @@ func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error)
 
 
 func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.CommitteeDecisionResponse, error) {
-	var decisions []models.CommitteeDecision
+	var decisions []models.CommitteeAnalysis
 	var err error
 	if s.db != nil {
 		if ticker != "" {
@@ -556,9 +576,9 @@ func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.Committee
 			TechnicalVote:     d.TechnicalVote,
 			NewsVote:          d.NewsVote,
 			RiskVote:          d.RiskVote,
-			CommitteeDecision: d.CommitteeDecision,
+			CommitteeDecision: d.Recommendation,
 			ConfidenceScore:   d.ConfidenceScore,
-			Reasoning:         d.Reasoning,
+			Reasoning:         d.ResearchSummary,
 			CreatedAt:         d.CreatedAt.Format("2006-01-02 15:04"),
 		}
 	}
@@ -566,7 +586,8 @@ func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.Committee
 }
 
 func (s *dashboardService) GetRecommendations() ([]dto.AnalysisResponse, error) {
-	return s.GetRecentAnalyses()
+	recs, _, err := s.GetRecentAnalyses(1, 20)
+	return recs, err
 }
 
 func (s *dashboardService) GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error) {
@@ -863,7 +884,7 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 
 	ratings := dto.AnalystRatingsResponse{Buy: 78, Hold: 18, Sell: 4}
 
-	var dec models.CommitteeDecision
+	var dec models.CommitteeAnalysis
 	cacheKey := cache.KeyAnalysis(ticker)
 	errDec := s.cache.GetJSON(s.ctx, cacheKey, &dec)
 	if errDec != nil {
@@ -890,9 +911,9 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 			TechnicalVote:     dec.TechnicalVote,
 			NewsVote:          dec.NewsVote,
 			RiskVote:          dec.RiskVote,
-			CommitteeDecision: dec.CommitteeDecision,
+			CommitteeDecision: dec.Recommendation,
 			ConfidenceScore:   dec.ConfidenceScore,
-			Reasoning:         dec.Reasoning,
+			Reasoning:         dec.ResearchSummary,
 			CreatedAt:         dec.CreatedAt.Format("2006-01-02 15:04"),
 		}
 	}

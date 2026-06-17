@@ -84,11 +84,9 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		&models.Portfolio{},
 		&models.PortfolioHolding{},
 		&models.PortfolioSnapshot{},
-		&models.CommitteeDecision{},
 		&models.Recommendation{},
-		&models.AgentRoom{},
-		&models.AgentConversation{},
 		&models.CommitteeAnalysis{},
+		&models.AnalysisLog{},
 	}
 	for _, model := range migrateModels {
 		if err := db.AutoMigrate(model); err != nil {
@@ -104,17 +102,12 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		"portfolios",
 		"portfolio_holdings",
 		"watchlists",
-		"analysis_sessions",
-		"agents",
-		"agent_messages",
 		"recommendations",
 		"market_snapshots",
 		"stock_metadata",
 		"portfolio_snapshots",
-		"committee_decisions",
-		"agent_rooms",
-		"agent_conversations",
 		"committee_analyses",
+		"analysis_logs",
 	}
 
 	missingTables := false
@@ -211,7 +204,6 @@ func SeedDemoData(db *gorm.DB) error {
 			ID:           uuid.New(),
 			PortfolioID:  portfolioID,
 			Ticker:       "NVDA",
-			CompanyName:  "NVIDIA Corp.",
 			Quantity:     120,
 			AveragePrice: 150.00,
 			CurrentPrice: 187.20,
@@ -222,7 +214,6 @@ func SeedDemoData(db *gorm.DB) error {
 			ID:           uuid.New(),
 			PortfolioID:  portfolioID,
 			Ticker:       "AAPL",
-			CompanyName:  "Apple Inc.",
 			Quantity:     150,
 			AveragePrice: 170.00,
 			CurrentPrice: 178.45,
@@ -233,7 +224,6 @@ func SeedDemoData(db *gorm.DB) error {
 			ID:           uuid.New(),
 			PortfolioID:  portfolioID,
 			Ticker:       "MSFT",
-			CompanyName:  "Microsoft Corp.",
 			Quantity:     80,
 			AveragePrice: 400.00,
 			CurrentPrice: 415.50,
@@ -244,7 +234,6 @@ func SeedDemoData(db *gorm.DB) error {
 			ID:           uuid.New(),
 			PortfolioID:  portfolioID,
 			Ticker:       "TSLA",
-			CompanyName:  "Tesla Inc.",
 			Quantity:     70,
 			AveragePrice: 220.00,
 			CurrentPrice: 210.80,
@@ -255,7 +244,6 @@ func SeedDemoData(db *gorm.DB) error {
 			ID:           uuid.New(),
 			PortfolioID:  portfolioID,
 			Ticker:       "AMD",
-			CompanyName:  "Advanced Micro Devices",
 			Quantity:     60,
 			AveragePrice: 160.00,
 			CurrentPrice: 162.30,
@@ -296,73 +284,73 @@ func SeedDemoData(db *gorm.DB) error {
 		}
 	}
 
-	// 5. Seed Committee Decisions
-	demoDecisions := []models.CommitteeDecision{
+	// 5. Seed Committee Analyses
+	demoAnalyses := []models.CommitteeAnalysis{
 		{
-			ID:                uuid.New(),
 			Ticker:            "NVDA",
+			Recommendation:    "BUY",
+			ConfidenceScore:   87,
 			ResearchVote:      "BUY",
 			TechnicalVote:     "BUY",
 			NewsVote:          "HOLD",
 			RiskVote:          "BUY",
-			CommitteeDecision: "BUY",
-			ConfidenceScore:   87,
-			Reasoning:         "NVIDIA shows robust data center growth and strong pricing power in the graphics card space. Despite elevated PEG ratios, GPU training allocation demand warrants a strong buy rating.",
+			ValuationVote:     "HOLD",
+			ResearchSummary:   "NVIDIA shows robust data center growth and strong pricing power in the graphics card space. Despite elevated PEG ratios, GPU training allocation demand warrants a strong buy rating.",
 			CreatedAt:         time.Now(),
 		},
 		{
-			ID:                uuid.New(),
 			Ticker:            "AAPL",
+			Recommendation:    "BUY",
+			ConfidenceScore:   82,
 			ResearchVote:      "BUY",
 			TechnicalVote:     "HOLD",
 			NewsVote:          "HOLD",
 			RiskVote:          "HOLD",
-			CommitteeDecision: "BUY",
-			ConfidenceScore:   82,
-			Reasoning:         "Apple maintains massive consumer services sticky revenue and robust margins. However, relative stagnation in hardware upgrades suggests keeping exposure moderate.",
+			ValuationVote:     "HOLD",
+			ResearchSummary:   "Apple maintains massive consumer services sticky revenue and robust margins. However, relative stagnation in hardware upgrades suggests keeping exposure moderate.",
 			CreatedAt:         time.Now(),
 		},
 		{
-			ID:                uuid.New(),
 			Ticker:            "MSFT",
+			Recommendation:    "BUY",
+			ConfidenceScore:   88,
 			ResearchVote:      "BUY",
 			TechnicalVote:     "BUY",
 			NewsVote:          "BUY",
 			RiskVote:          "HOLD",
-			CommitteeDecision: "BUY",
-			ConfidenceScore:   88,
-			Reasoning:         "Microsoft's Azure cloud integration with OpenAI solutions provides high software license scalability margins. Free cash flow ratios remain stable.",
+			ValuationVote:     "HOLD",
+			ResearchSummary:   "Microsoft's Azure cloud integration with OpenAI solutions provides high software license scalability margins. Free cash flow ratios remain stable.",
 			CreatedAt:         time.Now(),
 		},
 		{
-			ID:                uuid.New(),
 			Ticker:            "TSLA",
+			Recommendation:    "HOLD",
+			ConfidenceScore:   64,
 			ResearchVote:      "HOLD",
 			TechnicalVote:     "HOLD",
 			NewsVote:          "SELL",
 			RiskVote:          "SELL",
-			CommitteeDecision: "HOLD",
-			ConfidenceScore:   64,
-			Reasoning:         "Tesla is facing short-term delivery demand resistance and compression on EV gross margin levels. Autonomous driving progress holds target potential, but high beta poses volatility risk.",
+			ValuationVote:     "HOLD",
+			ResearchSummary:   "Tesla is facing short-term delivery demand resistance and compression on EV gross margin levels. Autonomous driving progress holds target potential, but high beta poses volatility risk.",
 			CreatedAt:         time.Now(),
 		},
 		{
-			ID:                uuid.New(),
 			Ticker:            "AMD",
+			Recommendation:    "HOLD",
+			ConfidenceScore:   71,
 			ResearchVote:      "HOLD",
 			TechnicalVote:     "BUY",
 			NewsVote:          "HOLD",
 			RiskVote:          "HOLD",
-			CommitteeDecision: "HOLD",
-			ConfidenceScore:   71,
-			Reasoning:         "AMD is positioned to capture AI compute market share with their MI300 chips. High valuation PE ratio remains a watch bound constraint.",
+			ValuationVote:     "HOLD",
+			ResearchSummary:   "AMD is positioned to capture AI compute market share with their MI300 chips. High valuation PE ratio remains a watch bound constraint.",
 			CreatedAt:         time.Now(),
 		},
 	}
 
-	for _, d := range demoDecisions {
+	for _, d := range demoAnalyses {
 		var count int64
-		db.Model(&models.CommitteeDecision{}).Where("ticker = ?", d.Ticker).Count(&count)
+		db.Model(&models.CommitteeAnalysis{}).Where("ticker = ?", d.Ticker).Count(&count)
 		if count == 0 {
 			db.Create(&d)
 		}

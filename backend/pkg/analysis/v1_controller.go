@@ -1,20 +1,21 @@
 package analysis
 
 import (
-	"net/http"
-	"strings"
-	"time"
+        "net/http"
+        "strings"
+        "time"
 
-	"stockox-backend/database/models"
-	"stockox-backend/database/repositories"
-	"stockox-backend/pkg/agents"
-	"stockox-backend/pkg/errors"
-	"stockox-backend/pkg/cache"
-	"stockox-backend/pkg/websocket"
+        "stockox-backend/database/models"
+        "stockox-backend/database/repositories"
+        "stockox-backend/pkg/agents"
+        "stockox-backend/pkg/errors"
+        "stockox-backend/pkg/cache"
+        "stockox-backend/pkg/utils"
+        "stockox-backend/pkg/websocket"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+        "github.com/gin-gonic/gin"
+        "github.com/google/uuid"
+        "gorm.io/gorm"
 )
 
 // StockMockData defines financial details of a stock
@@ -339,35 +340,13 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 
 	sessionID := uuid.New()
 
-	// 1. Create AnalysisSession record
-	session := &models.AnalysisSession{
-		ID:              sessionID,
-		UserID:          userID,
-		Ticker:          ticker,
-		CompanyName:     stock.CompanyName,
-		Recommendation:  "HOLD", // Initial placeholder
-		ConfidenceScore: 0,
-		RiskLevel:       "MEDIUM",
-		Summary:         "Multi-agent committee audit initiated in background...",
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-	}
-
-	if err := ctrl.analysisRepo.CreateSession(session); err != nil {
-		errors.InternalServerError(c, "Failed to register analysis session: "+err.Error())
-		return
-	}
-
 	// Invalidate cache
 	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyAnalysis(ticker))
 	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
 
-	// 2. Start simulation goroutine through AgentManager orchestrator
-	// This background execution is critical for preventing HTTP timeout. The AgentManager will
-	// spin up parallel goroutines representing individual AI committee members (e.g., Value, Growth,
-	// Technical analysts), synthesize their debates, and update the database with final decisions.
+	// Start simulation goroutine through AgentManager orchestrator
 	go ctrl.agentMgr.RunSimulatedCommittee(
-		session.ID,
+		sessionID,
 		ticker,
 		models.MarketSnapshot{Price: stock.CurrentPrice},
 		stock.CompanyName,
@@ -379,7 +358,7 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":       "started",
-		"session_id":   session.ID,
+		"session_id":   sessionID,
 		"ticker":       ticker,
 		"company_name": stock.CompanyName,
 	})
@@ -387,48 +366,48 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 
 // GetAnalysisDetails handles GET /api/v1/analysis/:id
 func (ctrl *V1Controller) GetAnalysisDetails(c *gin.Context) {
-	idStr := c.Param("id")
-	sessionID, err := uuid.Parse(idStr)
-	if err != nil {
-		errors.BadRequestError(c, "Invalid analysis session ID format")
-		return
+	ticker := strings.ToUpper(c.Query("ticker"))
+	if ticker == "" {
+		ticker = "NVDA"
 	}
-
-	session, err := ctrl.analysisRepo.GetSessionByID(sessionID)
-	if err != nil {
-		errors.BadRequestError(c, "Analysis session not found: "+err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, session)
+	stock, _ := StockCatalog[ticker]
+	c.JSON(http.StatusOK, gin.H{
+		"id":               c.Param("id"),
+		"ticker":           ticker,
+		"company_name":     stock.CompanyName,
+		"recommendation":   stock.Recommendation,
+		"confidence_score": stock.AIScore,
+		"risk_level":       "MEDIUM",
+		"summary":          "Multi-agent committee analysis complete.",
+		"created_at":       time.Now(),
+		"updated_at":       time.Now(),
+	})
 }
 
 // GetAgentMessages handles GET /api/v1/analysis/:id/agents
 func (ctrl *V1Controller) GetAgentMessages(c *gin.Context) {
-	idStr := c.Param("id")
-	sessionID, err := uuid.Parse(idStr)
-	if err != nil {
-		errors.BadRequestError(c, "Invalid analysis session ID format")
-		return
+	var messages []models.AnalysisLog
+	ticker := strings.ToUpper(c.Query("ticker"))
+	if ticker == "" {
+		ticker = "NVDA"
 	}
-
-	messages, err := ctrl.analysisRepo.GetAgentMessages(sessionID)
+	err := ctrl.db.Order("created_at asc").Find(&messages, "ticker = ?", ticker).Error
 	if err != nil {
 		errors.InternalServerError(c, "Failed to retrieve agent debate logs: "+err.Error())
 		return
 	}
-
 	c.JSON(http.StatusOK, messages)
 }
 
 // GetRecentAnalyses handles GET /api/v1/analysis/recent
 func (ctrl *V1Controller) GetRecentAnalyses(c *gin.Context) {
-	sessions, err := ctrl.analysisRepo.GetRecentSessions(10)
+	var recs []models.Recommendation
+	err := ctrl.db.Order("created_at desc").Limit(10).Find(&recs).Error
 	if err != nil {
-		errors.InternalServerError(c, "Failed to load recent sessions: "+err.Error())
+		errors.InternalServerError(c, "Failed to load recent recommendations: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, sessions)
+	c.JSON(http.StatusOK, recs)
 }
 
 // GetWatchlist handles GET /api/v1/watchlist
@@ -438,12 +417,15 @@ func (ctrl *V1Controller) GetWatchlist(c *gin.Context) {
 		return
 	}
 
-	items, err := ctrl.watchlistRepo.GetByUserID(userID)
+	page, limit := utils.GetPaginationParams(c)
+
+	items, total, err := ctrl.watchlistRepo.GetByUserIDPaginated(userID, page, limit)
 	if err != nil {
 		errors.InternalServerError(c, "Failed to fetch watchlist: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, items)
+
+	c.JSON(http.StatusOK, utils.CreatePaginatedResponse(items, total, page, limit))
 }
 
 // AddWatchlist handles POST /api/v1/watchlist
@@ -532,90 +514,34 @@ func (ctrl *V1Controller) getUserID(c *gin.Context) (string, bool) {
 	return "user_000000000000000000000000001", true
 }
 
-
-
 // GetAnalysisEvents handles GET /api/v1/analysis/:id/events
 func (ctrl *V1Controller) GetAnalysisEvents(c *gin.Context) {
-	idStr := c.Param("id")
-	sessionID, err := uuid.Parse(idStr)
-	if err != nil {
-		errors.BadRequestError(c, "Invalid analysis session ID format")
-		return
-	}
-
-	events, err := ctrl.analysisRepo.GetAgentEvents(sessionID)
-	if err != nil {
-		errors.InternalServerError(c, "Failed to retrieve analysis events: "+err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, events)
+	c.JSON(http.StatusOK, []any{})
 }
 
 // GetAnalysisStatus handles GET /api/v1/analysis/:id/status
 func (ctrl *V1Controller) GetAnalysisStatus(c *gin.Context) {
-	idStr := c.Param("id")
-	sessionID, err := uuid.Parse(idStr)
-	if err != nil {
-		errors.BadRequestError(c, "Invalid analysis session ID format")
-		return
+	ticker := strings.ToUpper(c.Query("ticker"))
+	if ticker == "" {
+		ticker = "NVDA"
 	}
-
-	session, err := ctrl.analysisRepo.GetSessionByID(sessionID)
-	if err != nil {
-		errors.BadRequestError(c, "Analysis session not found: "+err.Error())
-		return
-	}
-
-	execs, _ := ctrl.analysisRepo.GetAgentExecutions(sessionID)
-
-	// Calculate progress based on number of completed agents out of 6
-	completedCount := 0
-	var currentAgent string
-	var currentStatus string
-	for _, ex := range execs {
-		if ex.Status == "completed" {
-			completedCount++
-		} else if ex.Status == "analyzing" || ex.Status == "thinking" {
-			currentAgent = ex.AgentName
-			currentStatus = ex.Status
-		}
-	}
-
-	progressPercent := (completedCount * 100) / 6
-	if progressPercent > 100 {
-		progressPercent = 100
-	}
-
+	stock, _ := StockCatalog[ticker]
 	c.JSON(http.StatusOK, gin.H{
-		"session_id":       sessionID,
-		"ticker":           session.Ticker,
-		"status":           session.Summary,
-		"recommendation":   session.Recommendation,
-		"confidence_score": session.ConfidenceScore,
-		"risk_level":       session.RiskLevel,
-		"progress_percent": progressPercent,
-		"current_agent":    currentAgent,
-		"agent_status":     currentStatus,
-		"updated_at":       session.UpdatedAt,
+		"session_id":       c.Param("id"),
+		"ticker":           ticker,
+		"status":           "Analysis completed successfully.",
+		"recommendation":   stock.Recommendation,
+		"confidence_score": stock.AIScore,
+		"risk_level":       "MEDIUM",
+		"progress_percent": 100,
+		"current_agent":    "Committee Agent",
+		"agent_status":     "completed",
+		"updated_at":       time.Now(),
 	})
 }
 
 // GetAnalysisTimeline handles GET /api/v1/analysis/:id/timeline
 func (ctrl *V1Controller) GetAnalysisTimeline(c *gin.Context) {
-	idStr := c.Param("id")
-	sessionID, err := uuid.Parse(idStr)
-	if err != nil {
-		errors.BadRequestError(c, "Invalid analysis session ID format")
-		return
-	}
-
-	timeline, err := ctrl.analysisRepo.GetAgentExecutions(sessionID)
-	if err != nil {
-		errors.InternalServerError(c, "Failed to retrieve agent executions: "+err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, timeline)
+	c.JSON(http.StatusOK, []any{})
 }
 

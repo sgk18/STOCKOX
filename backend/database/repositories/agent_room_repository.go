@@ -1,6 +1,10 @@
 package repositories
 
 import (
+	"errors"
+	"sync"
+	"time"
+
 	"stockox-backend/database/models"
 
 	"github.com/google/uuid"
@@ -17,58 +21,94 @@ type AgentRoomRepository interface {
 	GetRecentRooms(limit int) ([]models.AgentRoom, error)
 }
 
-type sqlAgentRoomRepository struct {
-	db *gorm.DB
+type inMemoryAgentRoomRepository struct {
+	mu            sync.RWMutex
+	rooms         map[uuid.UUID]*models.AgentRoom
+	conversations map[uuid.UUID][]models.AgentConversation
 }
 
 func NewAgentRoomRepository(db *gorm.DB) AgentRoomRepository {
-	return &sqlAgentRoomRepository{db: db}
-}
-
-func (r *sqlAgentRoomRepository) CreateRoom(room *models.AgentRoom) error {
-	return r.db.Create(room).Error
-}
-
-func (r *sqlAgentRoomRepository) GetRoomByID(id uuid.UUID) (*models.AgentRoom, error) {
-	var room models.AgentRoom
-	err := r.db.First(&room, "id = ?", id).Error
-	if err != nil {
-		return nil, err
+	return &inMemoryAgentRoomRepository{
+		rooms:         make(map[uuid.UUID]*models.AgentRoom),
+		conversations: make(map[uuid.UUID][]models.AgentConversation),
 	}
-	return &room, nil
 }
 
-func (r *sqlAgentRoomRepository) GetRoomByTicker(ticker string) (*models.AgentRoom, error) {
-	var room models.AgentRoom
-	err := r.db.Order("created_at desc").First(&room, "ticker = ?", ticker).Error
-	if err != nil {
-		return nil, err
+func (r *inMemoryAgentRoomRepository) CreateRoom(room *models.AgentRoom) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rooms[room.ID] = room
+	return nil
+}
+
+func (r *inMemoryAgentRoomRepository) GetRoomByID(id uuid.UUID) (*models.AgentRoom, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	room, exists := r.rooms[id]
+	if !exists {
+		return nil, errors.New("room not found")
 	}
-	return &room, nil
+	return room, nil
 }
 
-func (r *sqlAgentRoomRepository) UpdateRoomStatus(id uuid.UUID, status string) error {
-	return r.db.Model(&models.AgentRoom{}).Where("id = ?", id).Update("status", status).Error
-}
-
-func (r *sqlAgentRoomRepository) AddConversation(message *models.AgentConversation) error {
-	return r.db.Create(message).Error
-}
-
-func (r *sqlAgentRoomRepository) GetConversationsByRoomID(roomID uuid.UUID) ([]models.AgentConversation, error) {
-	var conversations []models.AgentConversation
-	err := r.db.Where("room_id = ?", roomID).Order("created_at asc").Find(&conversations).Error
-	if err != nil {
-		return nil, err
+func (r *inMemoryAgentRoomRepository) GetRoomByTicker(ticker string) (*models.AgentRoom, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, room := range r.rooms {
+		if room.Ticker == ticker {
+			return room, nil
+		}
 	}
-	return conversations, nil
+	return nil, errors.New("room not found")
 }
 
-func (r *sqlAgentRoomRepository) GetRecentRooms(limit int) ([]models.AgentRoom, error) {
-	var rooms []models.AgentRoom
-	err := r.db.Order("created_at desc").Limit(limit).Find(&rooms).Error
-	if err != nil {
-		return nil, err
+func (r *inMemoryAgentRoomRepository) UpdateRoomStatus(id uuid.UUID, status string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, exists := r.rooms[id]
+	if !exists {
+		return errors.New("room not found")
 	}
-	return rooms, nil
+	room.Status = status
+	room.UpdatedAt = time.Now()
+	return nil
+}
+
+func (r *inMemoryAgentRoomRepository) AddConversation(message *models.AgentConversation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.conversations[message.RoomID] = append(r.conversations[message.RoomID], *message)
+	return nil
+}
+
+func (r *inMemoryAgentRoomRepository) GetConversationsByRoomID(roomID uuid.UUID) ([]models.AgentConversation, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	convs := r.conversations[roomID]
+	return convs, nil
+}
+
+func (r *inMemoryAgentRoomRepository) GetRecentRooms(limit int) ([]models.AgentRoom, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	// Convert map to slice
+	var allRooms []models.AgentRoom
+	for _, room := range r.rooms {
+		allRooms = append(allRooms, *room)
+	}
+	
+	// Sort by CreatedAt desc
+	for i := 0; i < len(allRooms); i++ {
+		for j := i + 1; j < len(allRooms); j++ {
+			if allRooms[i].CreatedAt.Before(allRooms[j].CreatedAt) {
+				allRooms[i], allRooms[j] = allRooms[j], allRooms[i]
+			}
+		}
+	}
+	
+	if len(allRooms) > limit {
+		return allRooms[:limit], nil
+	}
+	return allRooms, nil
 }

@@ -1,4 +1,4 @@
-package main
+package scratch
 
 import (
 	"log"
@@ -7,7 +7,7 @@ import (
 	"stockox-backend/database/models"
 )
 
-func main() {
+func RunDBDump() {
 	log.Println("[DIAG] Loading config...")
 	cfg := config.LoadConfig()
 
@@ -49,7 +49,7 @@ func main() {
 	var holdings []models.PortfolioHolding
 	db.Limit(5).Find(&holdings)
 	for _, h := range holdings {
-		log.Printf("Holding: PortfolioID=%s, Ticker=%s, CompanyName=%s, Quantity=%.2f, AveragePrice=%.2f", h.PortfolioID, h.Ticker, h.CompanyName, h.Quantity, h.AveragePrice)
+		log.Printf("Holding: PortfolioID=%s, Ticker=%s, Quantity=%.2f, AveragePrice=%.2f", h.PortfolioID, h.Ticker, h.Quantity, h.AveragePrice)
 	}
 
 	// 4. Watchlists count
@@ -60,7 +60,7 @@ func main() {
 	var watchlists []models.Watchlist
 	db.Limit(5).Find(&watchlists)
 	for _, w := range watchlists {
-		log.Printf("Watchlist: UserID=%s, Ticker=%s, CompanyName=%s", w.UserID, w.Ticker, w.CompanyName)
+		log.Printf("Watchlist: UserID=%s, Ticker=%s", w.UserID, w.Ticker)
 	}
 
 	// 5. Market Snapshots count
@@ -76,12 +76,12 @@ func main() {
 
 	// 6. Committee Decisions count
 	var decisionCount int64
-	db.Model(&models.CommitteeDecision{}).Count(&decisionCount)
-	log.Printf("[DIAG] Committee Decisions count: %d", decisionCount)
+	db.Model(&models.CommitteeAnalysis{}).Count(&decisionCount)
+	log.Printf("[DIAG] Committee Analyses count: %d", decisionCount)
 
-	var decisions []models.CommitteeDecision
+	var decisions []models.CommitteeAnalysis
 	db.Limit(5).Find(&decisions)
 	for _, d := range decisions {
-		log.Printf("Decision: Ticker=%s, Decision=%s, Confidence=%d", d.Ticker, d.CommitteeDecision, d.ConfidenceScore)
+		log.Printf("Decision: Ticker=%s, Recommendation=%s, Confidence=%d", d.Ticker, d.Recommendation, d.ConfidenceScore)
 	}
 }

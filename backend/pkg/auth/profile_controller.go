@@ -302,12 +302,12 @@ func (ctrl *ProfileController) initializePortfolioForMode(userID string, mode st
 
 		// Seed Virtual Holdings
 		holdings := []models.PortfolioHolding{
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "NVDA", CompanyName: "NVIDIA Corp.", Quantity: 80, AveragePrice: 125.00, CurrentPrice: 127.20, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "AAPL", CompanyName: "Apple Inc.", Quantity: 60, AveragePrice: 175.00, CurrentPrice: 178.45, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "MSFT", CompanyName: "Microsoft Corp.", Quantity: 30, AveragePrice: 410.00, CurrentPrice: 415.50, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "RELIANCE", CompanyName: "Reliance Industries Ltd.", Quantity: 15, AveragePrice: 2400.00, CurrentPrice: 2450.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "TCS", CompanyName: "Tata Consultancy Services Ltd.", Quantity: 10, AveragePrice: 3400.00, CurrentPrice: 3480.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "BTC", CompanyName: "Bitcoin Token", Quantity: 0.25, AveragePrice: 65000.00, CurrentPrice: 67450.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "NVDA", Quantity: 80, AveragePrice: 125.00, CurrentPrice: 127.20, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "AAPL", Quantity: 60, AveragePrice: 175.00, CurrentPrice: 178.45, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "MSFT", Quantity: 30, AveragePrice: 410.00, CurrentPrice: 415.50, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "RELIANCE", Quantity: 15, AveragePrice: 2400.00, CurrentPrice: 2450.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "TCS", Quantity: 10, AveragePrice: 3400.00, CurrentPrice: 3480.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: uuid.New(), PortfolioID: portfolio.ID, Ticker: "BTC", Quantity: 0.25, AveragePrice: 65000.00, CurrentPrice: 67450.00, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		}
 
 		for _, h := range holdings {

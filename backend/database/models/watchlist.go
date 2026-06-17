@@ -12,7 +12,6 @@ type Watchlist struct {
 	UserID      string    `gorm:"type:varchar(255);index;not null"`
 	User        User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Ticker      string    `gorm:"type:varchar(10);index;not null"`
-	CompanyName string    `gorm:"type:varchar(255)"`
 	CreatedAt   time.Time `gorm:"not null"`
 }
 

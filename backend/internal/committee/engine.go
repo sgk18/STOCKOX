@@ -74,8 +74,8 @@ func (e *CommitteeEngine) GetAnalysis(symbol string) (*CommitteeAnalysisResponse
 	var dbRecord models.CommitteeAnalysis
 	if e.db != nil {
 		cutoff := time.Now().Add(-15 * time.Minute)
-		err := e.db.Where("symbol = ? AND created_at >= ?", symbol, cutoff).Order("created_at desc").First(&dbRecord).Error
-		if err == nil && dbRecord.Symbol != "" {
+		err := e.db.Where("ticker = ? AND created_at >= ?", symbol, cutoff).Order("created_at desc").First(&dbRecord).Error
+		if err == nil && dbRecord.Ticker != "" {
 			log.Printf("[COMMITTEE-DB-HIT] Loaded committee analysis for %s from database", symbol)
 			response := e.reconstructFromDB(&dbRecord)
 			// Cache in Valkey
@@ -92,13 +92,26 @@ func (e *CommitteeEngine) GetAnalysis(symbol string) (*CommitteeAnalysisResponse
 
 	// Save to DB
 	if e.db != nil {
+		mapVote := func(output string) string {
+			out := strings.ToLower(strings.TrimSpace(output))
+			if strings.Contains(out, "bullish") || strings.Contains(out, "undervalued") || strings.Contains(out, "low risk") {
+				return "BUY"
+			}
+			if strings.Contains(out, "bearish") || strings.Contains(out, "overvalued") || strings.Contains(out, "high risk") {
+				return "SELL"
+			}
+			return "HOLD"
+		}
+
 		dbRecord = models.CommitteeAnalysis{
-			Symbol:            response.Symbol,
+			Ticker:            response.Symbol,
 			Recommendation:    response.Recommendation,
 			ConfidenceScore:   response.Confidence,
-			VotesBuy:          response.Votes.Buy,
-			VotesHold:         response.Votes.Hold,
-			VotesSell:         response.Votes.Sell,
+			ResearchVote:      mapVote(response.Agents[0].Output),
+			NewsVote:          mapVote(response.Agents[1].Output),
+			TechnicalVote:     mapVote(response.Agents[2].Output),
+			RiskVote:          mapVote(response.Agents[3].Output),
+			ValuationVote:     mapVote(response.Agents[4].Output),
 			ResearchSummary:   response.Agents[0].Reasoning,
 			NewsSummary:       response.Agents[1].Reasoning,
 			TechnicalSummary:  response.Agents[2].Reasoning,
@@ -118,49 +131,84 @@ func (e *CommitteeEngine) GetAnalysis(symbol string) (*CommitteeAnalysisResponse
 }
 
 func (e *CommitteeEngine) reconstructFromDB(dbRecord *models.CommitteeAnalysis) *CommitteeAnalysisResponse {
-	researchOutput := "Neutral"
-	if strings.Contains(strings.ToLower(dbRecord.ResearchSummary), "bullish") || dbRecord.Recommendation == "BUY" {
-		researchOutput = "Bullish"
-	} else if strings.Contains(strings.ToLower(dbRecord.ResearchSummary), "bearish") {
-		researchOutput = "Bearish"
+	mapOutput := func(vote string, isRisk, isValuation bool) string {
+		switch strings.ToUpper(vote) {
+		case "BUY":
+			if isRisk {
+				return "Low Risk"
+			}
+			if isValuation {
+				return "Undervalued"
+			}
+			return "Bullish"
+		case "SELL":
+			if isRisk {
+				return "High Risk"
+			}
+			if isValuation {
+				return "Overvalued"
+			}
+			return "Bearish"
+		default:
+			if isRisk {
+				return "Medium Risk"
+			}
+			if isValuation {
+				return "Fairly Valued"
+			}
+			return "Neutral"
+		}
 	}
 
-	newsOutput := "Neutral"
-	if strings.Contains(strings.ToLower(dbRecord.NewsSummary), "bullish") || strings.Contains(strings.ToLower(dbRecord.NewsSummary), "positive") {
-		newsOutput = "Bullish"
-	} else if strings.Contains(strings.ToLower(dbRecord.NewsSummary), "bearish") {
-		newsOutput = "Bearish"
-	}
+	researchOutput := mapOutput(dbRecord.ResearchVote, false, false)
+	newsOutput := mapOutput(dbRecord.NewsVote, false, false)
+	techOutput := mapOutput(dbRecord.TechnicalVote, false, false)
+	riskOutput := mapOutput(dbRecord.RiskVote, true, false)
+	valOutput := mapOutput(dbRecord.ValuationVote, false, true)
 
-	techOutput := "Neutral"
-	if strings.Contains(strings.ToLower(dbRecord.TechnicalSummary), "bullish") || strings.Contains(strings.ToLower(dbRecord.TechnicalSummary), "uptrend") {
-		techOutput = "Bullish"
-	} else if strings.Contains(strings.ToLower(dbRecord.TechnicalSummary), "bearish") {
-		techOutput = "Bearish"
-	}
+	// Count votes dynamically
+	buyCount := 0
+	holdCount := 0
+	sellCount := 0
 
-	riskOutput := "Medium Risk"
-	if strings.Contains(strings.ToLower(dbRecord.RiskSummary), "low risk") || strings.Contains(strings.ToLower(dbRecord.RiskSummary), "stable") {
-		riskOutput = "Low Risk"
-	} else if strings.Contains(strings.ToLower(dbRecord.RiskSummary), "high risk") {
-		riskOutput = "High Risk"
+	votes := []string{
+		dbRecord.ResearchVote,
+		dbRecord.TechnicalVote,
+		dbRecord.NewsVote,
+		dbRecord.RiskVote,
+		dbRecord.ValuationVote,
 	}
-
-	valOutput := "Fairly Valued"
-	if strings.Contains(strings.ToLower(dbRecord.ValuationSummary), "undervalued") {
-		valOutput = "Undervalued"
-	} else if strings.Contains(strings.ToLower(dbRecord.ValuationSummary), "overvalued") {
-		valOutput = "Overvalued"
+	for _, v := range votes {
+		switch strings.ToUpper(v) {
+		case "BUY":
+			buyCount++
+		case "HOLD":
+			holdCount++
+		case "SELL":
+			sellCount++
+		}
+	}
+	// Fallback if all counts are 0
+	if buyCount == 0 && holdCount == 0 && sellCount == 0 {
+		if dbRecord.Recommendation == "BUY" {
+			buyCount = 3
+			holdCount = 2
+		} else if dbRecord.Recommendation == "SELL" {
+			sellCount = 3
+			holdCount = 2
+		} else {
+			holdCount = 5
+		}
 	}
 
 	return &CommitteeAnalysisResponse{
-		Symbol:         dbRecord.Symbol,
+		Symbol:         dbRecord.Ticker,
 		Recommendation: dbRecord.Recommendation,
 		Confidence:     dbRecord.ConfidenceScore,
 		Votes: VoteCount{
-			Buy:  dbRecord.VotesBuy,
-			Hold: dbRecord.VotesHold,
-			Sell: dbRecord.VotesSell,
+			Buy:  buyCount,
+			Hold: holdCount,
+			Sell: sellCount,
 		},
 		Agents: []AgentResult{
 			{Name: "Research Agent", Status: "completed", Output: researchOutput, Confidence: dbRecord.ConfidenceScore - 3, Reasoning: dbRecord.ResearchSummary},

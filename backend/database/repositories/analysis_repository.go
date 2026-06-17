@@ -1,24 +1,13 @@
 package repositories
 
 import (
-	"time"
-
 	"stockox-backend/database/models"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type AnalysisRepository interface {
-	GetRecentSessions(limit int) ([]models.AnalysisSession, error)
-	GetSessionByID(id uuid.UUID) (*models.AnalysisSession, error)
-	CreateSession(session *models.AnalysisSession) error
-	LogAgentMessage(sessionID uuid.UUID, agentName string, message string, messageType string) (*models.AgentMessage, error)
-	GetAgentMessages(sessionID uuid.UUID) ([]models.AgentMessage, error)
-	GetRecentAgentMessages(limit int) ([]models.AgentMessage, error)
-	GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error)
-	GetAgentExecutions(sessionID uuid.UUID) ([]models.AgentExecution, error)
-	GetAgentEvents(sessionID uuid.UUID) ([]models.AgentEvent, error)
+	GetRecentAgentMessages(limit int) ([]models.AnalysisLog, error)
 }
 
 type sqlAnalysisRepository struct {
@@ -29,85 +18,11 @@ func NewAnalysisRepository(db *gorm.DB) AnalysisRepository {
 	return &sqlAnalysisRepository{db: db}
 }
 
-func (r *sqlAnalysisRepository) GetRecentSessions(limit int) ([]models.AnalysisSession, error) {
-	var sessions []models.AnalysisSession
-	err := r.db.Order("created_at desc").Limit(limit).Find(&sessions).Error
-	if err != nil {
-		return nil, err
-	}
-	return sessions, nil
-}
-
-func (r *sqlAnalysisRepository) GetSessionByID(id uuid.UUID) (*models.AnalysisSession, error) {
-	var session models.AnalysisSession
-	err := r.db.First(&session, "id = ?", id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &session, nil
-}
-
-func (r *sqlAnalysisRepository) CreateSession(session *models.AnalysisSession) error {
-	return r.db.Create(session).Error
-}
-
-func (r *sqlAnalysisRepository) LogAgentMessage(sessionID uuid.UUID, agentName string, message string, messageType string) (*models.AgentMessage, error) {
-	msg := models.AgentMessage{
-		ID:                uuid.New(),
-		AnalysisSessionID: sessionID,
-		AgentName:         agentName,
-		Message:           message,
-		MessageType:       messageType,
-		CreatedAt:         time.Now(),
-	}
-	err := r.db.Create(&msg).Error
-	if err != nil {
-		return nil, err
-	}
-	return &msg, nil
-}
-
-func (r *sqlAnalysisRepository) GetAgentMessages(sessionID uuid.UUID) ([]models.AgentMessage, error) {
-	var messages []models.AgentMessage
-	err := r.db.Order("created_at asc").Find(&messages, "analysis_session_id = ?", sessionID).Error
-	if err != nil {
-		return nil, err
-	}
-	return messages, nil
-}
-
-func (r *sqlAnalysisRepository) GetRecentAgentMessages(limit int) ([]models.AgentMessage, error) {
-	var messages []models.AgentMessage
+func (r *sqlAnalysisRepository) GetRecentAgentMessages(limit int) ([]models.AnalysisLog, error) {
+	var messages []models.AnalysisLog
 	err := r.db.Order("created_at desc").Limit(limit).Find(&messages).Error
 	if err != nil {
 		return nil, err
 	}
 	return messages, nil
-}
-
-func (r *sqlAnalysisRepository) GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error) {
-	var session models.AnalysisSession
-	err := r.db.Where("ticker = ?", ticker).Order("created_at desc").First(&session).Error
-	if err != nil {
-		return nil, err
-	}
-	return &session, nil
-}
-
-func (r *sqlAnalysisRepository) GetAgentExecutions(sessionID uuid.UUID) ([]models.AgentExecution, error) {
-	var executions []models.AgentExecution
-	err := r.db.Where("analysis_session_id = ?", sessionID).Order("started_at asc").Find(&executions).Error
-	if err != nil {
-		return nil, err
-	}
-	return executions, nil
-}
-
-func (r *sqlAnalysisRepository) GetAgentEvents(sessionID uuid.UUID) ([]models.AgentEvent, error) {
-	var events []models.AgentEvent
-	err := r.db.Where("analysis_session_id = ?", sessionID).Order("created_at asc").Find(&events).Error
-	if err != nil {
-		return nil, err
-	}
-	return events, nil
 }

@@ -32,7 +32,7 @@ type ResearchTerminalResponseV1 struct {
 	Fundamentals *dto.FinancialMetricsDTO  `json:"fundamentals"`
 	Candles      []dto.CandleDTO           `json:"candles"`
 	News         []dto.NewsDTO             `json:"news"`
-	Committee    *models.CommitteeDecision `json:"committee"`
+	Committee    *models.CommitteeAnalysis `json:"committee"`
 	Technicals   map[string]interface{}    `json:"technicals"`
 	Sentiment    map[string]interface{}    `json:"sentiment"`
 }
@@ -110,16 +110,16 @@ func (s *MarketDataService) GetResearchTerminalData(symbol string) (*ResearchTer
 	_ = g.Wait() // Execute fetches in parallel simultaneously
 
 	// Get Committee Decision
-	var committee models.CommitteeDecision
+	var committee models.CommitteeAnalysis
 	if s.db != nil {
 		_ = s.db.First(&committee, "ticker = ?", symbol).Error
 	}
 	if committee.Ticker == "" {
-		committee = models.CommitteeDecision{
+		committee = models.CommitteeAnalysis{
 			Ticker:            symbol,
-			CommitteeDecision: "BUY",
+			Recommendation:    "BUY",
 			ConfidenceScore:   85,
-			Reasoning:         "Consensus buy driven by robust product roadmap and scaling operational margins.",
+			ResearchSummary:   "Consensus buy driven by robust product roadmap and scaling operational margins.",
 			CreatedAt:         time.Now(),
 		}
 	}

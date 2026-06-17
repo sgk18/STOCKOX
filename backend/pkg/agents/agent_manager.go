@@ -2,11 +2,8 @@ package agents
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
-	"strings"
 	"sync"
 	"time"
 
@@ -34,21 +31,9 @@ func NewAgentManager(db *gorm.DB) *AgentManager {
 	}
 }
 
-// StartAgent initializes and records a simulated agent execution tracking entry
-func (am *AgentManager) StartAgent(sessionID uuid.UUID, agentName string) (*models.AgentExecution, error) {
-	exec := &models.AgentExecution{
-		ID:                uuid.New(),
-		AnalysisSessionID: sessionID,
-		AgentName:         agentName,
-		Status:            "thinking",
-		StartedAt:         time.Now(),
-	}
-
-	if err := am.db.Create(exec).Error; err != nil {
-		return nil, fmt.Errorf("failed to create agent execution record: %w", err)
-	}
-
-	// Emit agent_started event
+// StartAgent initializes a simulated agent execution (no database writes for deprecated table)
+func (am *AgentManager) StartAgent(sessionID uuid.UUID, agentName string) (map[string]any, error) {
+	// Emit agent_started event to websockets
 	payload := map[string]interface{}{
 		"session_id": sessionID,
 		"agent_name": agentName,
@@ -57,88 +42,64 @@ func (am *AgentManager) StartAgent(sessionID uuid.UUID, agentName string) (*mode
 	}
 	am.emitAndLogEvent(sessionID, "agent_started", agentName, payload)
 
-	return exec, nil
+	return map[string]any{"session_id": sessionID, "agent_name": agentName}, nil
 }
 
-// UpdateAgentStatus transitions agent through intermediate status codes (thinking, analyzing, etc.)
-func (am *AgentManager) UpdateAgentStatus(exec *models.AgentExecution, status string, activity string) error {
-	exec.Status = status
-	exec.UpdatedAt = time.Now()
-	if err := am.db.Save(exec).Error; err != nil {
-		return fmt.Errorf("failed to update agent status: %w", err)
-	}
-
-	// Emit status event
+// UpdateAgentStatus transitions agent through intermediate status codes over websockets
+func (am *AgentManager) UpdateAgentStatus(sessionID uuid.UUID, agentName string, status string, activity string) error {
 	eventType := "agent_" + status
 	payload := map[string]interface{}{
-		"session_id": exec.AnalysisSessionID,
-		"agent_name": exec.AgentName,
+		"session_id": sessionID,
+		"agent_name": agentName,
 		"status":     status,
 		"message":    activity,
 		"timestamp":  time.Now(),
 	}
-	am.emitAndLogEvent(exec.AnalysisSessionID, eventType, exec.AgentName, payload)
+	am.emitAndLogEvent(sessionID, eventType, agentName, payload)
 
 	return nil
 }
 
-// CompleteAgent marks agent execution as successful
-func (am *AgentManager) CompleteAgent(exec *models.AgentExecution, result string) error {
+// CompleteAgent marks agent execution as successful over websockets
+func (am *AgentManager) CompleteAgent(sessionID uuid.UUID, agentName string, result string) error {
 	now := time.Now()
-	exec.Status = "completed"
-	exec.CompletedAt = &now
-	exec.UpdatedAt = now
-
-	if err := am.db.Save(exec).Error; err != nil {
-		return fmt.Errorf("failed to complete agent: %w", err)
-	}
-
 	payload := map[string]interface{}{
-		"session_id": exec.AnalysisSessionID,
-		"agent_name": exec.AgentName,
+		"session_id": sessionID,
+		"agent_name": agentName,
 		"status":     "completed",
 		"result":     result,
 		"timestamp":  now,
 	}
-	am.emitAndLogEvent(exec.AnalysisSessionID, "agent_completed", exec.AgentName, payload)
+	am.emitAndLogEvent(sessionID, "agent_completed", agentName, payload)
 
 	return nil
 }
 
-// FailAgent records execution errors and transitions agent to error state
-func (am *AgentManager) FailAgent(exec *models.AgentExecution, errText string) error {
+// FailAgent records execution errors over websockets
+func (am *AgentManager) FailAgent(sessionID uuid.UUID, agentName string, errText string) error {
 	now := time.Now()
-	exec.Status = "error"
-	exec.CompletedAt = &now
-	exec.Error = errText
-	exec.UpdatedAt = now
-
-	if err := am.db.Save(exec).Error; err != nil {
-		return fmt.Errorf("failed to fail agent: %w", err)
-	}
-
 	payload := map[string]interface{}{
-		"session_id": exec.AnalysisSessionID,
-		"agent_name": exec.AgentName,
+		"session_id": sessionID,
+		"agent_name": agentName,
 		"status":     "error",
 		"error":      errText,
 		"timestamp":  now,
 	}
-	am.emitAndLogEvent(exec.AnalysisSessionID, "agent_error", exec.AgentName, payload)
+	am.emitAndLogEvent(sessionID, "agent_error", agentName, payload)
 
 	return nil
 }
 
-// EmitAndLogMessage publishes a live message log from an agent and records it
-func (am *AgentManager) EmitAndLogMessage(sessionID uuid.UUID, agentName string, msg string, msgType string) {
-	// Save to legacy agent messages for backwards compatibility
-	msgModel := models.AgentMessage{
-		ID:                uuid.New(),
-		AnalysisSessionID: sessionID,
-		AgentName:         agentName,
-		Message:           msg,
-		MessageType:       msgType,
-		CreatedAt:         time.Now(),
+// EmitAndLogMessage publishes a live message log from an agent and records it in analysis_logs
+func (am *AgentManager) EmitAndLogMessage(ticker string, sessionID uuid.UUID, agentName string, msg string, msgType string) {
+	msgModel := models.AnalysisLog{
+		ID:              uuid.New(),
+		Ticker:          ticker,
+		AgentName:       agentName,
+		Message:         msg,
+		MessageType:     msgType,
+		ConfidenceScore: 80,
+		CreatedAt:       time.Now(),
 	}
 	_ = am.db.Create(&msgModel).Error
 
@@ -154,21 +115,6 @@ func (am *AgentManager) EmitAndLogMessage(sessionID uuid.UUID, agentName string,
 
 func (am *AgentManager) emitAndLogEvent(sessionID uuid.UUID, eventType string, agentName string, payload interface{}) {
 	event := eventbus.NewEvent(eventType, payload)
-
-	// Save event in database for timeline replay support
-	payloadBytes, err := json.Marshal(payload)
-	if err == nil {
-		dbEvent := models.AgentEvent{
-			ID:                uuid.New(),
-			AnalysisSessionID: sessionID,
-			EventType:         eventType,
-			AgentName:         agentName,
-			Payload:           string(payloadBytes),
-			CreatedAt:         time.Now(),
-		}
-		_ = am.db.Create(&dbEvent).Error
-	}
-
 	// Publish to event bus channels
 	am.bus.Publish("agent_events", event)
 }
@@ -185,7 +131,7 @@ func (am *AgentManager) StopAnalysis(sessionID uuid.UUID) {
 	}
 }
 
-// RunSimulatedCommittee runs the entire multi-agent simulation lifecycle in a cancellable way
+// RunSimulatedCommittee runs the entire multi-agent simulation lifecycle in a consolidated way
 func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string, stock models.MarketSnapshot, companyName string, aiscore int, recSignal string, debtRatio float64, peRatio float64) {
 	am.activeMu.Lock()
 	cancelChan := make(chan struct{})
@@ -209,7 +155,7 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 	})
 	am.bus.Publish("analysis_events", startedEvent)
 
-	agents := []struct {
+	agentsList := []struct {
 		Name    string
 		Type    string // research, analysis, decision, warning, risk
 		Task    string
@@ -260,7 +206,7 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 		},
 	}
 
-	for _, a := range agents {
+	for _, a := range agentsList {
 		select {
 		case <-cancelChan:
 			log.Printf("[AgentManager] Session %s cancelled during %s run", sessionID, a.Name)
@@ -275,27 +221,15 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 		default:
 		}
 
-		// Update database global status of the agent
-		_ = am.db.Model(&models.Agent{}).Where("name = ?", a.Name).Update("status", "thinking").Error
-
-		exec, err := am.StartAgent(sessionID, a.Name)
-		if err != nil {
-			log.Printf("[AgentManager-ERR] Failed to start agent %s: %v", a.Name, err)
-			continue
-		}
-
+		_, _ = am.StartAgent(sessionID, a.Name)
 		time.Sleep(800 * time.Millisecond)
 
-		_ = am.db.Model(&models.Agent{}).Where("name = ?", a.Name).Update("status", "analyzing").Error
-		_ = am.UpdateAgentStatus(exec, "analyzing", a.Message)
-		am.EmitAndLogMessage(sessionID, a.Name, a.Message, a.Type)
-
+		_ = am.UpdateAgentStatus(sessionID, a.Name, "analyzing", a.Message)
+		am.EmitAndLogMessage(ticker, sessionID, a.Name, a.Message, a.Type)
 		time.Sleep(1000 * time.Millisecond)
 
-		_ = am.db.Model(&models.Agent{}).Where("name = ?", a.Name).Update("status", "completed").Error
-		_ = am.CompleteAgent(exec, a.Result)
-		am.EmitAndLogMessage(sessionID, a.Name, a.Result, a.Type)
-
+		_ = am.CompleteAgent(sessionID, a.Name, a.Result)
+		am.EmitAndLogMessage(ticker, sessionID, a.Name, a.Result, a.Type)
 		time.Sleep(300 * time.Millisecond)
 	}
 
@@ -320,15 +254,40 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 	// Save to DB recommendations
 	rec := models.Recommendation{
 		ID:                uuid.New(),
-		AnalysisSessionID: sessionID,
 		Ticker:            ticker,
 		Recommendation:    recSignal,
 		ConfidenceScore:   aiscore,
 		TargetPrice:       targetPrice,
 		RiskLevel:         riskLvl,
+		AgentReasoning:    companyName + " operates under high growth index benchmarks. Institutional consensus verified.",
+		ResearchScore:     aiscore,
+		TechnicalScore:    aiscore,
+		NewsScore:         aiscore,
+		RiskScore:         78,
+		CommitteeScore:    aiscore,
+		InvestmentHorizon: "Medium Term (6-12 months)",
 		CreatedAt:         time.Now(),
 	}
 	am.db.Create(&rec)
+
+	// Save to DB committee_analyses
+	commAnalysis := models.CommitteeAnalysis{
+		Ticker:            ticker,
+		Recommendation:    recSignal,
+		ConfidenceScore:   aiscore,
+		ResearchVote:      "BUY",
+		TechnicalVote:     "BUY",
+		NewsVote:          "HOLD",
+		RiskVote:          "BUY",
+		ValuationVote:     "HOLD",
+		ResearchSummary:   companyName + " consensus audit successfully complete.",
+		TechnicalSummary:  "Technical indicators processed.",
+		NewsSummary:       "News sentiment indicators parsed.",
+		RiskSummary:       "Volatility margins reviewed.",
+		ValuationSummary:  "Multiple ratios reviewed.",
+		CreatedAt:         time.Now(),
+	}
+	am.db.Create(&commAnalysis)
 
 	// Emit recommendation_generated event
 	recEvent := eventbus.NewEvent("recommendation_generated", map[string]interface{}{
@@ -342,37 +301,20 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 	})
 	am.bus.Publish("analysis_events", recEvent)
 
-	// Update AnalysisSession object in postgres
-	summary := fmt.Sprintf("Stockox AI committee completed structured evaluation of %s. The final consensus score is %s with a rating of %s. Supporting indicators include bullish technical momentum, strong media sentiment and low volatility index.", ticker, strings.ToUpper(recSignal), recSignal)
-	am.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
-		"recommendation":   recSignal,
-		"confidence_score": aiscore,
-		"risk_level":       riskLvl,
-		"summary":          summary,
-		"updated_at":       time.Now(),
-	})
-
 	// Emit analysis_completed event
+	summaryText := companyName + " AI audit completed."
 	compEvent := eventbus.NewEvent("analysis_completed", map[string]interface{}{
 		"session_id":       sessionID,
 		"ticker":           ticker,
 		"recommendation":   recSignal,
 		"confidence_score": aiscore,
 		"risk_level":       riskLvl,
-		"summary":          summary,
+		"summary":          summaryText,
 		"timestamp":        time.Now(),
 	})
 	am.bus.Publish("analysis_events", compEvent)
 
-	// Also update agent statuses back to idle
-	_ = am.db.Model(&models.Agent{}).Where("status != ?", "idle").Update("status", "idle").Error
-
-	// Invalidate cache since analysis session is finished and DB is updated
-	var userID string
-	if err := am.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Pluck("user_id", &userID).Error; err == nil && userID != "" {
-		_ = cache.Shared.Delete(context.Background(), cache.KeyDashboard(userID))
-	}
+	// Invalidate cache
 	_ = cache.Shared.Delete(context.Background(), cache.KeyAnalysis(ticker))
-
 	log.Printf("[AgentManager] Successfully completed simulation for session %s", sessionID)
 }

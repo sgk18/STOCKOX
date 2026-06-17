@@ -26,7 +26,6 @@ type PortfolioHolding struct {
 	PortfolioID  uuid.UUID      `gorm:"type:uuid;index;not null"`
 	Portfolio    Portfolio      `gorm:"foreignKey:PortfolioID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Ticker       string         `gorm:"type:varchar(10);index;not null"`
-	CompanyName  string         `gorm:"type:varchar(255)"`
 	Quantity     float64        `gorm:"type:decimal(18,4);not null;default:0"`
 	AveragePrice float64        `gorm:"type:decimal(18,4);not null;default:0"`
 	CurrentPrice float64        `gorm:"type:decimal(18,4);not null;default:0"`

@@ -9,8 +9,6 @@ import (
 
 type Recommendation struct {
 	ID                uuid.UUID `gorm:"type:uuid;primaryKey"`
-	AnalysisSessionID uuid.UUID `gorm:"type:uuid;index;not null"`
-	AnalysisSession   AnalysisSession `gorm:"foreignKey:AnalysisSessionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Ticker            string    `gorm:"type:varchar(10);index;not null"`
 	Recommendation    string    `gorm:"type:varchar(10);not null;default:'HOLD'"` // BUY, HOLD, SELL
 	ConfidenceScore   int       `gorm:"type:integer;not null;default:0"`

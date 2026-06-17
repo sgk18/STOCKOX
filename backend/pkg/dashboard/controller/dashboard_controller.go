@@ -6,6 +6,7 @@ import (
 
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/errors"
+	"stockox-backend/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -76,13 +77,14 @@ func (ctrl *DashboardController) GetMarketOverview(c *gin.Context) {
 }
 
 func (ctrl *DashboardController) GetAgentActivity(c *gin.Context) {
-	resp, err := ctrl.srv.GetAgentActivity()
+	page, limit := utils.GetPaginationParams(c)
+	resp, total, err := ctrl.srv.GetAgentActivity(page, limit)
 	if err != nil {
 		errors.InternalServerError(c, "Failed to retrieve agent activity: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, utils.CreatePaginatedResponse(resp, total, page, limit))
 }
 
 func (ctrl *DashboardController) GetAgentStatuses(c *gin.Context) {
@@ -96,13 +98,14 @@ func (ctrl *DashboardController) GetAgentStatuses(c *gin.Context) {
 }
 
 func (ctrl *DashboardController) GetRecentAnalyses(c *gin.Context) {
-	resp, err := ctrl.srv.GetRecentAnalyses()
+	page, limit := utils.GetPaginationParams(c)
+	resp, total, err := ctrl.srv.GetRecentAnalyses(page, limit)
 	if err != nil {
 		errors.InternalServerError(c, "Failed to retrieve recent analyses: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, utils.CreatePaginatedResponse(resp, total, page, limit))
 }
 
 func (ctrl *DashboardController) GetOpportunities(c *gin.Context) {

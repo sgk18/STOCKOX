@@ -66,6 +66,18 @@ func (ce *CollaborationEngine) RunRoom(roomID uuid.UUID, ticker string) {
 		_ = ce.roomRepo.AddConversation(conv)
 		history = append(history, fmt.Sprintf("%s: %s", agentName, message))
 
+		// Log to database table analysis_logs for persistence
+		logRecord := &models.AnalysisLog{
+			ID:              uuid.New(),
+			Ticker:          ticker,
+			AgentName:       agentName,
+			Message:         message,
+			MessageType:     msgType,
+			ConfidenceScore: 80,
+			CreatedAt:       time.Now(),
+		}
+		_ = ce.db.Create(logRecord).Error
+
 		// Broadcast via WebSocket using eventbus
 		payload := map[string]interface{}{
 			"room_id":      roomID.String(),
@@ -143,20 +155,24 @@ func (ce *CollaborationEngine) RunRoom(roomID uuid.UUID, ticker string) {
 	decisionMsg := fmt.Sprintf("Consensus reached: %s. Confidence: %d%%. Reasoning: %s", finalDecision, confidence, reasoning)
 	postMessage(committee.GetName(), decisionMsg, "decision")
 
-	// Save final decision to committee_decisions table for backend compatibility
-	cd := &models.CommitteeDecision{
-		ID:                uuid.New(),
+	// Save final decision to committee_analyses table
+	ca := &models.CommitteeAnalysis{
 		Ticker:            ticker,
+		Recommendation:    finalDecision,
+		ConfidenceScore:   confidence,
 		ResearchVote:      resVote,
 		TechnicalVote:     techVote,
 		NewsVote:          newsVote,
 		RiskVote:          riskVote,
-		CommitteeDecision: finalDecision,
-		ConfidenceScore:   confidence,
-		Reasoning:         fmt.Sprintf("Three BUY votes (Research, Technical, News) and one HOLD vote (Risk). Synthesis: %s", reasoning),
+		ValuationVote:     "HOLD",
+		ResearchSummary:   fmt.Sprintf("Three BUY votes (Research, Technical, News) and one HOLD vote (Risk). Synthesis: %s", reasoning),
+		TechnicalSummary:  techMsg,
+		NewsSummary:       newsMsg,
+		RiskSummary:       riskMsg,
+		ValuationSummary:  "Valuation metrics evaluated under default multiples.",
 		CreatedAt:         time.Now(),
 	}
-	_ = ce.db.Create(cd).Error
+	_ = ce.db.Create(ca).Error
 
 	// Emit committee_decision WebSocket event
 	ce.bus.Publish("agent_events", eventbus.NewEvent("committee_decision", map[string]interface{}{

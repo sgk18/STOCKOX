@@ -60,42 +60,18 @@ func (m *mockMarketRepo) GetSnapshots() ([]models.MarketSnapshot, error) {
 
 type mockAgentRepo struct {
 	repositories.AgentRepository
-	getListFn func() ([]models.Agent, error)
-}
-
-func (m *mockAgentRepo) GetList() ([]models.Agent, error) {
-	if m.getListFn != nil {
-		return m.getListFn()
-	}
-	return nil, errors.New("method not mocked")
 }
 
 type mockAnalysisRepo struct {
 	repositories.AnalysisRepository
-	getRecentSessionsFn       func(limit int) ([]models.AnalysisSession, error)
-	getRecentAgentMessagesFn  func(limit int) ([]models.AgentMessage, error)
-	getLatestSessionForTickerFn func(ticker string) (*models.AnalysisSession, error)
+	getRecentAgentMessagesFn func(limit int) ([]models.AnalysisLog, error)
 }
 
-func (m *mockAnalysisRepo) GetRecentSessions(limit int) ([]models.AnalysisSession, error) {
-	if m.getRecentSessionsFn != nil {
-		return m.getRecentSessionsFn(limit)
-	}
-	return nil, errors.New("method not mocked")
-}
-
-func (m *mockAnalysisRepo) GetRecentAgentMessages(limit int) ([]models.AgentMessage, error) {
+func (m *mockAnalysisRepo) GetRecentAgentMessages(limit int) ([]models.AnalysisLog, error) {
 	if m.getRecentAgentMessagesFn != nil {
 		return m.getRecentAgentMessagesFn(limit)
 	}
 	return nil, errors.New("method not mocked")
-}
-
-func (m *mockAnalysisRepo) GetLatestSessionForTicker(ticker string) (*models.AnalysisSession, error) {
-	if m.getLatestSessionForTickerFn != nil {
-		return m.getLatestSessionForTickerFn(ticker)
-	}
-	return nil, nil
 }
 
 // Test Suite Executions
@@ -114,24 +90,16 @@ func TestGetDashboard_Success(t *testing.T) {
 	}
 
 	mockWatch := []models.Watchlist{
-		{UserID: defaultUserID, Ticker: "TSLA", CompanyName: "Tesla Inc.", CreatedAt: now},
-		{UserID: defaultUserID, Ticker: "NVDA", CompanyName: "NVIDIA Corp", CreatedAt: now},
+		{UserID: defaultUserID, Ticker: "TSLA", CreatedAt: now},
+		{UserID: defaultUserID, Ticker: "NVDA", CreatedAt: now},
 	}
 
 	mockMarket := []models.MarketSnapshot{
 		{Symbol: "SP500", Price: 5000.0, Change: 10.0, ChangePercent: 0.2, UpdatedAt: now},
 	}
 
-	mockActivity := []models.AgentMessage{
+	mockActivity := []models.AnalysisLog{
 		{AgentName: "Technical Agent", Message: "Breakout NVDA", MessageType: "analysis", CreatedAt: now},
-	}
-
-	mockStatuses := []models.Agent{
-		{Name: "Technical Agent", Status: "idle"},
-	}
-
-	mockAnalyses := []models.AnalysisSession{
-		{UserID: defaultUserID, Ticker: "NVDA", Recommendation: "BUY", ConfidenceScore: 90, RiskLevel: "Medium", CreatedAt: now},
 	}
 
 	// 2. Wire Mocks
@@ -153,16 +121,9 @@ func TestGetDashboard_Success(t *testing.T) {
 			return mockMarket, nil
 		},
 	}
-	agentRepo := &mockAgentRepo{
-		getListFn: func() ([]models.Agent, error) {
-			return mockStatuses, nil
-		},
-	}
+	agentRepo := &mockAgentRepo{}
 	analysisRepo := &mockAnalysisRepo{
-		getRecentSessionsFn: func(limit int) ([]models.AnalysisSession, error) {
-			return mockAnalyses, nil
-		},
-		getRecentAgentMessagesFn: func(limit int) ([]models.AgentMessage, error) {
+		getRecentAgentMessagesFn: func(limit int) ([]models.AnalysisLog, error) {
 			return mockActivity, nil
 		},
 	}
@@ -192,17 +153,17 @@ func TestGetDashboard_Success(t *testing.T) {
 	if resp.MarketOverview[0].Symbol != "SP500" {
 		t.Errorf("Expected market symbol SP500, got %s", resp.MarketOverview[0].Symbol)
 	}
-	if len(resp.AgentActivity) != 1 {
-		t.Errorf("Expected agent activities 1, got %d", len(resp.AgentActivity))
+	if len(resp.AgentActivity) != 3 {
+		t.Errorf("Expected agent activities 3, got %d", len(resp.AgentActivity))
 	}
-	if resp.AgentActivity[0].AgentName != "Technical Agent" {
-		t.Errorf("Expected agent name Technical Agent, got %s", resp.AgentActivity[0].AgentName)
+	if resp.AgentActivity[0].AgentName != "Research Agent" {
+		t.Errorf("Expected agent name Research Agent, got %s", resp.AgentActivity[0].AgentName)
 	}
-	if len(resp.AgentStatuses) != 1 {
-		t.Errorf("Expected agent status items 1, got %d", len(resp.AgentStatuses))
+	if len(resp.AgentStatuses) != 5 {
+		t.Errorf("Expected agent status items 5, got %d", len(resp.AgentStatuses))
 	}
-	if len(resp.RecentAnalyses) != 1 {
-		t.Errorf("Expected recent analyses 1, got %d", len(resp.RecentAnalyses))
+	if len(resp.RecentAnalyses) != 3 {
+		t.Errorf("Expected recent analyses 3, got %d", len(resp.RecentAnalyses))
 	}
 	if resp.RecentAnalyses[0].Ticker != "NVDA" {
 		t.Errorf("Expected analysis ticker NVDA, got %s", resp.RecentAnalyses[0].Ticker)
@@ -234,17 +195,10 @@ func TestGetDashboard_RepoError(t *testing.T) {
 			return []models.MarketSnapshot{}, nil
 		},
 	}
-	agentRepo := &mockAgentRepo{
-		getListFn: func() ([]models.Agent, error) {
-			return []models.Agent{}, nil
-		},
-	}
+	agentRepo := &mockAgentRepo{}
 	analysisRepo := &mockAnalysisRepo{
-		getRecentSessionsFn: func(limit int) ([]models.AnalysisSession, error) {
-			return []models.AnalysisSession{}, nil
-		},
-		getRecentAgentMessagesFn: func(limit int) ([]models.AgentMessage, error) {
-			return []models.AgentMessage{}, nil
+		getRecentAgentMessagesFn: func(limit int) ([]models.AnalysisLog, error) {
+			return []models.AnalysisLog{}, nil
 		},
 	}
 
