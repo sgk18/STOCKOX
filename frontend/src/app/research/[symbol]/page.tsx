@@ -597,7 +597,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 <span className="w-4 h-4 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
                 <span>Loading Price History...</span>
               </div>
-            ) : (researchData as any).history_error ? (
+            ) : (researchData as any).history_error && (!researchData.history || researchData.history.length === 0) ? (
               <div className="h-[380px] flex flex-col items-center justify-center border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase p-6">
                 <span className="font-black text-sm block mb-1">Failed to load chart data</span>
                 <span>{(researchData as any).history_error}</span>

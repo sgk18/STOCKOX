@@ -64,7 +64,8 @@ func (p *AlphaVantageProvider) SearchStocks(query string) ([]dto.SearchStockDTO,
 
 // GetQuote queries current price
 func (p *AlphaVantageProvider) GetQuote(ticker string) (*dto.QuoteDTO, error) {
-	u := fmt.Sprintf("%s?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -120,7 +121,8 @@ func (p *AlphaVantageProvider) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 
 // GetCompanyProfile queries overview metadata
 func (p *AlphaVantageProvider) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO, error) {
-	u := fmt.Sprintf("%s?function=OVERVIEW&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=OVERVIEW&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -186,7 +188,8 @@ func (p *AlphaVantageProvider) GetCompanyProfile(ticker string) (*dto.CompanyPro
 
 // GetFinancialMetrics parses financials from overview
 func (p *AlphaVantageProvider) GetFinancialMetrics(ticker string) (*dto.FinancialMetricsDTO, error) {
-	u := fmt.Sprintf("%s?function=OVERVIEW&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=OVERVIEW&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -235,7 +238,8 @@ func (p *AlphaVantageProvider) GetFinancialMetrics(ticker string) (*dto.Financia
 
 // GetHistoricalCandles returns candles
 func (p *AlphaVantageProvider) GetHistoricalCandles(ticker string, resolution string, from, to int64) ([]dto.CandleDTO, error) {
-	u := fmt.Sprintf("%s?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -288,7 +292,8 @@ func (p *AlphaVantageProvider) GetHistoricalCandles(ticker string, resolution st
 
 // GetCompanyNews pulls news
 func (p *AlphaVantageProvider) GetCompanyNews(ticker string) ([]dto.NewsDTO, error) {
-	u := fmt.Sprintf("%s?function=NEWS_SENTIMENT&tickers=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=NEWS_SENTIMENT&tickers=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -331,7 +336,8 @@ func (p *AlphaVantageProvider) GetCompanyNews(ticker string) ([]dto.NewsDTO, err
 
 // GetEarnings queries EPS surprises
 func (p *AlphaVantageProvider) GetEarnings(ticker string) ([]dto.EarningsDTO, error) {
-	u := fmt.Sprintf("%s?function=EARNINGS&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "alphavantage")
+        u := fmt.Sprintf("%s?function=EARNINGS&symbol=%s&apikey=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err

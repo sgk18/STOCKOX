@@ -69,7 +69,8 @@ func (p *FinnhubProvider) SearchStocks(query string) ([]dto.SearchStockDTO, erro
 
 // GetQuote gets current quote prices
 func (p *FinnhubProvider) GetQuote(ticker string) (*dto.QuoteDTO, error) {
-	u := fmt.Sprintf("%s/quote?symbol=%s&token=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        u := fmt.Sprintf("%s/quote?symbol=%s&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -113,8 +114,9 @@ func (p *FinnhubProvider) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 // Because Finnhub separates company metadata from live quotes, this method implicitly
 // calls GetQuote to merge both datasets into a comprehensive CompanyProfileDTO.
 func (p *FinnhubProvider) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO, error) {
-	// 1. Load profile details (Market Cap, Industry, Website, etc.)
-	u := fmt.Sprintf("%s/stock/profile2?symbol=%s&token=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        // 1. Load profile details (Market Cap, Industry, Website, etc.)
+        u := fmt.Sprintf("%s/stock/profile2?symbol=%s&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -177,7 +179,8 @@ func (p *FinnhubProvider) GetCompanyProfile(ticker string) (*dto.CompanyProfileD
 
 // GetFinancialMetrics returns PE, EPS ratios, etc.
 func (p *FinnhubProvider) GetFinancialMetrics(ticker string) (*dto.FinancialMetricsDTO, error) {
-	u := fmt.Sprintf("%s/stock/metric?symbol=%s&metric=all&token=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        u := fmt.Sprintf("%s/stock/metric?symbol=%s&metric=all&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -222,19 +225,20 @@ func (p *FinnhubProvider) GetFinancialMetrics(ticker string) (*dto.FinancialMetr
 
 // GetHistoricalCandles gets OHLC series
 func (p *FinnhubProvider) GetHistoricalCandles(ticker string, resolution string, from, to int64) ([]dto.CandleDTO, error) {
-	// Standardize Finnhub resolution mappings (1D -> D, 1W -> W)
-	res := resolution
-	if resolution == "1D" || resolution == "D" {
-		res = "D"
-	} else if resolution == "1W" || resolution == "W" {
-		res = "W"
-	} else if resolution == "1M" || resolution == "M" {
-		res = "M"
-	} else {
-		res = "D" // Default fallback resolution
-	}
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        // Standardize Finnhub resolution mappings (1D -> D, 1W -> W)
+        res := resolution
+        if resolution == "1D" || resolution == "D" {
+                res = "D"
+        } else if resolution == "1W" || resolution == "W" {
+                res = "W"
+        } else if resolution == "1M" || resolution == "M" {
+                res = "M"
+        } else {
+                res = "D" // Default fallback resolution
+        }
 
-	u := fmt.Sprintf("%s/stock/candle?symbol=%s&resolution=%s&from=%d&to=%d&token=%s", p.baseURL, url.QueryEscape(ticker), res, from, to, p.apiKey)
+        u := fmt.Sprintf("%s/stock/candle?symbol=%s&resolution=%s&from=%d&to=%d&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), res, from, to, p.apiKey)
 	log.Printf("[OBSERVABILITY-AUDIT] Requesting Finnhub Candle URL: %s", strings.Replace(u, p.apiKey, "SECRET", 1))
 	resp, err := p.client.Get(u)
 	if err != nil {
@@ -300,10 +304,11 @@ func (p *FinnhubProvider) GetHistoricalCandles(ticker string, resolution string,
 
 // GetCompanyNews gets recent news
 func (p *FinnhubProvider) GetCompanyNews(ticker string) ([]dto.NewsDTO, error) {
-	to := time.Now().Format("2006-01-02")
-	from := time.Now().AddDate(0, 0, -14).Format("2006-01-02") // Last 14 days
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        to := time.Now().Format("2006-01-02")
+        from := time.Now().AddDate(0, 0, -14).Format("2006-01-02") // Last 14 days
 
-	u := fmt.Sprintf("%s/company-news?symbol=%s&from=%s&to=%s&token=%s", p.baseURL, url.QueryEscape(ticker), from, to, p.apiKey)
+        u := fmt.Sprintf("%s/company-news?symbol=%s&from=%s&to=%s&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), from, to, p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
@@ -347,7 +352,8 @@ func (p *FinnhubProvider) GetCompanyNews(ticker string) ([]dto.NewsDTO, error) {
 
 // GetEarnings returns estimates surprise
 func (p *FinnhubProvider) GetEarnings(ticker string) ([]dto.EarningsDTO, error) {
-	u := fmt.Sprintf("%s/stock/earnings?symbol=%s&token=%s", p.baseURL, url.QueryEscape(ticker), p.apiKey)
+        resolvedTicker := ResolveProviderSymbol(ticker, "finnhub")
+        u := fmt.Sprintf("%s/stock/earnings?symbol=%s&token=%s", p.baseURL, url.QueryEscape(resolvedTicker), p.apiKey)
 	resp, err := p.client.Get(u)
 	if err != nil {
 		return nil, err
