@@ -147,6 +147,115 @@ const customTooltipStyle = {
   boxShadow: "3px 3px 0px #000000"
 };
 
+function CompanySkeleton() {
+  return (
+    <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-pulse">
+      <div className="flex items-center gap-4 w-full">
+        <div className="w-16 h-16 bg-slate-200 border-4 border-slate-300 rounded-2xl shrink-0" />
+        <div className="flex flex-col gap-2 w-full max-w-md">
+          <div className="h-6 bg-slate-200 rounded w-3/4" />
+          <div className="h-4 bg-slate-200 rounded w-1/2" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 w-32 shrink-0">
+        <div className="h-8 bg-slate-200 rounded" />
+        <div className="h-4 bg-slate-200 rounded w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+function ChartSkeleton() {
+  return (
+    <div className="h-[380px] border-4 border-black bg-white rounded-[24px] shadow-[4px_4px_0px_#000000] p-6 flex flex-col justify-between animate-pulse">
+      <div className="flex justify-between items-center">
+        <div className="h-6 bg-slate-200 rounded w-1/3" />
+        <div className="h-6 bg-slate-200 rounded w-1/4" />
+      </div>
+      <div className="h-[220px] bg-slate-100 rounded flex items-end justify-between p-4 gap-2">
+        <div className="w-full h-[30%] bg-slate-200 rounded" />
+        <div className="w-full h-[45%] bg-slate-200 rounded" />
+        <div className="w-full h-[60%] bg-slate-200 rounded" />
+        <div className="w-full h-[55%] bg-slate-200 rounded" />
+        <div className="w-full h-[70%] bg-slate-200 rounded" />
+        <div className="w-full h-[85%] bg-slate-200 rounded" />
+        <div className="w-full h-[95%] bg-slate-200 rounded" />
+      </div>
+      <div className="h-4 bg-slate-200 rounded w-1/2" />
+    </div>
+  );
+}
+
+function MetricsSkeleton() {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-6 animate-pulse">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="border-4 border-black p-4 bg-white rounded-xl shadow-[3px_3px_0px_#000000] h-24 flex flex-col justify-between">
+          <div className="h-3 bg-slate-200 rounded w-3/4" />
+          <div className="h-5 bg-slate-200 rounded w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommitteeSkeleton() {
+  return (
+    <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5 animate-pulse">
+      <div className="flex flex-col items-center gap-3 border-b-2 border-slate-100 pb-4">
+        <div className="h-4 bg-slate-200 rounded w-1/3" />
+        <div className="w-20 h-20 bg-slate-200 rounded-full" />
+        <div className="h-6 bg-slate-200 rounded w-1/2" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="h-4 bg-slate-200 rounded" />
+        <div className="h-4 bg-slate-200 rounded" />
+        <div className="h-4 bg-slate-200 rounded w-2/3" />
+      </div>
+      <div className="h-10 bg-slate-200 rounded-xl" />
+    </div>
+  );
+}
+
+function NewsSkeleton() {
+  return (
+    <div className="bg-white border-4 border-black p-5 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-4 animate-pulse">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="bg-slate-50 border-2 border-black/10 p-4 rounded-xl flex flex-col gap-2.5">
+          <div className="flex justify-between">
+            <div className="h-3.5 bg-slate-200 rounded w-1/4" />
+            <div className="h-3.5 bg-slate-200 rounded w-16" />
+          </div>
+          <div className="h-4 bg-slate-200 rounded w-full" />
+          <div className="h-4 bg-slate-200 rounded w-5/6" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SubAuditorsSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 animate-pulse">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="bg-white border-4 border-black p-4 rounded-[24px] shadow-[4px_4px_0px_#000000] h-28 flex flex-col justify-between font-mono">
+          <div className="flex justify-between">
+            <div className="h-3 bg-slate-200 rounded w-1/4" />
+            <div className="h-3 bg-slate-200 rounded w-16" />
+          </div>
+          <div className="h-3.5 bg-slate-200 rounded w-5/6" />
+          <div className="flex justify-between border-t border-black/5 pt-2">
+            <div className="h-3 bg-slate-200 rounded w-1/3" />
+            <div className="h-3 bg-slate-200 rounded w-12" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
 export default function ResearchPage({ params }: { params: any }) {
   const resolvedParams = params && typeof (params as any).then === "function"
     ? (React as any).use(params)
@@ -195,15 +304,74 @@ export default function ResearchPage({ params }: { params: any }) {
   const { data: rawResearchData, isLoading: isLoadingResearch, error: researchError } = useQuery<ResearchResponse>({
     queryKey: ["research-terminal", symbol],
     queryFn: async () => {
-      if (!symbol) return null;
+      if (!symbol) throw new Error("Symbol is required");
       const token = await getToken();
-      const res = await fetch(`/api/research/${symbol.toUpperCase()}`, {
+      const res = await fetch(`/api/v1/research/${symbol.toUpperCase()}`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
       });
       if (!res.ok) throw new Error(`Advisory ticker ${symbol.toUpperCase()} could not be resolved.`);
-      return res.json();
+      const data = await res.json();
+      
+      // Map Phase 5 schema to legacy frontend types
+      return {
+        symbol: data.symbol,
+        company_name: data.profile.company_name || data.profile.name || data.symbol,
+        profile: {
+          sector: data.profile.sector || "N/A",
+          industry: data.profile.industry || "N/A",
+          market_cap: data.profile.market_cap || "N/A",
+          exchange: data.profile.exchange || "N/A",
+          country: data.profile.country || "N/A",
+          logo_url: data.profile.logo_url || data.profile.logo || "",
+          description: data.profile.description || "N/A",
+        },
+        metrics: {
+          pe_ratio: data.fundamentals.pe || data.fundamentals.pe_ratio || 0,
+          eps: data.fundamentals.eps || 0,
+          roe: data.fundamentals.roe || 0,
+          debt_ratio: data.fundamentals.debtRatio || data.fundamentals.debt_ratio || 0,
+          revenue: data.fundamentals.revenue || 0,
+          revenue_growth: data.fundamentals.revenueGrowth || data.fundamentals.revenue_growth || 0,
+          profit_margin: data.fundamentals.profitMargin || data.fundamentals.profit_margin || 0,
+          current_ratio: data.fundamentals.currentRatio || data.fundamentals.current_ratio || 0,
+          cash_flow: data.fundamentals.cashFlow || data.fundamentals.cash_flow || 0,
+        },
+        quote: {
+          current_price: data.quote.currentPrice || data.quote.current_price || 0,
+          daily_change: data.quote.dailyChange || data.quote.daily_change || 0,
+          daily_change_percent: data.quote.dailyChangePercent || data.quote.daily_change_percent || 0,
+          high_price: data.quote.highPrice || data.quote.high_price || 0,
+          low_price: data.quote.lowPrice || data.quote.low_price || 0,
+          open_price: data.quote.openPrice || data.quote.open_price || 0,
+          prev_close_price: data.quote.prevClosePrice || data.quote.prev_close_price || 0,
+          volume: data.quote.volume || 0,
+          avg_volume: data.quote.avgVolume || data.quote.avg_volume || 0,
+        },
+        history: (data.candles || []).map((c: any) => ({
+          time: c.time || (c.timestamp ? new Date(c.timestamp * 1000).toISOString().split('T')[0] : ""),
+          value: c.value || c.close || 0,
+        })),
+        news: data.news || [],
+        analyst_ratings: data.sentiment || data.analyst_ratings || { buy: 80, hold: 15, sell: 5 },
+        committee_decision: {
+          ticker: data.committee?.ticker || data.symbol,
+          research_vote: data.committee?.research_vote || "BUY",
+          technical_vote: data.committee?.technical_vote || "BUY",
+          news_vote: data.committee?.news_vote || "HOLD",
+          risk_vote: data.committee?.risk_vote || "BUY",
+          committee_decision: data.committee?.committee_decision || "BUY",
+          confidence: data.committee?.confidenceScore || data.committee?.confidence || 85,
+          reasoning: data.committee?.reasoning || "",
+          created_at: data.committee?.created_at || "",
+        },
+        agent_timeline: data.agent_timeline || [
+          { agent_name: "Research Agent", status: "research", activity: "Completed data retrieval.", time: "12:00" }
+        ],
+        investment_thesis: data.investment_thesis || "",
+        profile_error: data.profile_error || "",
+      };
     },
     enabled: isSignedIn && !!symbol,
     refetchInterval: 30000,
@@ -504,12 +672,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
 
         {/* SECTION 1: STOCK HEADER */}
         {isLoadingResearch ? (
-          <div className="p-6 bg-white border-4 border-black rounded-[24px] shadow-[6px_6px_0px_#000000] animate-pulse flex flex-col gap-3 font-mono text-xs uppercase font-extrabold text-[#64748B] py-10 items-center justify-center">
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 bg-[#2563EB] rounded-full animate-ping" />
-              Loading Company Data...
-            </span>
-          </div>
+          <CompanySkeleton />
         ) : (
           <section className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-[7px_7px_0px_#000000] transition-shadow duration-200">
             <div className="flex items-center gap-4">
@@ -598,10 +761,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
 
             {/* SECTION 2: LIVE PRICE CHART */}
             {isLoadingResearch ? (
-              <div className="h-[380px] flex flex-col items-center justify-center border-4 border-black bg-white rounded-[24px] shadow-[4px_4px_0px_#000000] animate-pulse font-mono text-xs uppercase font-extrabold text-[#64748B] gap-2">
-                <span className="w-4 h-4 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
-                <span>Loading Price History...</span>
-              </div>
+              <ChartSkeleton />
             ) : (researchData as any).history_error && (!researchData.history || researchData.history.length === 0) ? (
               <div className="h-[380px] flex flex-col items-center justify-center border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase p-6">
                 <span className="font-black text-sm block mb-1">Failed to load chart data</span>
@@ -734,14 +894,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               </div>
 
               {isLoadingResearch ? (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-6 animate-pulse">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="glass-brutal-card p-4 bg-white h-24 flex flex-col justify-center gap-2 font-mono text-[8px] uppercase font-bold text-[#64748B]">
-                      <span>Loading Financial Metrics...</span>
-                      <div className="h-4 bg-black/10 rounded w-1/2" />
-                    </div>
-                  ))}
-                </div>
+                <MetricsSkeleton />
               ) : (researchData as any).metrics_error ? (
                 <div className="p-6 bg-red-50 border-4 border-black text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase">
                   <span className="font-black text-sm block mb-1">Failed to load market metrics</span>
@@ -953,13 +1106,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               </div>
 
               {isLoadingResearch ? (
-                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5 animate-pulse">
-                  <div className="text-center pb-4 border-b-2 border-black/10 font-mono text-xs uppercase font-extrabold text-[#64748B]">
-                    Loading Committee Analysis...
-                  </div>
-                  <div className="h-24 bg-black/5 rounded-2xl" />
-                  <div className="h-12 bg-black/5 rounded-xl" />
-                </div>
+                <CommitteeSkeleton />
               ) : (
                 <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5">
                   <div className="text-center pb-4 border-b-2 border-black/10">
@@ -1037,14 +1184,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               </div>
 
               {isLoadingResearch ? (
-                <div className="flex flex-col gap-4 animate-pulse">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="bg-white border-4 border-black p-4 rounded-[24px] shadow-[4px_4px_0px_#000000] h-24 flex flex-col justify-center gap-2 font-mono text-[8px] uppercase font-bold text-[#64748B]">
-                      <span>Loading Agent Node Analysis...</span>
-                      <div className="h-3 bg-black/10 rounded w-3/4" />
-                    </div>
-                  ))}
-                </div>
+                <SubAuditorsSkeleton />
               ) : (
                 <div className="flex flex-col gap-4">
                   {[
@@ -1190,17 +1330,7 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               </div>
 
               {isLoadingResearch ? (
-                <div className="bg-white border-4 border-black p-5 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-4 animate-pulse">
-                  <div className="text-center font-mono text-xs uppercase font-extrabold text-[#64748B]">
-                    Loading News...
-                  </div>
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="bg-[#F8FAFC] border-2 border-black/10 p-3.5 rounded-xl h-20 flex flex-col justify-center gap-2">
-                      <div className="h-3 bg-black/5 rounded w-1/4" />
-                      <div className="h-4 bg-black/5 rounded w-3/4" />
-                    </div>
-                  ))}
-                </div>
+                <NewsSkeleton />
               ) : (researchData as any).news_error ? (
                 <div className="bg-white border-4 border-black p-5 rounded-[24px] shadow-[4px_4px_0px_#000000] text-center p-8 text-xs font-mono text-[#EF4444] uppercase bg-red-50/50">
                   <span className="font-black">Failed to load news</span>

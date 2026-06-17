@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -16,6 +17,8 @@ import (
 	marketDto "stockox-backend/pkg/market/dto"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
+	"stockox-backend/internal/marketdata"
+	"stockox-backend/internal/marketdata/providers"
 
 	"gorm.io/gorm"
 )
@@ -44,6 +47,8 @@ type DashboardService interface {
 	GetCryptoAssets() ([]dto.SearchAssetResponse, error)
 	GetIndicesAssets() ([]dto.SearchAssetResponse, error)
 	ResolveAsset(symbol string) (*marketDto.ResolvedAsset, error)
+	GetResearchTerminalV1(symbol string) (*marketdata.ResearchTerminalResponseV1, error)
+	SearchAssetsV1(query string) ([]marketdata.SearchAssetResponse, error)
 }
 
 type dashboardService struct {
@@ -56,6 +61,7 @@ type dashboardService struct {
 	cache         cache.Cache
 	ctx           context.Context
 	marketSrv     *marketService.MarketService
+	mdSrv         *marketdata.MarketDataService
 }
 
 func NewDashboardService(
@@ -68,6 +74,18 @@ func NewDashboardService(
 	cacheClient cache.Cache,
 	marketSrv *marketService.MarketService,
 ) DashboardService {
+	// Initialize Phase 4 Market Data Engine
+	finnhubAPIKey := os.Getenv("FINNHUB_API_KEY")
+	twelveDataAPIKey := os.Getenv("TWELVEDATA_API_KEY")
+
+	mdCache := marketdata.NewMarketDataCache(cacheClient)
+	finnhubWrapper := providers.NewFinnhubWrapper(finnhubAPIKey)
+	twelveDataProvider := providers.NewTwelveDataProvider(twelveDataAPIKey)
+	yahooProvider := providers.NewYahooProvider()
+
+	aggregator := marketdata.NewMarketDataAggregator(db, mdCache, finnhubWrapper, twelveDataProvider, yahooProvider)
+	mdSrv := marketdata.NewMarketDataService(db, aggregator)
+
 	return &dashboardService{
 		db:           db,
 		portRepo:     portRepo,
@@ -78,6 +96,7 @@ func NewDashboardService(
 		cache:        cacheClient,
 		ctx:          context.Background(),
 		marketSrv:    marketSrv,
+		mdSrv:        mdSrv,
 	}
 }
 
@@ -1114,5 +1133,13 @@ func convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAs
 
 func (s *dashboardService) ResolveAsset(symbol string) (*marketDto.ResolvedAsset, error) {
 	return marketProviders.ResolveAsset(s.db, symbol)
+}
+
+func (s *dashboardService) GetResearchTerminalV1(symbol string) (*marketdata.ResearchTerminalResponseV1, error) {
+	return s.mdSrv.GetResearchTerminalData(symbol)
+}
+
+func (s *dashboardService) SearchAssetsV1(query string) ([]marketdata.SearchAssetResponse, error) {
+	return s.mdSrv.SearchAssets(query)
 }
 

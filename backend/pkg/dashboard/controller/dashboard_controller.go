@@ -253,3 +253,27 @@ func (ctrl *DashboardController) GetIndicesAssets(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func (ctrl *DashboardController) GetResearchTerminalV1(c *gin.Context) {
+	symbol := strings.ToUpper(strings.TrimSpace(c.Param("symbol")))
+	if symbol == "" {
+		errors.BadRequestError(c, "Symbol parameter is required")
+		return
+	}
+	resp, err := ctrl.srv.GetResearchTerminalV1(symbol)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve research details: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (ctrl *DashboardController) SearchAssetsV1(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	resp, err := ctrl.srv.SearchAssetsV1(q)
+	if err != nil {
+		errors.InternalServerError(c, "Search query failed: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}

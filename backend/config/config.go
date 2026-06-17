@@ -47,6 +47,7 @@ type Config struct {
 		FinnhubAPIKey      string
 		AlphaVantageAPIKey string
 		PolygonAPIKey      string
+		TwelveDataAPIKey   string
 	}
 	Clerk struct {
 		SecretKey      string
@@ -104,6 +105,7 @@ func LoadConfig() *Config {
 	cfg.Market.FinnhubAPIKey = getEnv("FINNHUB_API_KEY", "")
 	cfg.Market.AlphaVantageAPIKey = getEnv("ALPHA_VANTAGE_API_KEY", "")
 	cfg.Market.PolygonAPIKey = getEnv("POLYGON_API_KEY", "")
+	cfg.Market.TwelveDataAPIKey = getEnv("TWELVEDATA_API_KEY", "")
 
 	// Clerk
 	cfg.Clerk.SecretKey = getEnv("CLERK_SECRET_KEY", "")
@@ -127,8 +129,8 @@ func LoadConfig() *Config {
 	log.Printf("[CONFIG] JWT Expiration: %s\n", cfg.JWT.Expiration)
 	log.Printf("[CONFIG] Band BaseURL: %s | APIKey: %s\n", cfg.Band.BaseURL, getSecretStatus(cfg.Band.APIKey))
 	log.Printf("[CONFIG] AI AIMLAPIKey: %s | FeatherlessAPIKey: %s\n", getSecretStatus(cfg.AI.AIMLAPIKey), getSecretStatus(cfg.AI.FeatherlessAPIKey))
-	log.Printf("[CONFIG] Market FinnhubAPIKey: %s | AlphaVantageAPIKey: %s | PolygonAPIKey: %s\n",
-		getSecretStatus(cfg.Market.FinnhubAPIKey), getSecretStatus(cfg.Market.AlphaVantageAPIKey), getSecretStatus(cfg.Market.PolygonAPIKey))
+	log.Printf("[CONFIG] Market FinnhubAPIKey: %s | AlphaVantageAPIKey: %s | PolygonAPIKey: %s | TwelveDataAPIKey: %s\n",
+		getSecretStatus(cfg.Market.FinnhubAPIKey), getSecretStatus(cfg.Market.AlphaVantageAPIKey), getSecretStatus(cfg.Market.PolygonAPIKey), getSecretStatus(cfg.Market.TwelveDataAPIKey))
 	log.Printf("[CONFIG] Clerk PublishableKey: %s | SecretKey: %s | WebhookSecret: %s\n",
 		cfg.Clerk.PublishableKey, getSecretStatus(cfg.Clerk.SecretKey), getSecretStatus(cfg.Clerk.WebhookSecret))
 	log.Printf("[CONFIG] Frontend URL: %s\n", cfg.FrontendURL)

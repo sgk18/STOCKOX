@@ -114,6 +114,8 @@ func SetupRoutes(
 		{
 			v1.POST("/auth/sync-user", syncCtrl.SyncUserV1)
 			v1.GET("/debug/current-user", syncCtrl.DebugCurrentUser)
+			v1.GET("/research/:symbol", dbCtrl.GetResearchTerminalV1)
+			v1.GET("/search", dbCtrl.SearchAssetsV1)
 
 			v1.GET("/stocks/search", marketCtrl.SearchStocks)
 			v1.GET("/stocks/:ticker", marketCtrl.GetStockDetails)
