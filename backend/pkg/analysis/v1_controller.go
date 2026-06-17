@@ -9,6 +9,7 @@ import (
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/agents"
 	"stockox-backend/pkg/errors"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -357,6 +358,10 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyAnalysis(ticker))
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
+
 	// 2. Start simulation goroutine through AgentManager orchestrator
 	// This background execution is critical for preventing HTTP timeout. The AgentManager will
 	// spin up parallel goroutines representing individual AI committee members (e.g., Value, Growth,
@@ -484,6 +489,10 @@ func (ctrl *V1Controller) AddWatchlist(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyWatchlist(userID))
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
+
 	c.JSON(http.StatusCreated, item)
 }
 
@@ -500,6 +509,10 @@ func (ctrl *V1Controller) RemoveWatchlist(c *gin.Context) {
 		errors.InternalServerError(c, "Failed to remove ticker from watchlist: "+err.Error())
 		return
 	}
+
+	// Invalidate cache
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyWatchlist(userID))
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

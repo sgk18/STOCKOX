@@ -7,7 +7,9 @@ import (
 
 	"stockox-backend/config"
 	"stockox-backend/database"
+	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
@@ -17,7 +19,6 @@ import (
 	"stockox-backend/pkg/eventbus"
 	"stockox-backend/pkg/websocket"
 	"stockox-backend/pkg/workers"
-	marketCache "stockox-backend/pkg/market/cache"
 	marketController "stockox-backend/pkg/market/controller"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
@@ -38,8 +39,11 @@ func main() {
 		log.Fatalf("[DB-ERR] Database connection/migration failed: %v", err)
 	}
 
-	// 3. Initialize Redis Cache Layer with Safe Fallback
+	// 3. Initialize Redis/Valkey Cache Layer with Safe Fallback
 	var rdb *redis.Client
+	var cacheClient cache.Cache
+	cacheClient = cache.NewNoopCache()
+
 	if cfg.Redis.Host != "" && cfg.Redis.Port != "" {
 		redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
 		rdb = redis.NewClient(&redis.Options{
@@ -57,6 +61,23 @@ func main() {
 			rdb = nil
 		} else {
 			log.Printf("[REDIS-INFO] Redis cache connection established at %s", redisAddr)
+			cacheClient = cache.NewValkeyCacheWithClient(rdb)
+		}
+	}
+
+	cache.Shared = cacheClient
+
+	// Preload search index into Valkey cache
+	if rdb != nil {
+		var list []models.StockMetadata
+		if err := db.Find(&list).Error; err == nil {
+			if errIndex := cacheClient.SetJSON(context.Background(), "search_index", list, 0); errIndex == nil {
+				log.Printf("[VALKEY-INFO] Loaded %d stock metadata entries into Valkey search_index", len(list))
+			} else {
+				log.Printf("[VALKEY-WARN] Failed to write search_index into Valkey: %v", errIndex)
+			}
+		} else {
+			log.Printf("[VALKEY-WARN] Failed to load stock_metadata from DB for search_index: %v", err)
 		}
 	}
 
@@ -77,8 +98,7 @@ func main() {
 
 	// 5. Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
-	marketRedisCache := marketCache.NewMarketCache(rdb)
-	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+	marketSrv := marketService.NewMarketService(providerFactory, cacheClient)
 
 	dashboardSrv := service.NewDashboardService(
 		db,
@@ -87,7 +107,7 @@ func main() {
 		marketRepo,
 		agentRepo,
 		analysisRepo,
-		rdb,
+		cacheClient,
 		marketSrv,
 	)
 

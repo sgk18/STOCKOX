@@ -10,9 +10,9 @@ import (
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/health"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/websocket"
-	marketCache "stockox-backend/pkg/market/cache"
 	marketController "stockox-backend/pkg/market/controller"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
@@ -50,8 +50,8 @@ func init() {
 
 	// 4. Init Services (MarketService first to allow injection into DashboardService)
 	providerFactory := marketProviders.NewProviderFactory(cfg)
-	marketRedisCache := marketCache.NewMarketCache(nil) // redis disabled in serverless
-	marketSrv := marketService.NewMarketService(providerFactory, marketRedisCache)
+	noopCache := cache.NewNoopCache()
+	marketSrv := marketService.NewMarketService(providerFactory, noopCache)
 
 	dashboardSrv := service.NewDashboardService(
 		db,
@@ -60,7 +60,7 @@ func init() {
 		marketRepo,
 		agentRepo,
 		analysisRepo,
-		nil, // Redis cache is disabled for serverless execution simplicity
+		noopCache, // Redis cache is disabled for serverless execution simplicity
 		marketSrv,
 	)
 

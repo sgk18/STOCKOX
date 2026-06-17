@@ -8,6 +8,7 @@ import (
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/errors"
+	"stockox-backend/internal/cache"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -213,6 +214,10 @@ func (ctrl *ProfileController) CompleteOnboarding(c *gin.Context) {
 		log.Printf("[ONBOARDING-WARN] Failed to initialize portfolio for user %s: %v", userID, err)
 	}
 
+	// Invalidate cache
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyPortfolio(userID))
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Onboarding completed successfully",
@@ -257,6 +262,10 @@ func (ctrl *ProfileController) SwitchMode(c *gin.Context) {
 	if err := ctrl.initializePortfolioForMode(userID, req.Mode); err != nil {
 		log.Printf("[MODE-SWITCH-WARN] Failed to initialize portfolio during switch for user %s: %v", userID, err)
 	}
+
+	// Invalidate cache
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyPortfolio(userID))
+	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -9,6 +9,7 @@ import (
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
+	"stockox-backend/internal/cache"
 
 	"github.com/gin-gonic/gin"
 )
@@ -95,6 +96,9 @@ func SetupRoutes(
 		api.GET("/dashboard/recommendations", dbCtrl.GetRecommendations)
 		api.GET("/dashboard/risk", dbCtrl.GetRiskMetrics)
 		api.GET("/research/:ticker", dbCtrl.GetResearchTerminal)
+		api.GET("/admin/cache/stats", func(c *gin.Context) {
+			c.JSON(200, cache.Shared.GetStats(c.Request.Context()))
+		})
 
 		// Search and Curated Asset Universe endpoints (Module 3.8)
 		api.GET("/search", dbCtrl.SearchAssets)

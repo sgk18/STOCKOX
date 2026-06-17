@@ -7,6 +7,7 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/cache"
 
 	"github.com/google/uuid"
 )
@@ -167,7 +168,7 @@ func TestGetDashboard_Success(t *testing.T) {
 	}
 
 	// 3. Instantiate Service
-	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
+	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, cache.NewNoopCache(), nil)
 
 	// 4. Execute Service Call
 	resp, err := srv.GetDashboard(defaultUserID)
@@ -247,7 +248,7 @@ func TestGetDashboard_RepoError(t *testing.T) {
 		},
 	}
 
-	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, nil, nil)
+	srv := NewDashboardService(nil, portRepo, watchRepo, marketRepo, agentRepo, analysisRepo, cache.NewNoopCache(), nil)
 
 	// 2. Execute and expect failure
 	_, err := srv.GetDashboard(defaultUserID)

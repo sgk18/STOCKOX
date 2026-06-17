@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
@@ -11,10 +10,10 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/dashboard/dto"
 	marketService "stockox-backend/pkg/market/service"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -50,7 +49,7 @@ type dashboardService struct {
 	marketRepo    repositories.MarketRepository
 	agentRepo     repositories.AgentRepository
 	analysisRepo  repositories.AnalysisRepository
-	rdb           *redis.Client
+	cache         cache.Cache
 	ctx           context.Context
 	marketSrv     *marketService.MarketService
 }
@@ -62,7 +61,7 @@ func NewDashboardService(
 	marketRepo repositories.MarketRepository,
 	agentRepo repositories.AgentRepository,
 	analysisRepo repositories.AnalysisRepository,
-	rdb *redis.Client,
+	cacheClient cache.Cache,
 	marketSrv *marketService.MarketService,
 ) DashboardService {
 	return &dashboardService{
@@ -72,255 +71,253 @@ func NewDashboardService(
 		marketRepo:   marketRepo,
 		agentRepo:    agentRepo,
 		analysisRepo: analysisRepo,
-		rdb:          rdb,
+		cache:        cacheClient,
 		ctx:          context.Background(),
 		marketSrv:    marketSrv,
 	}
 }
 
 func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, error) {
-	// 1. Try to read from Redis cache
-	cacheKey := fmt.Sprintf("dashboard:%s", userID)
-	if s.rdb != nil {
-		if cachedVal, err := s.rdb.Get(s.ctx, cacheKey).Result(); err == nil {
-			var resp dto.DashboardResponse
-			if err := json.Unmarshal([]byte(cachedVal), &resp); err == nil {
-				log.Printf("[CACHE-HIT] Loaded dashboard for user %s from Redis", userID)
-				return &resp, nil
-			}
+	cacheKey := cache.KeyDashboard(userID)
+	var resp dto.DashboardResponse
+
+	err := s.cache.GetStaleOrFetch(s.ctx, cacheKey, &resp, cache.TTLDashboard, 10*time.Minute, func() (interface{}, error) {
+		log.Printf("[CACHE-MISS] Querying database to build dashboard for user %s", userID)
+
+		portSummary, err := s.GetPortfolioSummary(userID)
+		if err != nil {
+			return nil, fmt.Errorf("portfolio query failed: %w", err)
 		}
-	}
 
-	log.Printf("[CACHE-MISS] Querying database to build dashboard for user %s", userID)
-
-	// 2. Fetch all parameters in parallel or sequentially (sequential for clarity and safety in standard Go GORM)
-	portSummary, err := s.GetPortfolioSummary(userID)
-	if err != nil {
-		return nil, fmt.Errorf("portfolio query failed: %w", err)
-	}
-
-	watchItems, err := s.GetWatchlist(userID)
-	if err != nil {
-		return nil, fmt.Errorf("watchlist query failed: %w", err)
-	}
-
-	marketSnapshot, err := s.GetMarketOverview()
-	if err != nil {
-		return nil, fmt.Errorf("market overview query failed: %w", err)
-	}
-
-	activities, err := s.GetAgentActivity()
-	if err != nil {
-		return nil, fmt.Errorf("agent activity query failed: %w", err)
-	}
-
-	statuses, err := s.GetAgentStatuses()
-	if err != nil {
-		return nil, fmt.Errorf("agent status query failed: %w", err)
-	}
-
-	analyses, err := s.GetRecentAnalyses()
-	if err != nil {
-		return nil, fmt.Errorf("analyses query failed: %w", err)
-	}
-
-	opps, err := s.GetOpportunities()
-	if err != nil {
-		return nil, fmt.Errorf("opportunities query failed: %w", err)
-	}
-
-	decisions, err := s.GetCommitteeDecisions("")
-	if err != nil {
-		decisions = []dto.CommitteeDecisionResponse{}
-	}
-
-	resp := &dto.DashboardResponse{
-		Portfolio:      *portSummary,
-		Watchlist:      watchItems,
-		MarketOverview: marketSnapshot,
-		AgentActivity:  activities,
-		AgentStatuses:  statuses,
-		RecentAnalyses: analyses,
-		Opportunities:  opps,
-		Decisions:      decisions,
-	}
-
-	// 3. Write back to Redis cache (TTL: 60s)
-	if s.rdb != nil {
-		if serialized, err := json.Marshal(resp); err == nil {
-			s.rdb.Set(s.ctx, cacheKey, serialized, 60*time.Second)
+		watchItems, err := s.GetWatchlist(userID)
+		if err != nil {
+			return nil, fmt.Errorf("watchlist query failed: %w", err)
 		}
+
+		marketSnapshot, err := s.GetMarketOverview()
+		if err != nil {
+			return nil, fmt.Errorf("market overview query failed: %w", err)
+		}
+
+		activities, err := s.GetAgentActivity()
+		if err != nil {
+			return nil, fmt.Errorf("agent activity query failed: %w", err)
+		}
+
+		statuses, err := s.GetAgentStatuses()
+		if err != nil {
+			return nil, fmt.Errorf("agent status query failed: %w", err)
+		}
+
+		analyses, err := s.GetRecentAnalyses()
+		if err != nil {
+			return nil, fmt.Errorf("analyses query failed: %w", err)
+		}
+
+		opps, err := s.GetOpportunities()
+		if err != nil {
+			return nil, fmt.Errorf("opportunities query failed: %w", err)
+		}
+
+		decisions, err := s.GetCommitteeDecisions("")
+		if err != nil {
+			decisions = []dto.CommitteeDecisionResponse{}
+		}
+
+		return &dto.DashboardResponse{
+			Portfolio:      *portSummary,
+			Watchlist:      watchItems,
+			MarketOverview: marketSnapshot,
+			AgentActivity:  activities,
+			AgentStatuses:  statuses,
+			RecentAnalyses: analyses,
+			Opportunities:  opps,
+			Decisions:      decisions,
+		}, nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	return resp, nil
+	return &resp, nil
 }
 
 func (s *dashboardService) GetPortfolioSummary(userID string) (*dto.PortfolioResponse, error) {
-	port, err := s.portRepo.GetByUserID(userID)
-	if err != nil {
-		return nil, err
-	}
+	cacheKey := cache.KeyPortfolio(userID)
+	var resp dto.PortfolioResponse
 
-	// Fetch holdings
-	holdings, err := s.portRepo.GetHoldings(port.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	holdingResponses := make([]dto.PortfolioHoldingResponse, 0, len(holdings))
-	totalHoldingsValue := 0.0
-	totalDailyChangeAmount := 0.0
-
-	for _, h := range holdings {
-		// Fetch price snapshot
-		var snap models.MarketSnapshot
-		price := h.AveragePrice
-		changePercent := 0.0
-		dailyChange := 0.0
-
-		var errSnap error
-		if s.db != nil {
-			errSnap = s.db.First(&snap, "symbol = ?", h.Ticker).Error
-		} else {
-			errSnap = fmt.Errorf("db is nil")
-		}
-		if errSnap == nil {
-			price = snap.Price
-			changePercent = snap.ChangePercent
-			dailyChange = snap.Change
-		} else if s.marketSrv != nil {
-			quote, errQuote := s.marketSrv.GetQuote(h.Ticker)
-			if errQuote == nil && quote != nil {
-				price = quote.CurrentPrice
-				changePercent = quote.DailyChangePercent
-				dailyChange = quote.DailyChange
-			}
+	err := s.cache.GetStaleOrFetch(s.ctx, cacheKey, &resp, cache.TTLPortfolio, 10*time.Minute, func() (interface{}, error) {
+		port, err := s.portRepo.GetByUserID(userID)
+		if err != nil {
+			return nil, err
 		}
 
-		// Get latest AI recommendation
-		rec := "HOLD"
-		if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(h.Ticker); errSession == nil && latestSession != nil {
-			rec = latestSession.Recommendation
-		} else {
-			// Try committee decisions table
-			var dec models.CommitteeDecision
-			var errDec error
+		holdings, err := s.portRepo.GetHoldings(port.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		holdingResponses := make([]dto.PortfolioHoldingResponse, 0, len(holdings))
+		totalHoldingsValue := 0.0
+		totalDailyChangeAmount := 0.0
+
+		for _, h := range holdings {
+			var snap models.MarketSnapshot
+			price := h.AveragePrice
+			changePercent := 0.0
+			dailyChange := 0.0
+
+			var errSnap error
 			if s.db != nil {
-				errDec = s.db.First(&dec, "ticker = ?", h.Ticker).Error
+				errSnap = s.db.First(&snap, "symbol = ?", h.Ticker).Error
 			} else {
-				errDec = fmt.Errorf("db is nil")
+				errSnap = fmt.Errorf("db is nil")
 			}
-			if errDec == nil {
-				rec = dec.CommitteeDecision
+			if errSnap == nil {
+				price = snap.Price
+				changePercent = snap.ChangePercent
+				dailyChange = snap.Change
+			} else if s.marketSrv != nil {
+				quote, errQuote := s.marketSrv.GetQuote(h.Ticker)
+				if errQuote == nil && quote != nil {
+					price = quote.CurrentPrice
+					changePercent = quote.DailyChangePercent
+					dailyChange = quote.DailyChange
+				}
+			}
+
+			rec := "HOLD"
+			if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(h.Ticker); errSession == nil && latestSession != nil {
+				rec = latestSession.Recommendation
+			} else {
+				var dec models.CommitteeDecision
+				var errDec error
+				if s.db != nil {
+					errDec = s.db.First(&dec, "ticker = ?", h.Ticker).Error
+				} else {
+					errDec = fmt.Errorf("db is nil")
+				}
+				if errDec == nil {
+					rec = dec.CommitteeDecision
+				}
+			}
+
+			val := h.Quantity * price
+			totalHoldingsValue += val
+			totalDailyChangeAmount += h.Quantity * dailyChange
+
+			holdingResponses = append(holdingResponses, dto.PortfolioHoldingResponse{
+				Ticker:         h.Ticker,
+				CompanyName:    h.CompanyName,
+				Quantity:       h.Quantity,
+				AveragePrice:   h.AveragePrice,
+				CurrentPrice:   price,
+				Value:          val,
+				ChangePercent:  changePercent,
+				Recommendation: rec,
+			})
+		}
+
+		totalValue := totalHoldingsValue + port.CashBalance
+		dailyChangePercent := 0.0
+		if totalValue > 0 {
+			dailyChangePercent = (totalDailyChangeAmount / totalValue) * 100
+		}
+
+		var snapshots []models.PortfolioSnapshot
+		if s.db != nil {
+			s.db.Where("portfolio_id = ?", port.ID).Order("recorded_at asc").Find(&snapshots)
+		}
+
+		historyPoints := make([]dto.PortfolioHistoryPoint, 0, len(snapshots))
+		for _, snap := range snapshots {
+			historyPoints = append(historyPoints, dto.PortfolioHistoryPoint{
+				Date:  snap.RecordedAt.Format("Mon"),
+				Value: snap.TotalValue,
+			})
+		}
+
+		if len(historyPoints) == 0 {
+			historyPoints = []dto.PortfolioHistoryPoint{
+				{Date: "Mon", Value: totalValue},
 			}
 		}
 
-		val := h.Quantity * price
-		totalHoldingsValue += val
-		totalDailyChangeAmount += h.Quantity * dailyChange
+		return &dto.PortfolioResponse{
+			Value:         totalValue,
+			ChangePercent: dailyChangePercent,
+			ChangeAmount:  totalDailyChangeAmount,
+			CashBalance:   port.CashBalance,
+			Holdings:      holdingResponses,
+			History:       historyPoints,
+		}, nil
+	})
 
-		holdingResponses = append(holdingResponses, dto.PortfolioHoldingResponse{
-			Ticker:         h.Ticker,
-			CompanyName:    h.CompanyName,
-			Quantity:       h.Quantity,
-			AveragePrice:   h.AveragePrice,
-			CurrentPrice:   price,
-			Value:          val,
-			ChangePercent:  changePercent,
-			Recommendation: rec,
-		})
+	if err != nil {
+		return nil, err
 	}
-
-	// Recalculate portfolio parameters dynamically
-	totalValue := totalHoldingsValue + port.CashBalance
-	dailyChangePercent := 0.0
-	if totalValue > 0 {
-		dailyChangePercent = (totalDailyChangeAmount / totalValue) * 100
-	}
-
-	// Fetch history snapshots
-	var snapshots []models.PortfolioSnapshot
-	if s.db != nil {
-		s.db.Where("portfolio_id = ?", port.ID).Order("recorded_at asc").Find(&snapshots)
-	}
-
-	historyPoints := make([]dto.PortfolioHistoryPoint, 0, len(snapshots))
-	for _, snap := range snapshots {
-		historyPoints = append(historyPoints, dto.PortfolioHistoryPoint{
-			Date:  snap.RecordedAt.Format("Mon"),
-			Value: snap.TotalValue,
-		})
-	}
-
-	// Fallback to initial point if empty
-	if len(historyPoints) == 0 {
-		historyPoints = []dto.PortfolioHistoryPoint{
-			{Date: "Mon", Value: totalValue},
-		}
-	}
-
-	return &dto.PortfolioResponse{
-		Value:              totalValue,
-		ChangePercent:      dailyChangePercent,
-		ChangeAmount:       totalDailyChangeAmount,
-		CashBalance:        port.CashBalance,
-		Holdings:           holdingResponses,
-		History:            historyPoints,
-	}, nil
+	return &resp, nil
 }
 
 func (s *dashboardService) GetWatchlist(userID string) ([]dto.WatchlistResponse, error) {
-	items, err := s.watchRepo.GetByUserID(userID)
+	cacheKey := cache.KeyWatchlist(userID)
+	var resp []dto.WatchlistResponse
+
+	err := s.cache.GetStaleOrFetch(s.ctx, cacheKey, &resp, cache.TTLWatchlist, 30*time.Minute, func() (interface{}, error) {
+		items, err := s.watchRepo.GetByUserID(userID)
+		if err != nil {
+			return nil, err
+		}
+		res := make([]dto.WatchlistResponse, len(items))
+		for i, item := range items {
+			var price float64 = 150.00
+			var changePercent float64 = 0.0
+			if s.marketSrv != nil {
+				if quote, errQuote := s.marketSrv.GetQuote(item.Ticker); errQuote == nil && quote != nil {
+					price = quote.CurrentPrice
+					changePercent = quote.DailyChangePercent
+				}
+			}
+
+			var aiScore int = 75
+			var risk string = "Medium"
+			var rec string = "HOLD"
+			if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(item.Ticker); errSession == nil && latestSession != nil {
+				aiScore = latestSession.ConfidenceScore
+				risk = latestSession.RiskLevel
+				rec = latestSession.Recommendation
+			}
+
+			res[i] = dto.WatchlistResponse{
+				Ticker:         item.Ticker,
+				CompanyName:    item.CompanyName,
+				AddedAt:        item.CreatedAt,
+				Price:          price,
+				ChangePercent:  changePercent,
+				AIScore:        aiScore,
+				Risk:           risk,
+				Recommendation: rec,
+			}
+		}
+		return res, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	res := make([]dto.WatchlistResponse, len(items))
-	for i, item := range items {
-		var price float64 = 150.00
-		var changePercent float64 = 0.0
-		if s.marketSrv != nil {
-			if quote, errQuote := s.marketSrv.GetQuote(item.Ticker); errQuote == nil && quote != nil {
-				price = quote.CurrentPrice
-				changePercent = quote.DailyChangePercent
-			}
-		}
-
-		var aiScore int = 75
-		var risk string = "Medium"
-		var rec string = "HOLD"
-		if latestSession, errSession := s.analysisRepo.GetLatestSessionForTicker(item.Ticker); errSession == nil && latestSession != nil {
-			aiScore = latestSession.ConfidenceScore
-			risk = latestSession.RiskLevel
-			rec = latestSession.Recommendation
-		}
-
-		res[i] = dto.WatchlistResponse{
-			Ticker:         item.Ticker,
-			CompanyName:    item.CompanyName,
-			AddedAt:        item.CreatedAt,
-			Price:          price,
-			ChangePercent:  changePercent,
-			AIScore:        aiScore,
-			Risk:           risk,
-			Recommendation: rec,
-		}
-	}
-	return res, nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, error) {
-	// 1. Try Redis cache
 	cacheKey := "market_overview"
-	if s.rdb != nil {
-		if cachedVal, err := s.rdb.Get(s.ctx, cacheKey).Result(); err == nil {
-			var resp []dto.MarketOverviewResponse
-			if err := json.Unmarshal([]byte(cachedVal), &resp); err == nil {
-				return resp, nil
-			}
-		}
+	var resp []dto.MarketOverviewResponse
+
+	err := s.cache.GetJSON(s.ctx, cacheKey, &resp)
+	if err == nil {
+		return resp, nil
 	}
 
-	// 2. Database query
 	snapshots, err := s.marketRepo.GetSnapshots()
 	if err != nil {
 		return nil, err
@@ -350,7 +347,6 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 					change = quote.DailyChange
 					changePercent = quote.DailyChangePercent
 
-					// Update the DB snapshot cache
 					snap.Price = price
 					snap.Change = change
 					snap.ChangePercent = changePercent
@@ -369,13 +365,7 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 		}
 	}
 
-	// 3. Write cache (TTL: 5 mins)
-	if s.rdb != nil {
-		if serialized, err := json.Marshal(res); err == nil {
-			s.rdb.Set(s.ctx, cacheKey, serialized, 5*time.Minute)
-		}
-	}
-
+	_ = s.cache.SetJSON(s.ctx, cacheKey, res, 5*time.Minute)
 	return res, nil
 }
 
@@ -765,7 +755,14 @@ func (s *dashboardService) GetResearchTerminal(ticker string) (*dto.ResearchTerm
 	ratings := dto.AnalystRatingsResponse{Buy: 78, Hold: 18, Sell: 4}
 
 	var dec models.CommitteeDecision
-	errDec := s.db.First(&dec, "ticker = ?", ticker).Error
+	cacheKey := cache.KeyAnalysis(ticker)
+	errDec := s.cache.GetJSON(s.ctx, cacheKey, &dec)
+	if errDec != nil {
+		errDec = s.db.First(&dec, "ticker = ?", ticker).Error
+		if errDec == nil {
+			_ = s.cache.SetJSON(s.ctx, cacheKey, &dec, cache.TTLCommitteeAnalysis)
+		}
+	}
 	decResp := dto.CommitteeDecisionResponse{
 		Ticker:            ticker,
 		ResearchVote:      "BUY",
@@ -942,6 +939,40 @@ func (s *dashboardService) GetDebugDashboard() (map[string]any, error) {
 
 func (s *dashboardService) SearchAssets(query string) ([]dto.SearchAssetResponse, error) {
 	var results []models.StockMetadata
+
+	// 1. Try to read from Valkey search_index
+	var allMetadata []models.StockMetadata
+	errCache := s.cache.GetJSON(s.ctx, "search_index", &allMetadata)
+	if errCache == nil && len(allMetadata) > 0 {
+		qLower := strings.ToLower(query)
+		count := 0
+		for _, meta := range allMetadata {
+			if !meta.IsActive {
+				continue
+			}
+			match := strings.Contains(strings.ToLower(meta.Symbol), qLower) ||
+				strings.Contains(strings.ToLower(meta.CompanyName), qLower) ||
+				strings.Contains(strings.ToLower(meta.Exchange), qLower) ||
+				strings.Contains(strings.ToLower(meta.Country), qLower)
+
+			if match {
+				results = append(results, meta)
+				count++
+				if count >= 30 {
+					break
+				}
+			}
+		}
+		// Sort by symbol ASC
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Symbol < results[j].Symbol
+		})
+		log.Printf("[VALKEY-INFO] SearchAssets query '%s' resolved from search_index cache with %d matches", query, len(results))
+		return convertToSearchAssetResponse(results), nil
+	}
+
+	// 2. Database Fallback (Cache Miss)
+	log.Printf("[VALKEY-WARN] Search index cache miss or down. Querying SQL database for search query: %s", query)
 	q := "%" + strings.ToLower(query) + "%"
 	err := s.db.Where("is_active = ? AND (LOWER(symbol) LIKE ? OR LOWER(company_name) LIKE ?)", true, q, q).
 		Order("symbol ASC").

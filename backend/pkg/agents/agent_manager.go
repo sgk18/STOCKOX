@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"stockox-backend/database/models"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/eventbus"
 
 	"github.com/google/uuid"
@@ -364,6 +366,13 @@ func (am *AgentManager) RunSimulatedCommittee(sessionID uuid.UUID, ticker string
 
 	// Also update agent statuses back to idle
 	_ = am.db.Model(&models.Agent{}).Where("status != ?", "idle").Update("status", "idle").Error
+
+	// Invalidate cache since analysis session is finished and DB is updated
+	var userID string
+	if err := am.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Pluck("user_id", &userID).Error; err == nil && userID != "" {
+		_ = cache.Shared.Delete(context.Background(), cache.KeyDashboard(userID))
+	}
+	_ = cache.Shared.Delete(context.Background(), cache.KeyAnalysis(ticker))
 
 	log.Printf("[AgentManager] Successfully completed simulation for session %s", sessionID)
 }

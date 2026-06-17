@@ -3,16 +3,16 @@ package service
 import (
 	"testing"
 	"stockox-backend/config"
-	"stockox-backend/pkg/market/cache"
+	"stockox-backend/internal/cache"
 	"stockox-backend/pkg/market/providers"
 )
 
 func TestMarketServiceCreation(t *testing.T) {
 	cfg := &config.Config{}
 	factory := providers.NewProviderFactory(cfg)
-	cacheWrapper := cache.NewMarketCache(nil)
+	noopCache := cache.NewNoopCache()
 
-	srv := NewMarketService(factory, cacheWrapper)
+	srv := NewMarketService(factory, noopCache)
 	if srv == nil {
 		t.Fatal("Expected non-nil service instance")
 	}
