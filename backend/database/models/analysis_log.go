@@ -15,6 +15,10 @@ type AnalysisLog struct {
 	Message         string     `gorm:"type:text;not null" json:"message"`
 	MessageType     string     `gorm:"type:varchar(50);not null;default:'analysis'" json:"message_type"`
 	ConfidenceScore int        `gorm:"type:integer;default:0" json:"confidence_score"`
+	Round           int        `gorm:"type:integer;not null;default:1" json:"round"`
+	Signal          string     `gorm:"type:varchar(10)" json:"signal"`
+	Evidence        string     `gorm:"type:text" json:"evidence"`
+	WeightedScore   float64    `gorm:"type:decimal(18,4);not null;default:0" json:"weighted_score"`
 	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 }
 

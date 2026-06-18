@@ -17,12 +17,18 @@ type AnalysisSession struct {
 	RiskLevel       string         `gorm:"type:varchar(20);not null;default:'MEDIUM'" json:"risk_level"`
 	Status          string         `gorm:"type:varchar(50);not null;default:'pending'" json:"status"` // pending, running, completed, failed
 	ProgressPercent int            `gorm:"type:integer;not null;default:0" json:"progress_percent"`
-	CurrentAgent    string         `gorm:"type:varchar(100);not null;default:'Research Agent'" json:"current_agent"`
-	AgentStatus     string         `gorm:"type:varchar(50);not null;default:'waiting'" json:"agent_status"`
-	Summary         string         `gorm:"type:text" json:"summary"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
+	CurrentAgent     string         `gorm:"type:varchar(100);not null;default:'Research Agent'" json:"current_agent"`
+	AgentStatus      string         `gorm:"type:varchar(50);not null;default:'waiting'" json:"agent_status"`
+	Summary          string         `gorm:"type:text" json:"summary"`
+	RoomID           string         `gorm:"type:varchar(255)" json:"room_id"`
+	DebateRound      int            `gorm:"type:integer;not null;default:0" json:"debate_round"`
+	TargetPrice      float64        `gorm:"type:decimal(18,4);not null;default:0" json:"target_price"`
+	BullCase         string         `gorm:"type:text" json:"bull_case"`
+	BearCase         string         `gorm:"type:text" json:"bear_case"`
+	ExecutiveSummary string         `gorm:"type:text" json:"executive_summary"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (as *AnalysisSession) BeforeCreate(tx *gorm.DB) (err error) {

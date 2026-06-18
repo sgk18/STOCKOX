@@ -9,4 +9,7 @@ type BandMessage struct {
 	Recommendation string    `json:"recommendation"`
 	Confidence     int       `json:"confidence"`
 	Timestamp      time.Time `json:"timestamp"`
+	Round          int       `json:"round"`
+	Signal         string    `json:"signal"`
+	Evidence       []string  `json:"evidence"`
 }
