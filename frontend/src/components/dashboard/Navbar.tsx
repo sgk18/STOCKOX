@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Bell, Bot, Sparkles, LogOut } from "lucide-react";
+import { Search, Bell, Bot, Sparkles, LogOut, Activity, Bug } from "lucide-react";
 import { useUser, useClerk, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +15,8 @@ export default function Navbar() {
   const [isFocused, setIsFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  const isDev = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -138,6 +140,19 @@ export default function Navbar() {
 
       {/* Right - Profile & Alerts */}
       <div className="flex items-center gap-4">
+        {/* Developer Mode Section */}
+        {isDev && (
+          <button
+            onClick={() => router.push("/dev/diagnostics")}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EF4444]/10 hover:bg-[#EF4444]/20 border-2 border-black rounded-lg text-xs font-black text-[#EF4444] shadow-[2px_2px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer shrink-0"
+            title="System Diagnostics"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <Bug className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline uppercase text-[9px] tracking-wider">Diagnostics</span>
+          </button>
+        )}
+
         {/* Agent Activity Indicator */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#2563EB]/10 border-2 border-black rounded-lg text-sm font-black text-[#2563EB] shadow-[2px_2px_0px_#000000]">
           <Sparkles className="w-4 h-4 text-[#2563EB] animate-spin" style={{ animationDuration: "8s" }} />

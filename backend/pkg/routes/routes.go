@@ -64,6 +64,8 @@ func SetupRoutes(
 	r.GET("/health/database", healthCtrl.HealthDB)
 	r.GET("/health/redis", healthCtrl.HealthRedis)
 	r.GET("/api/debug/dashboard", dbCtrl.GetDebugDashboard)
+	r.GET("/api/dev/diagnostics", healthCtrl.Diagnostics)
+	r.POST("/api/dev/diagnostics/clear-cache", healthCtrl.ClearCache)
 
 	// WebSocket Endpoints
 	r.GET("/api/dashboard/ws", func(c *gin.Context) { websocket.ServeWS(wsHub, c) })
