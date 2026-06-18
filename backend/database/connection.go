@@ -90,6 +90,7 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		&models.AnalysisSession{},
 		&models.Transaction{},
 		&models.PortfolioPerformance{},
+		&models.Watchlist{},
 	}
 	for _, model := range migrateModels {
 		if err := db.AutoMigrate(model); err != nil {

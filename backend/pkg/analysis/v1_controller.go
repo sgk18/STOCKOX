@@ -2,8 +2,10 @@ package analysis
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -464,6 +466,33 @@ func (ctrl *V1Controller) TestAgentConnection(c *gin.Context) {
 	})
 }
 
+func logDiagnosticFailure(c *gin.Context, module, function, errMsg string) {
+	timestamp := time.Now().Format(time.RFC3339)
+	
+	buf := make([]byte, 2048)
+	n := runtime.Stack(buf, false)
+	stackTrace := string(buf[:n])
+	
+	reqID := c.GetHeader("X-Request-ID")
+	if reqID == "" {
+		reqID = uuid.New().String()
+	}
+	correlationID := c.GetHeader("X-Correlation-ID")
+	if correlationID == "" {
+		correlationID = uuid.New().String()
+	}
+	
+	userID := "guest"
+	if val, exists := c.Get("UserID"); exists {
+		if str, ok := val.(string); ok {
+			userID = str
+		}
+	}
+	
+	log.Printf("[DIAGNOSTIC-FAILURE] Time: %s | Module: %s | Function: %s | RequestID: %s | CorrelationID: %s | UserID: %s | Error: %s\nStack:\n%s\n",
+		timestamp, module, function, reqID, correlationID, userID, errMsg, stackTrace)
+}
+
 // TestBand handles POST /api/dev/diagnostics/test-band
 func (ctrl *V1Controller) TestBand(c *gin.Context) {
 	if os.Getenv("NODE_ENV") == "production" || os.Getenv("APP_ENV") == "production" {
@@ -473,33 +502,94 @@ func (ctrl *V1Controller) TestBand(c *gin.Context) {
 
 	start := time.Now()
 	ctx := c.Request.Context()
-
-	// 1. Agent Spawn (create temporary test room)
-	testRoomName := "diagnostics-test-nvda"
 	symbol := "NVDA"
+	testRoomName := "diagnostics-test-nvda"
+
+	// Steps status tracking
+	stepStatus := map[string]string{
+		"CreateRoom()":         "PENDING",
+		"SpawnAgents()":        "PENDING",
+		"RunResearchAgent()":   "PENDING",
+		"RunTechnicalAgent()":  "PENDING",
+		"RunNewsAgent()":       "PENDING",
+		"RunRiskAgent()":       "PENDING",
+		"RunCommitteeAgent()":  "PENDING",
+		"VoteAggregation()":    "PENDING",
+		"SaveDecision()":       "PENDING",
+		"DeleteRoom()":         "PENDING",
+	}
+	stepErrors := map[string]string{}
 	
-	roomID, err := ctrl.bandOrch.Client().CreateRoom(testRoomName, symbol)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"error":   "Failed to create test room: " + err.Error(),
-			"step":    "Agent Spawn",
-		})
-		return
+	setStep := func(step, status, err string) {
+		stepStatus[step] = status
+		if err != "" {
+			stepErrors[step] = err
+		}
 	}
 
-	// Clean up room in memory registry and GORM at the end
+	var roomID string
+	var err error
+	var firstFailure string
+
+	// Helper to handle a step failure
+	failStep := func(step string, stepErr error) {
+		log.Printf("[TEST-BAND-FAIL] Step %s failed: %v", step, stepErr)
+		setStep(step, "FAIL", stepErr.Error())
+		if firstFailure == "" {
+			firstFailure = step
+		}
+		// Mark remaining steps as SKIP
+		for k, v := range stepStatus {
+			if v == "PENDING" {
+				stepStatus[k] = "SKIP"
+			}
+		}
+	}
+
+	// 1. CreateRoom()
+	roomID, err = ctrl.bandOrch.Client().CreateRoom(testRoomName, symbol)
+	if err != nil {
+		failStep("CreateRoom()", err)
+	} else {
+		setStep("CreateRoom()", "PASS", "")
+	}
+
+	// Clean up room registry and GORM at the end (DeleteRoom)
 	defer func() {
-		band.GlobalRegistry.DeleteRoom(roomID)
+		cleanupStart := time.Now()
+		// Delete GORM mock recommendations
+		ctrl.db.Where("ticker = ?", "NVDA_TEST").Delete(&models.Recommendation{})
+		
+		// Delete room
+		if roomID != "" {
+			band.GlobalRegistry.DeleteRoom(roomID)
+			setStep("DeleteRoom()", "PASS", "")
+		} else {
+			setStep("DeleteRoom()", "SKIP", "No room created to delete")
+		}
+		
+		log.Printf("[TEST-BAND-CLEANUP] completed in %v", time.Since(cleanupStart))
 	}()
 
-	// Invite agents to test room
-	agentsList := band.GetAgents()
-	for _, a := range agentsList {
-		_ = ctrl.bandOrch.Client().InviteAgent(roomID, a.Name())
+	// 2. SpawnAgents()
+	var agentsList []band.Agent
+	if firstFailure == "" {
+		agentsList = band.GetAgents()
+		var inviteErr error
+		for _, a := range agentsList {
+			errInv := ctrl.bandOrch.Client().InviteAgent(roomID, a.Name())
+			if errInv != nil {
+				inviteErr = errInv
+			}
+		}
+		if inviteErr != nil {
+			failStep("SpawnAgents()", inviteErr)
+		} else {
+			setStep("SpawnAgents()", "PASS", "")
+		}
 	}
 
-	// 2. Agent Response & Execution
+	// Stock catalog mock context
 	stockCtx, exists := band.StockCatalog[symbol]
 	if !exists {
 		stockCtx = band.StockContext{
@@ -510,111 +600,237 @@ func (ctrl *V1Controller) TestBand(c *gin.Context) {
 		}
 	}
 
-	// Run round 1 synchronously for testing
 	var messages []band.BandMessage
-	for _, a := range agentsList {
-		if a.Name() == "Committee Agent" {
-			continue
-		}
-		output, err := a.Analyze(ctx, symbol, stockCtx, nil)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"error":   fmt.Sprintf("Agent %s failed: %v", a.Name(), err),
-				"step":    "Agent Response",
-			})
-			return
-		}
-		msg := &band.BandMessage{
-			Agent:          a.Name(),
-			Symbol:         symbol,
-			Analysis:       output.Reasoning,
-			Recommendation: output.Signal,
-			Confidence:     output.Confidence,
-			Timestamp:      time.Now(),
-			Round:          1,
-			Signal:         output.Signal,
-			Evidence:       output.Evidence,
-		}
-		_ = ctrl.bandOrch.Client().SendMessage(roomID, msg)
-		messages = append(messages, *msg)
-	}
 
-	// 3. Agent Voting
-	var votesBreakdown []band.AgentVote
-	weights := map[string]float64{
-		"Research Agent":  0.25,
-		"Technical Agent": 0.20,
-		"News Agent":      0.20,
-		"Risk Agent":      0.15,
-	}
-	for _, m := range messages {
-		w, ok := weights[m.Agent]
-		if ok {
-			votesBreakdown = append(votesBreakdown, band.AgentVote{
-				Agent:      m.Agent,
-				Signal:     m.Signal,
-				Confidence: m.Confidence,
-				Weight:     w,
-			})
+	// 3. RunResearchAgent()
+	if firstFailure == "" {
+		var agent band.Agent
+		for _, a := range agentsList {
+			if a.Name() == "Research Agent" {
+				agent = a
+				break
+			}
+		}
+		if agent == nil {
+			failStep("RunResearchAgent()", fmt.Errorf("Research Agent not found in agents list"))
+		} else {
+			output, err := agent.Analyze(ctx, symbol, stockCtx, nil)
+			if err != nil {
+				failStep("RunResearchAgent()", err)
+			} else {
+				msg := band.BandMessage{
+					Agent:          agent.Name(),
+					Symbol:         symbol,
+					Analysis:       output.Reasoning,
+					Recommendation: output.Signal,
+					Confidence:     output.Confidence,
+					Timestamp:      time.Now(),
+					Round:          1,
+					Signal:         output.Signal,
+					Evidence:       output.Evidence,
+				}
+				_ = ctrl.bandOrch.Client().SendMessage(roomID, &msg)
+				messages = append(messages, msg)
+				setStep("RunResearchAgent()", "PASS", "")
+			}
 		}
 	}
 
-	voteResult := band.ComputeWeightedVote(votesBreakdown)
-	if len(votesBreakdown) == 0 || voteResult.Recommendation == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"error":   "Failed to compute votes breakdown or no votes cast",
-			"step":    "Agent Voting",
-		})
-		return
+	// 4. RunTechnicalAgent()
+	if firstFailure == "" {
+		var agent band.Agent
+		for _, a := range agentsList {
+			if a.Name() == "Technical Agent" {
+				agent = a
+				break
+			}
+		}
+		if agent == nil {
+			failStep("RunTechnicalAgent()", fmt.Errorf("Technical Agent not found in agents list"))
+		} else {
+			output, err := agent.Analyze(ctx, symbol, stockCtx, nil)
+			if err != nil {
+				failStep("RunTechnicalAgent()", err)
+			} else {
+				msg := band.BandMessage{
+					Agent:          agent.Name(),
+					Symbol:         symbol,
+					Analysis:       output.Reasoning,
+					Recommendation: output.Signal,
+					Confidence:     output.Confidence,
+					Timestamp:      time.Now(),
+					Round:          1,
+					Signal:         output.Signal,
+					Evidence:       output.Evidence,
+				}
+				_ = ctrl.bandOrch.Client().SendMessage(roomID, &msg)
+				messages = append(messages, msg)
+				setStep("RunTechnicalAgent()", "PASS", "")
+			}
+		}
 	}
 
-	// 4. Consensus Generation
-	commAgent := &band.CommitteeAgent{}
-	commOutput, err := commAgent.Analyze(ctx, symbol, stockCtx, messages)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"error":   "Committee Agent failed to generate consensus: " + err.Error(),
-			"step":    "Consensus Generation",
-		})
-		return
+	// 5. RunNewsAgent()
+	if firstFailure == "" {
+		var agent band.Agent
+		for _, a := range agentsList {
+			if a.Name() == "News Agent" {
+				agent = a
+				break
+			}
+		}
+		if agent == nil {
+			failStep("RunNewsAgent()", fmt.Errorf("News Agent not found in agents list"))
+		} else {
+			output, err := agent.Analyze(ctx, symbol, stockCtx, nil)
+			if err != nil {
+				failStep("RunNewsAgent()", err)
+			} else {
+				msg := band.BandMessage{
+					Agent:          agent.Name(),
+					Symbol:         symbol,
+					Analysis:       output.Reasoning,
+					Recommendation: output.Signal,
+					Confidence:     output.Confidence,
+					Timestamp:      time.Now(),
+					Round:          1,
+					Signal:         output.Signal,
+					Evidence:       output.Evidence,
+				}
+				_ = ctrl.bandOrch.Client().SendMessage(roomID, &msg)
+				messages = append(messages, msg)
+				setStep("RunNewsAgent()", "PASS", "")
+			}
+		}
 	}
-	
-	// 5. Store Results (Verify database sync/write works)
-	rec := models.Recommendation{
-		ID:              uuid.New(),
-		Ticker:          "NVDA_TEST",
-		Recommendation:  voteResult.Recommendation,
-		ConfidenceScore: voteResult.ConfidenceScore,
-		CreatedAt:       time.Now(),
+
+	// 6. RunRiskAgent()
+	if firstFailure == "" {
+		var agent band.Agent
+		for _, a := range agentsList {
+			if a.Name() == "Risk Agent" {
+				agent = a
+				break
+			}
+		}
+		if agent == nil {
+			failStep("RunRiskAgent()", fmt.Errorf("Risk Agent not found in agents list"))
+		} else {
+			output, err := agent.Analyze(ctx, symbol, stockCtx, nil)
+			if err != nil {
+				failStep("RunRiskAgent()", err)
+			} else {
+				msg := band.BandMessage{
+					Agent:          agent.Name(),
+					Symbol:         symbol,
+					Analysis:       output.Reasoning,
+					Recommendation: output.Signal,
+					Confidence:     output.Confidence,
+					Timestamp:      time.Now(),
+					Round:          1,
+					Signal:         output.Signal,
+					Evidence:       output.Evidence,
+				}
+				_ = ctrl.bandOrch.Client().SendMessage(roomID, &msg)
+				messages = append(messages, msg)
+				setStep("RunRiskAgent()", "PASS", "")
+			}
+		}
 	}
-	
-	if err := ctrl.db.Create(&rec).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"error":   "Failed to store recommendation: " + err.Error(),
-			"step":    "Store Results",
-		})
-		return
+
+	// 7. RunCommitteeAgent()
+	var commOutput band.AgentOutput
+	if firstFailure == "" {
+		commAgent := &band.CommitteeAgent{}
+		var errComm error
+		commOutput, errComm = commAgent.Analyze(ctx, symbol, stockCtx, messages)
+		if errComm != nil {
+			failStep("RunCommitteeAgent()", errComm)
+		} else {
+			setStep("RunCommitteeAgent()", "PASS", "")
+		}
 	}
-	
-	// Clean up database records at the end
-	defer func() {
-		ctrl.db.Where("ticker = ?", "NVDA_TEST").Delete(&models.Recommendation{})
-	}()
+
+	// 8. VoteAggregation()
+	var voteResult band.VoteResult
+	if firstFailure == "" {
+		var votesBreakdown []band.AgentVote
+		weights := map[string]float64{
+			"Research Agent":  0.25,
+			"Technical Agent": 0.20,
+			"News Agent":      0.20,
+			"Risk Agent":      0.15,
+		}
+		for _, m := range messages {
+			w, ok := weights[m.Agent]
+			if ok {
+				votesBreakdown = append(votesBreakdown, band.AgentVote{
+					Agent:      m.Agent,
+					Signal:     m.Signal,
+					Confidence: m.Confidence,
+					Weight:     w,
+				})
+			}
+		}
+		
+		voteResult = band.ComputeWeightedVote(votesBreakdown)
+		if len(votesBreakdown) == 0 || voteResult.Recommendation == "" {
+			failStep("VoteAggregation()", fmt.Errorf("Failed to compute votes breakdown or no votes cast"))
+		} else {
+			setStep("VoteAggregation()", "PASS", "")
+		}
+	}
+
+	// 9. SaveDecision()
+	if firstFailure == "" {
+		rec := models.Recommendation{
+			ID:              uuid.New(),
+			Ticker:          "NVDA_TEST",
+			Recommendation:  voteResult.Recommendation,
+			ConfidenceScore: voteResult.ConfidenceScore,
+			CreatedAt:       time.Now(),
+		}
+		errSave := ctrl.db.Create(&rec).Error
+		if errSave != nil {
+			failStep("SaveDecision()", errSave)
+		} else {
+			setStep("SaveDecision()", "PASS", "")
+		}
+	}
+
+	// Structured failure logging
+	if firstFailure != "" {
+		logDiagnosticFailure(c, "Band Agents", firstFailure, stepErrors[firstFailure])
+	}
 
 	latency := time.Since(start).Milliseconds()
+	success := firstFailure == ""
+
+	// Build steps list array
+	stepsList := []gin.H{}
+	order := []string{
+		"CreateRoom()", "SpawnAgents()",
+		"RunResearchAgent()", "RunTechnicalAgent()", "RunNewsAgent()", "RunRiskAgent()",
+		"RunCommitteeAgent()", "VoteAggregation()", "SaveDecision()", "DeleteRoom()",
+	}
+	for _, name := range order {
+		stepsList = append(stepsList, gin.H{
+			"name":   name,
+			"status": stepStatus[name],
+			"error":  stepErrors[name],
+		})
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":              true,
+		"success":              success,
+		"first_failure":        firstFailure,
+		"steps_detail":         stepsList,
 		"room_id":              roomID,
-		"agent_spawn":          "PASS",
-		"agent_response":       "PASS",
-		"agent_voting":         "PASS",
-		"consensus_generation": "PASS",
-		"store_results":        "PASS",
+		"agent_spawn":          stepStatus["SpawnAgents()"],
+		"agent_response":       stepStatus["RunResearchAgent()"],
+		"agent_voting":         stepStatus["VoteAggregation()"],
+		"consensus_generation": stepStatus["RunCommitteeAgent()"],
+		"store_results":        stepStatus["SaveDecision()"],
 		"latency_ms":           latency,
 		"committee_decision":   commOutput.Signal,
 		"confidence":           commOutput.Confidence,
