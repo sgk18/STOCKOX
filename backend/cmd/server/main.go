@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/marketdata"
+	marketdataProviders "stockox-backend/internal/marketdata/providers"
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
@@ -22,6 +25,9 @@ import (
 	marketController "stockox-backend/pkg/market/controller"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
+	portfolioBroker "stockox-backend/pkg/portfolio/broker"
+	portfolioController "stockox-backend/pkg/portfolio/controller"
+	portfolioService "stockox-backend/pkg/portfolio/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -131,6 +137,20 @@ func main() {
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
+	// Phase 4 & Module 7 dependency replication
+	finnhubAPIKey := os.Getenv("FINNHUB_API_KEY")
+	twelveDataAPIKey := os.Getenv("TWELVEDATA_API_KEY")
+	mdCache := marketdata.NewMarketDataCache(cacheClient)
+	finnhubWrapper := marketdataProviders.NewFinnhubWrapper(finnhubAPIKey)
+	twelveDataProvider := marketdataProviders.NewTwelveDataProvider(twelveDataAPIKey)
+	yahooProvider := marketdataProviders.NewYahooProvider()
+	aggregator := marketdata.NewMarketDataAggregator(db, mdCache, finnhubWrapper, twelveDataProvider, yahooProvider)
+	mdSrv := marketdata.NewMarketDataService(db, aggregator)
+
+	portSrv := portfolioService.NewPortfolioService(db)
+	portBroker := portfolioBroker.NewDemoBroker(db, mdSrv)
+	portCtrl := portfolioController.NewPortfolioController(db, portfolioRepo, portBroker, portSrv, cacheClient)
+
 	// 8. Create Gin Engine (gin.New is used because custom recovery/logger middlewares are registered in SetupRoutes)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -146,6 +166,7 @@ func main() {
 		commCtrl,
 		marketCtrl,
 		webhookCtrl,
+		portCtrl,
 		userRepo,
 		portfolioRepo,
 		watchlistRepo,

@@ -2,9 +2,12 @@ package handler
 
 import (
 	"net/http"
+	"os"
 	"stockox-backend/config"
 	"stockox-backend/database"
 	"stockox-backend/database/repositories"
+	"stockox-backend/internal/marketdata"
+	marketdataProviders "stockox-backend/internal/marketdata/providers"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
 	"stockox-backend/pkg/dashboard/controller"
@@ -16,6 +19,9 @@ import (
 	marketController "stockox-backend/pkg/market/controller"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
+	portfolioBroker "stockox-backend/pkg/portfolio/broker"
+	portfolioController "stockox-backend/pkg/portfolio/controller"
+	portfolioService "stockox-backend/pkg/portfolio/service"
 
 	"stockox-backend/pkg/eventbus"
 
@@ -77,6 +83,20 @@ func init() {
 	commCtrl := analysis.NewCommitteeController(db, roomRepo, wsHub)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
+	// Phase 4 & Module 7 dependency replication
+	finnhubAPIKey := os.Getenv("FINNHUB_API_KEY")
+	twelveDataAPIKey := os.Getenv("TWELVEDATA_API_KEY")
+	mdCache := marketdata.NewMarketDataCache(noopCache)
+	finnhubWrapper := marketdataProviders.NewFinnhubWrapper(finnhubAPIKey)
+	twelveDataProvider := marketdataProviders.NewTwelveDataProvider(twelveDataAPIKey)
+	yahooProvider := marketdataProviders.NewYahooProvider()
+	aggregator := marketdata.NewMarketDataAggregator(db, mdCache, finnhubWrapper, twelveDataProvider, yahooProvider)
+	mdSrv := marketdata.NewMarketDataService(db, aggregator)
+
+	portSrv := portfolioService.NewPortfolioService(db)
+	portBroker := portfolioBroker.NewDemoBroker(db, mdSrv)
+	portCtrl := portfolioController.NewPortfolioController(db, portfolioRepo, portBroker, portSrv, noopCache)
+
 	// 7. Setup Gin Engine
 	gin.SetMode(gin.ReleaseMode)
 	ginEngine = gin.New()
@@ -92,6 +112,7 @@ func init() {
 		commCtrl,
 		marketCtrl,
 		webhookCtrl,
+		portCtrl,
 		userRepo,
 		portfolioRepo,
 		watchlistRepo,

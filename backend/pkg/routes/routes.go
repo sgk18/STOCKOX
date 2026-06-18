@@ -9,6 +9,7 @@ import (
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
+	portfolioController "stockox-backend/pkg/portfolio/controller"
 	"stockox-backend/pkg/cache"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,7 @@ func SetupRoutes(
 	commCtrl *analysis.CommitteeController,
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
+	portCtrl *portfolioController.PortfolioController,
 	userRepo repositories.UserRepository,
 	portfolioRepo repositories.PortfolioRepository,
 	watchlistRepo repositories.WatchlistRepository,
@@ -91,6 +93,15 @@ func SetupRoutes(
 		api.GET("/dashboard/activity", dbCtrl.GetAgentActivity)
 		api.GET("/dashboard/analyses", dbCtrl.GetRecentAnalyses)
 		api.GET("/dashboard/opportunities", dbCtrl.GetOpportunities)
+
+		// Portfolio Management & Simulated Trading Endpoints (Module 7)
+		api.GET("/portfolio", portCtrl.GetPortfolioOverview)
+		api.GET("/portfolio/holdings", portCtrl.GetHoldings)
+		api.GET("/portfolio/history", portCtrl.GetHistory)
+		api.GET("/portfolio/performance", portCtrl.GetPerformance)
+		api.POST("/portfolio/buy", portCtrl.BuyStock)
+		api.POST("/portfolio/sell", portCtrl.SellStock)
+		api.POST("/portfolio/rebalance", portCtrl.Rebalance)
 
 		// Custom advanced endpoints
 		api.GET("/dashboard/committee", dbCtrl.GetCommitteeDecisions)

@@ -180,3 +180,7 @@ func (s *MarketDataService) SearchAssets(query string) ([]SearchAssetResponse, e
 
 	return response, nil
 }
+
+func (s *MarketDataService) GetQuote(symbol string) (*dto.QuoteDTO, error) {
+	return s.aggregator.GetQuote(symbol)
+}
