@@ -29,7 +29,8 @@ import {
   Menu,
   X,
   Zap,
-  Brain
+  Brain,
+  Link2
 } from "lucide-react";
 import AgentFeed from "@/components/dashboard/AgentFeed";
 
@@ -157,6 +158,7 @@ export default function DashboardLayout({
     { name: "Market Intelligence", path: "/dashboard/market-intelligence", icon: Globe },
     { name: "Watchlists", path: "/dashboard/watchlists", icon: Eye },
     { name: "Portfolio", path: "/dashboard/portfolio", icon: PieChart },
+    { name: "Broker Connect", path: "/dashboard/broker-connect", icon: Link2 },
     { name: "AI Committee", path: "/dashboard/ai-committee", icon: Bot },
     { name: "War Room", path: "/dashboard/war-room", icon: Zap },
     { name: "AI Copilot", path: "/dashboard/copilot", icon: Brain },

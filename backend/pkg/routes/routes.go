@@ -4,6 +4,7 @@ import (
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
+	brokerPkg "stockox-backend/pkg/broker"
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/copilot"
 	"stockox-backend/pkg/dashboard/controller"
@@ -31,6 +32,7 @@ func SetupRoutes(
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
 	portCtrl *portfolioController.PortfolioController,
+	brokerCtrl *brokerPkg.BrokerController,
 	userRepo repositories.UserRepository,
 	portfolioRepo repositories.PortfolioRepository,
 	watchlistRepo repositories.WatchlistRepository,
@@ -173,6 +175,20 @@ func SetupRoutes(
 			v1.GET("/copilot/brief", copilotCtrl.GetBrief)
 			v1.POST("/copilot/rebalance", copilotCtrl.PostRebalance)
 			v1.POST("/copilot/simulate", copilotCtrl.PostSimulate)
+
+			// Broker Connect Endpoints (Module 10) — Read-Only broker integration
+			v1.GET("/brokers", brokerCtrl.ListBrokers)
+			v1.GET("/brokers/accounts", brokerCtrl.GetAccounts)
+			v1.POST("/brokers/connect", brokerCtrl.ConnectBroker)
+			v1.POST("/brokers/import", brokerCtrl.ImportPortfolio)
+			v1.POST("/brokers/accounts/:id/disconnect", brokerCtrl.DisconnectBroker)
+			v1.POST("/brokers/accounts/:id/sync", brokerCtrl.SyncBroker)
+			v1.GET("/brokers/accounts/:id/status", brokerCtrl.GetStatus)
+			v1.GET("/brokers/accounts/:id/holdings", brokerCtrl.GetHoldings)
+			v1.GET("/brokers/accounts/:id/transactions", brokerCtrl.GetTransactions)
+			v1.GET("/brokers/accounts/:id/health", brokerCtrl.GetAccountHealth)
+			v1.GET("/brokers/accounts/:id/insights", brokerCtrl.GetBrokerInsights)
+			v1.GET("/brokers/accounts/:id/security", brokerCtrl.GetSecurityInfo)
 		}
 
 		// Compatibility endpoints mapping directly to frontend queries
