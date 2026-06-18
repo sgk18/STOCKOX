@@ -122,8 +122,9 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 	}
 
 	var req struct {
-		Ticker string `json:"ticker"`
-		Symbol string `json:"symbol"`
+		Ticker       string `json:"ticker"`
+		Symbol       string `json:"symbol"`
+		ForceRefresh bool   `json:"force_refresh"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		errors.BadRequestError(c, "Valid ticker or symbol parameter is required in request body")
@@ -147,17 +148,19 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 	}
 
 	// 20-minute cache check for completed/running analysis session
-	var cachedSession models.AnalysisSession
-	twentyMinutesAgo := time.Now().Add(-20 * time.Minute)
-	if err := ctrl.db.Where("user_id = ? AND ticker = ? AND status IN ('completed', 'running') AND created_at >= ?", userID, ticker, twentyMinutesAgo).
-		Order("created_at DESC").First(&cachedSession).Error; err == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"status":       "cached",
-			"session_id":   cachedSession.ID.String(),
-			"ticker":       cachedSession.Ticker,
-			"company_name": stock.CompanyName,
-		})
-		return
+	if !req.ForceRefresh {
+		var cachedSession models.AnalysisSession
+		twentyMinutesAgo := time.Now().Add(-20 * time.Minute)
+		if err := ctrl.db.Where("user_id = ? AND ticker = ? AND status IN ('completed', 'running') AND created_at >= ?", userID, ticker, twentyMinutesAgo).
+			Order("created_at DESC").First(&cachedSession).Error; err == nil {
+			c.JSON(http.StatusOK, gin.H{
+				"status":       "cached",
+				"session_id":   cachedSession.ID.String(),
+				"ticker":       cachedSession.Ticker,
+				"company_name": stock.CompanyName,
+			})
+			return
+		}
 	}
 
 	// Fetch Clerk user details from database to check mode and credit limit

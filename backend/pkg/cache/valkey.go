@@ -13,13 +13,19 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 type ValkeyCache struct {
-	rdb        *redis.Client
-	hits       int64
-	misses     int64
-	savedCalls int64
+	rdb            *redis.Client
+	hits           int64
+	misses         int64
+	savedCalls     int64
+	apiTimeSum     int64
+	apiTimeCount   int64
+	cacheTimeSum   int64
+	cacheTimeCount int64
+	sfGroup        singleflight.Group
 }
 
 type StaleWrapper struct {
@@ -45,6 +51,9 @@ func NewValkeyCacheWithClient(rdb *redis.Client) Cache {
 }
 
 func (v *ValkeyCache) Get(ctx context.Context, key string) (string, error) {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return "", ErrCacheMiss
 	}
@@ -61,6 +70,9 @@ func (v *ValkeyCache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (v *ValkeyCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return nil
 	}
@@ -68,6 +80,9 @@ func (v *ValkeyCache) Set(ctx context.Context, key string, value interface{}, ex
 }
 
 func (v *ValkeyCache) Delete(ctx context.Context, key string) error {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return nil
 	}
@@ -75,6 +90,9 @@ func (v *ValkeyCache) Delete(ctx context.Context, key string) error {
 }
 
 func (v *ValkeyCache) Exists(ctx context.Context, key string) (bool, error) {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return false, nil
 	}
@@ -86,6 +104,9 @@ func (v *ValkeyCache) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (v *ValkeyCache) SetJSON(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return nil
 	}
@@ -108,6 +129,9 @@ func (v *ValkeyCache) SetJSON(ctx context.Context, key string, value interface{}
 }
 
 func (v *ValkeyCache) GetJSON(ctx context.Context, key string, dest interface{}) error {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return ErrCacheMiss
 	}
@@ -134,6 +158,9 @@ func (v *ValkeyCache) GetJSON(ctx context.Context, key string, dest interface{})
 }
 
 func (v *ValkeyCache) DeletePattern(ctx context.Context, pattern string) error {
+	start := time.Now()
+	defer func() { v.RecordCacheLatency(time.Since(start)) }()
+
 	if v.rdb == nil {
 		return nil
 	}
@@ -156,24 +183,50 @@ func (v *ValkeyCache) GetStaleOrFetch(ctx context.Context, key string, dest inte
 	}
 
 	// 1. Try Cache
+	start := time.Now()
 	val, err := v.rdb.Get(ctx, key).Bytes()
+	v.RecordCacheLatency(time.Since(start))
+
 	if err == redis.Nil {
 		v.IncrementMisses()
-		fresh, err := fetchFunc()
-		if err != nil {
-			return err
+		
+		// Use Single Flight to fetch fresh data and write back to cache
+		resVal, errSf, _ := v.sfGroup.Do(key, func() (interface{}, error) {
+			apiStart := time.Now()
+			fresh, errFetch := fetchFunc()
+			if errFetch != nil {
+				return nil, errFetch
+			}
+			v.RecordAPILatency(time.Since(apiStart))
+			_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
+			return fresh, nil
+		})
+		
+		if errSf != nil {
+			return errSf
 		}
-		_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
-		return v.copyVal(fresh, dest)
+		return v.copyVal(resVal, dest)
+
 	} else if err != nil {
 		// Graceful Fallback / Failover
 		log.Printf("[VALKEY-WARN] Connection failure during GetStaleOrFetch key=%s: %v. Direct DB fallback.", key, err)
 		v.IncrementMisses()
-		fresh, err := fetchFunc()
-		if err != nil {
-			return err
+		
+		// Still use singleflight to avoid hitting database or APIs concurrently during connection failure
+		resVal, errSf, _ := v.sfGroup.Do(key, func() (interface{}, error) {
+			apiStart := time.Now()
+			fresh, errFetch := fetchFunc()
+			if errFetch != nil {
+				return nil, errFetch
+			}
+			v.RecordAPILatency(time.Since(apiStart))
+			return fresh, nil
+		})
+		
+		if errSf != nil {
+			return errSf
 		}
-		return v.copyVal(fresh, dest)
+		return v.copyVal(resVal, dest)
 	}
 
 	// Decompress if needed
@@ -188,23 +241,39 @@ func (v *ValkeyCache) GetStaleOrFetch(ctx context.Context, key string, dest inte
 	var wrapper StaleWrapper
 	if err := json.Unmarshal(val, &wrapper); err != nil {
 		v.IncrementMisses()
-		fresh, err := fetchFunc()
-		if err != nil {
-			return err
+		resVal, errSf, _ := v.sfGroup.Do(key, func() (interface{}, error) {
+			apiStart := time.Now()
+			fresh, errFetch := fetchFunc()
+			if errFetch != nil {
+				return nil, errFetch
+			}
+			v.RecordAPILatency(time.Since(apiStart))
+			_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
+			return fresh, nil
+		})
+		if errSf != nil {
+			return errSf
 		}
-		_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
-		return v.copyVal(fresh, dest)
+		return v.copyVal(resVal, dest)
 	}
 
 	// Unmarshal actual data
 	if err := json.Unmarshal([]byte(wrapper.Data), dest); err != nil {
 		v.IncrementMisses()
-		fresh, err := fetchFunc()
-		if err != nil {
-			return err
+		resVal, errSf, _ := v.sfGroup.Do(key, func() (interface{}, error) {
+			apiStart := time.Now()
+			fresh, errFetch := fetchFunc()
+			if errFetch != nil {
+				return nil, errFetch
+			}
+			v.RecordAPILatency(time.Since(apiStart))
+			_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
+			return fresh, nil
+		})
+		if errSf != nil {
+			return errSf
 		}
-		_ = v.SetJSONWithStale(ctx, key, fresh, softTTL, hardTTL)
-		return v.copyVal(fresh, dest)
+		return v.copyVal(resVal, dest)
 	}
 
 	v.IncrementHits()
@@ -213,14 +282,20 @@ func (v *ValkeyCache) GetStaleOrFetch(ctx context.Context, key string, dest inte
 	if time.Now().Unix() > wrapper.StaleAt {
 		log.Printf("[VALKEY] Key %s is stale. Refreshing in background...", key)
 		go func() {
-			v.IncrementSavedCall()
-			fresh, err := fetchFunc()
-			if err == nil {
-				_ = v.SetJSONWithStale(context.Background(), key, fresh, softTTL, hardTTL)
-				log.Printf("[VALKEY-INFO] Background refresh completed: key=%s", key)
-			} else {
-				log.Printf("[VALKEY-WARN] Background refresh failed for key=%s: %v", key, err)
-			}
+			// Single flight for background refresh
+			_, _, _ = v.sfGroup.Do("bg_refresh:"+key, func() (interface{}, error) {
+				v.IncrementSavedCall()
+				apiStart := time.Now()
+				fresh, err := fetchFunc()
+				if err == nil {
+					v.RecordAPILatency(time.Since(apiStart))
+					_ = v.SetJSONWithStale(context.Background(), key, fresh, softTTL, hardTTL)
+					log.Printf("[VALKEY-INFO] Background refresh completed: key=%s", key)
+				} else {
+					log.Printf("[VALKEY-WARN] Background refresh failed for key=%s: %v", key, err)
+				}
+				return fresh, err
+			})
 		}()
 	}
 
@@ -273,12 +348,42 @@ func (v *ValkeyCache) GetStats(ctx context.Context) Stats {
 		keys, _ = v.rdb.DBSize(ctx).Result()
 	}
 
+	// Average Cache Time
+	var avgCache float64 = 0
+	cSum := atomic.LoadInt64(&v.cacheTimeSum)
+	cCount := atomic.LoadInt64(&v.cacheTimeCount)
+	if cCount > 0 {
+		avgCache = float64(cSum) / float64(cCount) / float64(time.Millisecond)
+	}
+
+	// Average API Time
+	var avgAPI float64 = 0
+	aSum := atomic.LoadInt64(&v.apiTimeSum)
+	aCount := atomic.LoadInt64(&v.apiTimeCount)
+	if aCount > 0 {
+		avgAPI = float64(aSum) / float64(aCount) / float64(time.Millisecond)
+	}
+
+	// Top Requested Stocks
+	topStocks := []string{}
+	if v.rdb != nil {
+		res, err := v.rdb.ZRevRangeWithScores(ctx, "top_requested_stocks", 0, 4).Result()
+		if err == nil {
+			for _, item := range res {
+				topStocks = append(topStocks, fmt.Sprintf("%s (%d)", item.Member, int(item.Score)))
+			}
+		}
+	}
+
 	return Stats{
-		Hits:       hits,
-		Misses:     misses,
-		HitRate:    hitRate,
-		Keys:       keys,
-		SavedCalls: savedCalls,
+		Hits:               hits,
+		Misses:             misses,
+		HitRate:            hitRate,
+		Keys:               keys,
+		SavedCalls:         savedCalls,
+		AverageAPITimeMs:   avgAPI,
+		AverageCacheTimeMs: avgCache,
+		TopRequestedStocks: topStocks,
 	}
 }
 
@@ -292,6 +397,24 @@ func (v *ValkeyCache) IncrementMisses() {
 
 func (v *ValkeyCache) IncrementSavedCall() {
 	atomic.AddInt64(&v.savedCalls, 1)
+}
+
+func (v *ValkeyCache) RecordAPILatency(duration time.Duration) {
+	atomic.AddInt64(&v.apiTimeSum, int64(duration))
+	atomic.AddInt64(&v.apiTimeCount, 1)
+}
+
+func (v *ValkeyCache) RecordCacheLatency(duration time.Duration) {
+	atomic.AddInt64(&v.cacheTimeSum, int64(duration))
+	atomic.AddInt64(&v.cacheTimeCount, 1)
+}
+
+func (v *ValkeyCache) RecordStockRequest(ticker string) {
+	if v.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	_ = v.rdb.ZIncrBy(ctx, "top_requested_stocks", 1, strings.ToUpper(ticker)).Err()
 }
 
 func (v *ValkeyCache) copyVal(src interface{}, dest interface{}) error {

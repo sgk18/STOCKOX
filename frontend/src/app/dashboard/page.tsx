@@ -146,17 +146,33 @@ export default function DashboardPage() {
     };
   }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken]);
 
-  // 1. Fetch dynamic dashboard aggregates via React Query (with caching)
-  const { data: dashboardData, isLoading: isDashLoading, error: dashError, refetch: refetchDashboard } = useQuery({
-    queryKey: ["dashboard-aggregate", isDemoMode],
+  // 1. Fetch individual dashboard sections in stages via React Query (with caching)
+  const { data: portfolioData, isLoading: isPortLoading, error: portError, refetch: refetchPortfolio } = useQuery({
+    queryKey: ["dashboard-portfolio", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
-      const res = await fetch(`/api/dashboard${isDemoMode ? "?demo=true" : ""}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const res = await fetch(`/api/dashboard/portfolio${isDemoMode ? "?demo=true" : ""}`, {
+        headers: { "Authorization": `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error("Failed to load dashboard data.");
+      if (!res.ok) throw new Error("Failed to load portfolio.");
+      return res.json();
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: marketData, isLoading: isMarketLoading, error: marketError, refetch: refetchMarket } = useQuery({
+    queryKey: ["dashboard-market", isDemoMode],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/market-overview${isDemoMode ? "?demo=true" : ""}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load market data.");
       return res.json();
     },
     enabled: isSignedIn && isSynced,
@@ -167,8 +183,110 @@ export default function DashboardPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: watchlistData, isLoading: isWatchlistLoading, error: watchlistError, refetch: refetchWatchlist } = useQuery({
+    queryKey: ["dashboard-watchlist", isDemoMode],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/watchlist${isDemoMode ? "?demo=true" : ""}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load watchlist.");
+      return res.json();
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: agentStatusesData, isLoading: isStatusesLoading, refetch: refetchStatuses } = useQuery({
+    queryKey: ["dashboard-agents"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/agents`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load agent statuses.");
+      return res.json();
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: recentAnalysesData, isLoading: isAnalysesLoading, error: analysesError, refetch: refetchAnalyses } = useQuery({
+    queryKey: ["dashboard-recent-analyses"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/analyses?page=1&limit=10`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load recent analyses.");
+      const json = await res.json();
+      return json.items || [];
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: agentActivityData, isLoading: isActivityLoading, error: activityError, refetch: refetchActivity } = useQuery({
+    queryKey: ["dashboard-agent-activity"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/dashboard/activity?page=1&limit=20`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load agent activity.");
+      const json = await res.json();
+      return json.items || [];
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: recommendationsData, isLoading: isRecsLoading, error: recsError, refetch: refetchRecs } = useQuery({
+    queryKey: ["dashboard-recommendations"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/dashboard/recommendations", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to load recommendations.");
+      return res.json();
+    },
+    enabled: isSignedIn && isSynced,
+    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const refetchDashboard = () => {
+    refetchPortfolio();
+    refetchMarket();
+    refetchWatchlist();
+    refetchStatuses();
+    refetchAnalyses();
+    refetchActivity();
+    refetchRecs();
+  };
+
   // 2. Fetch dynamic risk center metrics (with caching)
-  const { data: riskMetrics, isLoading: isRiskLoading, error: riskError, refetch: refetchRisk } = useQuery({
+  const { data: riskMetrics, isLoading: isRiskLoading, error: riskError } = useQuery({
     queryKey: ["dashboard-risk-metrics", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
@@ -189,7 +307,7 @@ export default function DashboardPage() {
   });
 
   // Fetch recent agent rooms (with caching)
-  const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError, refetch: refetchRooms } = useQuery({
+  const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError } = useQuery({
     queryKey: ["recent-rooms"],
     queryFn: async () => {
       const token = await getToken();
@@ -211,13 +329,15 @@ export default function DashboardPage() {
 
   // Console logging React Query variables
   useEffect(() => {
-    console.log("[REACT-QUERY-AGGREGATE] Status:", {
-      isLoading: isDashLoading,
-      isError: !!dashError,
-      error: dashError ? (dashError as Error).message : null,
-      data: dashboardData
+    console.log("[REACT-QUERY-STAGED] Status:", {
+      isPortLoading,
+      isMarketLoading,
+      isWatchlistLoading,
+      isStatusesLoading,
+      isAnalysesLoading,
+      isActivityLoading,
     });
-  }, [isDashLoading, dashError, dashboardData]);
+  }, [isPortLoading, isMarketLoading, isWatchlistLoading, isStatusesLoading, isAnalysesLoading, isActivityLoading]);
 
   useEffect(() => {
     console.log("[REACT-QUERY-RISK] Status:", {
@@ -231,7 +351,7 @@ export default function DashboardPage() {
   // Performance audit logger
   useEffect(() => {
     const isLoaded = isAuthLoaded && isUserLoaded;
-    if (isLoaded && !isDashLoading && isSynced && !logRenderTimeRef.current) {
+    if (isLoaded && !isPortLoading && isSynced && !logRenderTimeRef.current) {
       logRenderTimeRef.current = true;
       const authStartTime = sessionStorage.getItem("auth_start_time");
       const provisionStartTime = sessionStorage.getItem("provision_start_time");
@@ -247,7 +367,7 @@ export default function DashboardPage() {
         "color: inherit; font-size: 11px;"
       );
     }
-  }, [isAuthLoaded, isUserLoaded, isDashLoading, isSynced]);
+  }, [isAuthLoaded, isUserLoaded, isPortLoading, isSynced]);
 
   // Redirect if not signed in
   useEffect(() => {
@@ -258,15 +378,23 @@ export default function DashboardPage() {
   }, [isAuthLoaded, isUserLoaded, isSignedIn, router]);
 
   const isLoaded = isAuthLoaded && isUserLoaded;
-  // Only show skeletons while genuinely loading — bypass skeleton on error so users see the error state
-  const showSkeletons = (isDashLoading && !dashError) || !isLoaded || !isSynced;
+  // Specific skeletons for sequential loading
+  const showPortSkeletons = isPortLoading || !isLoaded || !isSynced;
+  const showMarketSkeletons = isMarketLoading || !isLoaded || !isSynced;
+  const showWatchSkeletons = isWatchlistLoading || !isLoaded || !isSynced;
+  const showAgentSkeletons = isStatusesLoading || !isLoaded || !isSynced;
+  const showAnalysesSkeletons = isAnalysesLoading || !isLoaded || !isSynced;
+  const showRoomsSkeletons = isRoomsLoading || !isLoaded || !isSynced;
+  const showActivitySkeletons = isActivityLoading || !isLoaded || !isSynced;
+  const showRecsSkeletons = isRecsLoading || !isLoaded || !isSynced;
+  const showRiskSkeletons = isRiskLoading || !isLoaded || !isSynced;
 
-  const portfolio = dashboardData?.portfolio || { value: 100000, change_percent: 0, change_amount: 0, cash_balance: 100000 };
-  const watchlist: WatchlistItem[] = dashboardData?.watchlist || [];
-  const marketOverview: MarketItem[] = dashboardData?.marketOverview || [];
-  const agentStatuses = dashboardData?.agentStatuses || [];
-  const recentAnalyses: AnalysisItem[] = dashboardData?.recentAnalyses || [];
-  const agentActivity: AgentActivityItem[] = dashboardData?.agentActivity || [];
+  const portfolio = portfolioData || { value: 100000, change_percent: 0, change_amount: 0, cash_balance: 100000 };
+  const watchlist: WatchlistItem[] = watchlistData || [];
+  const marketOverview: MarketItem[] = marketData || [];
+  const agentStatuses = agentStatusesData || [];
+  const recentAnalyses: AnalysisItem[] = recentAnalysesData || [];
+  const agentActivity: AgentActivityItem[] = agentActivityData || [];
 
   return (
     <motion.div 
@@ -289,9 +417,9 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Total Assets (USD)</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {showSkeletons ? (
+                {showPortSkeletons ? (
                   <Skeleton className="h-8 w-36" />
-                ) : dashError ? (
+                ) : portError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
                   `$${portfolio.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -300,9 +428,9 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#2563EB]/15 text-[#2563EB] border border-[#2563EB]/20">
-                {showSkeletons ? (
+                {showPortSkeletons ? (
                   <Skeleton className="h-4 w-20" />
-                ) : dashError ? (
+                ) : portError ? (
                   "Error"
                 ) : (
                   `${portfolio.change_percent >= 0 ? "+" : ""}${portfolio.change_percent.toFixed(2)}% today`
@@ -319,9 +447,9 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Today&apos;s P&L</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {showSkeletons ? (
+                {showPortSkeletons ? (
                   <Skeleton className="h-8 w-32" />
-                ) : dashError ? (
+                ) : portError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
                   `${portfolio.change_amount >= 0 ? "+" : ""}$${portfolio.change_amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
@@ -343,9 +471,9 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Liquid Cash Balance</span>
               <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">
-                {showSkeletons ? (
+                {showPortSkeletons ? (
                   <Skeleton className="h-8 w-32" />
-                ) : dashError ? (
+                ) : portError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
                   `$${portfolio.cash_balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -429,7 +557,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          {showSkeletons ? (
+          {showAgentSkeletons ? (
             Array.from({ length: 5 }).map((_, idx) => (
               <div key={idx} className="glass-brutal-card p-5 flex flex-col justify-between">
                 <div>
@@ -447,7 +575,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))
-          ) : dashError ? (
+          ) : false ? (
             <div className="col-span-5 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
               Failed to load committee data
             </div>
@@ -488,7 +616,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
-          {showSkeletons ? (
+          {showMarketSkeletons ? (
             Array.from({ length: 6 }).map((_, idx) => (
               <div key={idx} className="glass-brutal-card p-4 flex flex-col justify-between">
                 <div>
@@ -501,7 +629,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))
-          ) : dashError ? (
+          ) : marketError ? (
             <div className="col-span-6 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
               Failed to load market data
             </div>
@@ -568,7 +696,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {showSkeletons ? (
+                    {showWatchSkeletons ? (
                       Array.from({ length: 3 }).map((_, idx) => (
                         <tr key={idx} className="animate-pulse">
                           <td className="py-3.5 px-5">
@@ -594,7 +722,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ))
-                    ) : dashError ? (
+                    ) : watchlistError ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
                           Failed to load watchlist
@@ -667,7 +795,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {(showSkeletons || isRoomsLoading) ? (
+                    {(showRoomsSkeletons || isRoomsLoading) ? (
                       Array.from({ length: 3 }).map((_, idx) => (
                         <tr key={idx} className="animate-pulse">
                           <td className="py-3.5 px-5">
@@ -757,7 +885,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {showSkeletons ? (
+                    {showAnalysesSkeletons ? (
                       Array.from({ length: 3 }).map((_, idx) => (
                         <tr key={idx} className="animate-pulse">
                           <td className="py-3.5 px-5">
@@ -777,7 +905,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ))
-                    ) : dashError ? (
+                    ) : false ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
                           Failed to load recommendations
@@ -826,7 +954,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {showSkeletons ? (
+              {showActivitySkeletons ? (
                 Array.from({ length: 3 }).map((_, idx) => (
                   <div key={idx} className="glass-brutal-card p-5 animate-pulse flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-black/5 pb-2.5">
@@ -842,7 +970,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))
-              ) : dashError ? (
+              ) : activityError ? (
                 <div className="p-8 border-3 border-black text-center font-mono text-xs uppercase text-[#EF4444] rounded-[24px] bg-red-50">
                   Failed to load research feed
                 </div>
@@ -885,7 +1013,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="glass-brutal-card p-5 flex flex-col gap-4 bg-white">
-              {showSkeletons ? (
+              {showRecsSkeletons ? (
                 <div className="flex flex-col gap-3">
                   {Array.from({ length: 3 }).map((_, idx) => (
                     <div 
@@ -900,13 +1028,13 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
-              ) : dashError ? (
+              ) : recsError ? (
                 <div className="text-center font-mono text-xs uppercase py-4 text-[#EF4444]">
                   Failed to load recommendations
                 </div>
-              ) : dashboardData?.topRecommendations && dashboardData.topRecommendations.length > 0 ? (
+              ) : recommendationsData && recommendationsData.length > 0 ? (
                 <div className="flex flex-col gap-3">
-                  {dashboardData.topRecommendations.map((rec: { ticker: string; recommendation: string; confidence: number }) => (
+                  {recommendationsData.map((rec: { ticker: string; recommendation: string; confidence_score: number }) => (
                     <div 
                       key={rec.ticker} 
                       onClick={() => router.push(`/research/${rec.ticker}`)}
@@ -923,7 +1051,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <span className="font-mono font-black text-[10px] text-black/75">
-                        CONFIDENCE: <span className="text-[#2563EB]">{rec.confidence}%</span>
+                        CONFIDENCE: <span className="text-[#2563EB]">{rec.confidence_score}%</span>
                       </span>
                     </div>
                   ))}
@@ -982,9 +1110,9 @@ export default function DashboardPage() {
                 <div className="flex justify-between border-b border-black/5 pb-2">
                   <span className="font-bold text-[#64748B]">Daily Value at Risk (VaR):</span>
                   <span className="font-black text-[#2563EB]">
-                    {(isRiskLoading || showSkeletons) ? (
+                    {showRiskSkeletons ? (
                       <Skeleton className="h-4 w-16 inline-block" />
-                    ) : (riskError || dashError) ? (
+                    ) : riskError ? (
                       "Error"
                     ) : (
                       `$${((portfolio.value * 0.038) || 4820).toLocaleString(undefined, { maximumFractionDigits: 0 })}`

@@ -565,39 +565,65 @@ func (s *dashboardService) GetOpportunities() ([]dto.OpportunityResponse, error)
 
 
 func (s *dashboardService) GetCommitteeDecisions(ticker string) ([]dto.CommitteeDecisionResponse, error) {
-	var decisions []models.CommitteeAnalysis
-	var err error
-	if s.db != nil {
-		if ticker != "" {
-			err = s.db.Where("ticker = ?", ticker).Order("created_at desc").Find(&decisions).Error
-		} else {
-			err = s.db.Order("created_at desc").Find(&decisions).Error
-		}
-		if err != nil {
-			return nil, err
-		}
+	cacheKey := cache.KeyCommitteeResults(ticker)
+	if ticker == "" {
+		cacheKey = cache.KeyCommitteeResults("all")
 	}
 
-	res := make([]dto.CommitteeDecisionResponse, len(decisions))
-	for i, d := range decisions {
-		res[i] = dto.CommitteeDecisionResponse{
-			Ticker:            d.Ticker,
-			ResearchVote:      d.ResearchVote,
-			TechnicalVote:     d.TechnicalVote,
-			NewsVote:          d.NewsVote,
-			RiskVote:          d.RiskVote,
-			CommitteeDecision: d.Recommendation,
-			ConfidenceScore:   d.ConfidenceScore,
-			Reasoning:         d.ResearchSummary,
-			CreatedAt:         d.CreatedAt.Format("2006-01-02 15:04"),
+	var resp []dto.CommitteeDecisionResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, cacheKey, &resp, cache.TTLCommitteeResults, 2*time.Hour, func() (interface{}, error) {
+		var decisions []models.CommitteeAnalysis
+		var err error
+		if s.db != nil {
+			if ticker != "" {
+				err = s.db.Where("ticker = ?", ticker).Order("created_at desc").Find(&decisions).Error
+			} else {
+				err = s.db.Order("created_at desc").Find(&decisions).Error
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
+
+		res := make([]dto.CommitteeDecisionResponse, len(decisions))
+		for i, d := range decisions {
+			res[i] = dto.CommitteeDecisionResponse{
+				Ticker:            d.Ticker,
+				ResearchVote:      d.ResearchVote,
+				TechnicalVote:     d.TechnicalVote,
+				NewsVote:          d.NewsVote,
+				RiskVote:          d.RiskVote,
+				CommitteeDecision: d.Recommendation,
+				ConfidenceScore:   d.ConfidenceScore,
+				Reasoning:         d.ResearchSummary,
+				CreatedAt:         d.CreatedAt.Format("2006-01-02 15:04"),
+			}
+		}
+		return res, nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
-	return res, nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetRecommendations() ([]dto.AnalysisResponse, error) {
-	recs, _, err := s.GetRecentAnalyses(1, 20)
-	return recs, err
+	cacheKey := cache.KeyRecommendations()
+	var resp []dto.AnalysisResponse
+
+	err := s.cache.GetStaleOrFetch(s.ctx, cacheKey, &resp, cache.TTLRecommendations, 2*time.Hour, func() (interface{}, error) {
+		recs, _, err := s.GetRecentAnalyses(1, 20)
+		if err != nil {
+			return nil, err
+		}
+		return recs, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (s *dashboardService) GetRiskMetrics(userID string) (*dto.RiskMetricsResponse, error) {
@@ -1145,63 +1171,98 @@ func (s *dashboardService) SearchAssets(query string) ([]dto.SearchAssetResponse
 }
 
 func (s *dashboardService) GetPopularAssets() ([]dto.SearchAssetResponse, error) {
-	var results []models.StockMetadata
-	popularSymbols := []string{"NVDA", "AAPL", "MSFT", "TSLA", "BTC", "RELIANCE", "TCS", "SPY", "QQQ", "NIFTY50", "ETH", "SOL"}
-	err := s.db.Where("is_active = ? AND symbol IN ?", true, popularSymbols).
-		Order("symbol ASC").
-		Find(&results).Error
+	var resp []dto.SearchAssetResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, "assets:popular", &resp, cache.TTLStockMetadata, 14*24*time.Hour, func() (interface{}, error) {
+		var results []models.StockMetadata
+		popularSymbols := []string{"NVDA", "AAPL", "MSFT", "TSLA", "BTC", "RELIANCE", "TCS", "SPY", "QQQ", "NIFTY50", "ETH", "SOL"}
+		err := s.db.Where("is_active = ? AND symbol IN ?", true, popularSymbols).
+			Order("symbol ASC").
+			Find(&results).Error
+		if err != nil {
+			return nil, err
+		}
+		return s.convertToSearchAssetResponse(results), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return s.convertToSearchAssetResponse(results), nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetIndianAssets() ([]dto.SearchAssetResponse, error) {
-	var results []models.StockMetadata
-	err := s.db.Where("is_active = ? AND country = ?", true, "India").
-		Order("symbol ASC").
-		Limit(30).
-		Find(&results).Error
+	var resp []dto.SearchAssetResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, "assets:india", &resp, cache.TTLStockMetadata, 14*24*time.Hour, func() (interface{}, error) {
+		var results []models.StockMetadata
+		err := s.db.Where("is_active = ? AND country = ?", true, "India").
+			Order("symbol ASC").
+			Limit(30).
+			Find(&results).Error
+		if err != nil {
+			return nil, err
+		}
+		return s.convertToSearchAssetResponse(results), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return s.convertToSearchAssetResponse(results), nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetUSAssets() ([]dto.SearchAssetResponse, error) {
-	var results []models.StockMetadata
-	err := s.db.Where("is_active = ? AND (country = ? OR country = ?)", true, "US", "United States").
-		Order("symbol ASC").
-		Limit(30).
-		Find(&results).Error
+	var resp []dto.SearchAssetResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, "assets:us", &resp, cache.TTLStockMetadata, 14*24*time.Hour, func() (interface{}, error) {
+		var results []models.StockMetadata
+		err := s.db.Where("is_active = ? AND (country = ? OR country = ?)", true, "US", "United States").
+			Order("symbol ASC").
+			Limit(30).
+			Find(&results).Error
+		if err != nil {
+			return nil, err
+		}
+		return s.convertToSearchAssetResponse(results), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return s.convertToSearchAssetResponse(results), nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetCryptoAssets() ([]dto.SearchAssetResponse, error) {
-	var results []models.StockMetadata
-	err := s.db.Where("is_active = ? AND asset_type = ?", true, "crypto").
-		Order("symbol ASC").
-		Limit(30).
-		Find(&results).Error
+	var resp []dto.SearchAssetResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, "assets:crypto", &resp, cache.TTLStockMetadata, 14*24*time.Hour, func() (interface{}, error) {
+		var results []models.StockMetadata
+		err := s.db.Where("is_active = ? AND asset_type = ?", true, "crypto").
+			Order("symbol ASC").
+			Limit(30).
+			Find(&results).Error
+		if err != nil {
+			return nil, err
+		}
+		return s.convertToSearchAssetResponse(results), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return s.convertToSearchAssetResponse(results), nil
+	return resp, nil
 }
 
 func (s *dashboardService) GetIndicesAssets() ([]dto.SearchAssetResponse, error) {
-	var results []models.StockMetadata
-	err := s.db.Where("is_active = ? AND asset_type = ?", true, "index").
-		Order("symbol ASC").
-		Limit(30).
-		Find(&results).Error
+	var resp []dto.SearchAssetResponse
+	err := s.cache.GetStaleOrFetch(s.ctx, "assets:indices", &resp, cache.TTLStockMetadata, 14*24*time.Hour, func() (interface{}, error) {
+		var results []models.StockMetadata
+		err := s.db.Where("is_active = ? AND asset_type = ?", true, "index").
+			Order("symbol ASC").
+			Limit(30).
+			Find(&results).Error
+		if err != nil {
+			return nil, err
+		}
+		return s.convertToSearchAssetResponse(results), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return s.convertToSearchAssetResponse(results), nil
+	return resp, nil
 }
 
 func (s *dashboardService) convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAssetResponse {

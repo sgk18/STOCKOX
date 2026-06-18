@@ -13,9 +13,12 @@ const (
 	TTLNews              = 15 * time.Minute
 	TTLSearch            = 30 * time.Minute
 	TTLDashboard         = 60 * time.Second
-	TTLPortfolio         = 60 * time.Second
-	TTLWatchlist         = 5 * time.Minute
+	TTLPortfolio         = 30 * time.Second      // Updated from 60s
+	TTLWatchlist         = 60 * time.Second      // Updated from 5m
 	TTLCommitteeAnalysis = 1 * time.Hour
+	TTLRecommendations   = 15 * time.Minute      // New
+	TTLCommitteeResults  = 15 * time.Minute      // New
+	TTLStockMetadata     = 7 * 24 * time.Hour    // New
 )
 
 func KeyQuote(symbol string) string {
@@ -57,3 +60,16 @@ func KeyWatchlist(userID string) string {
 func KeyAnalysis(symbol string) string {
 	return fmt.Sprintf("analysis:%s", symbol)
 }
+
+func KeyRecommendations() string {
+	return "recommendations"
+}
+
+func KeyCommitteeResults(ticker string) string {
+	return fmt.Sprintf("committee_results:%s", ticker)
+}
+
+func KeyStockMetadata(symbol string) string {
+	return fmt.Sprintf("metadata:%s", symbol)
+}
+

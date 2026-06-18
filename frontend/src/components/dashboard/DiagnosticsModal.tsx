@@ -139,7 +139,10 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
           writeLatency: `${Math.round(backendData.cache.write_latency_ms || 2)}ms`,
           readLatency: `${Math.round(backendData.cache.read_latency_ms || 2)}ms`,
           deleteLatency: `${Math.round(backendData.cache.delete_latency_ms || 2)}ms`,
-          hitTestSuccess: backendData.cache.hit_test_success
+          hitTestSuccess: backendData.cache.hit_test_success,
+          averageAPITimeMs: backendData.cache.average_api_time_ms,
+          averageCacheTimeMs: backendData.cache.average_cache_time_ms,
+          topRequestedStocks: backendData.cache.top_requested_stocks
         });
 
         setMarketStatus(backendData.market_providers);
@@ -149,7 +152,7 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
       } else {
         // Fallbacks if backend is completely down
         setDbStatus({ connected: false, latency: "0ms", counts: {}, error: "Database unreachable" });
-        setCacheStatus({ connected: false, provider: "Valkey", hits: 0, misses: 0, hitRate: "0%", keys: 0, memory: "0MB", latency: "0ms", writeLatency: "0ms", readLatency: "0ms", deleteLatency: "0ms", hitTestSuccess: false });
+        setCacheStatus({ connected: false, provider: "Valkey", hits: 0, misses: 0, hitRate: "0%", keys: 0, memory: "0MB", latency: "0ms", writeLatency: "0ms", readLatency: "0ms", deleteLatency: "0ms", hitTestSuccess: false, averageAPITimeMs: 0, averageCacheTimeMs: 0, topRequestedStocks: [] });
         setMarketStatus([
           { provider: "Finnhub", status: "Failed", latency_ms: 0, quota_remaining: "0/60", last_error: "Backend API down" },
           { provider: "TwelveData", status: "Failed", latency_ms: 0, quota_remaining: "0/800", last_error: "Backend API down" },
@@ -727,10 +730,30 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
                         <span className="text-gray-400">Delete Latency</span>
                         <span className="font-mono">{cacheStatus.deleteLatency || "—"}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between border-b border-gray-100 pb-1.5">
+                        <span className="text-gray-400">Avg Cache Latency</span>
+                        <span className="font-mono">{cacheStatus.averageCacheTimeMs !== undefined ? `${cacheStatus.averageCacheTimeMs.toFixed(3)}ms` : "—"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-100 pb-1.5">
+                        <span className="text-gray-400">Avg API Fetch Latency</span>
+                        <span className="font-mono">{cacheStatus.averageAPITimeMs !== undefined ? `${cacheStatus.averageAPITimeMs.toFixed(1)}ms` : "—"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-100 pb-1.5">
                         <span className="text-gray-400">Cache Hit Test</span>
                         <span className="font-black text-emerald-600">{cacheStatus.hitTestSuccess ? "PASS" : "FAIL"}</span>
                       </div>
+                      {cacheStatus.topRequestedStocks && cacheStatus.topRequestedStocks.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200 mt-2">
+                          <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider block mb-1">Top Requested Stocks</span>
+                          <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
+                            {cacheStatus.topRequestedStocks.map((stock: string, i: number) => (
+                              <span key={i} className="bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 text-gray-700 font-bold">
+                                {stock}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

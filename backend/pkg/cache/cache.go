@@ -13,11 +13,14 @@ var (
 )
 
 type Stats struct {
-	Hits       int64  `json:"hits"`
-	Misses     int64  `json:"misses"`
-	HitRate    string `json:"hitRate"`
-	Keys       int64  `json:"keys"`
-	SavedCalls int64  `json:"savedCalls"`
+	Hits               int64    `json:"hits"`
+	Misses             int64    `json:"misses"`
+	HitRate            string   `json:"hitRate"`
+	Keys               int64    `json:"keys"`
+	SavedCalls         int64    `json:"savedCalls"`
+	AverageAPITimeMs   float64  `json:"averageAPITimeMs"`
+	AverageCacheTimeMs float64  `json:"averageCacheTimeMs"`
+	TopRequestedStocks []string `json:"topRequestedStocks"`
 }
 
 type Cache interface {
@@ -37,6 +40,9 @@ type Cache interface {
 	IncrementHits()
 	IncrementMisses()
 	IncrementSavedCall()
+	RecordAPILatency(duration time.Duration)
+	RecordCacheLatency(duration time.Duration)
+	RecordStockRequest(ticker string)
 }
 
 // noopCache is a placeholder cache that always returns a cache miss
@@ -87,9 +93,12 @@ func (n *noopCache) GetStaleOrFetch(ctx context.Context, key string, dest interf
 }
 
 func (n *noopCache) GetStats(ctx context.Context) Stats {
-	return Stats{Hits: 0, Misses: 0, HitRate: "0%", Keys: 0, SavedCalls: 0}
+	return Stats{Hits: 0, Misses: 0, HitRate: "0%", Keys: 0, SavedCalls: 0, AverageAPITimeMs: 0, AverageCacheTimeMs: 0, TopRequestedStocks: []string{}}
 }
 
 func (n *noopCache) IncrementHits()       {}
 func (n *noopCache) IncrementMisses()     {}
 func (n *noopCache) IncrementSavedCall() {}
+func (n *noopCache) RecordAPILatency(duration time.Duration) {}
+func (n *noopCache) RecordCacheLatency(duration time.Duration) {}
+func (n *noopCache) RecordStockRequest(ticker string) {}

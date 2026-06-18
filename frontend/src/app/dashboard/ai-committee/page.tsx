@@ -178,7 +178,7 @@ export default function AICommitteePage() {
     }, 1500);
   }
 
-  const handleStartAnalysis = async (customTicker?: string) => {
+  const handleStartAnalysis = async (customTicker?: string, forceRefresh = false) => {
     const targetTicker = (customTicker || ticker).toUpperCase();
     if (!targetTicker) return;
 
@@ -200,7 +200,7 @@ export default function AICommitteePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ ticker: targetTicker, symbol: targetTicker })
+        body: JSON.stringify({ ticker: targetTicker, symbol: targetTicker, force_refresh: forceRefresh })
       });
 
       if (!res.ok) {
@@ -334,6 +334,16 @@ export default function AICommitteePage() {
           >
             <Play className="w-5 h-5 fill-current" />
             <span>{isAnalyzing ? "Analyzing..." : "Analyze Stock"}</span>
+          </button>
+          
+          <button
+            onClick={() => handleStartAnalysis(undefined, true)}
+            disabled={isAnalyzing}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-amber-500 text-white border-3 border-black font-black uppercase px-6 py-3 shadow-[4px_4px_0px_#000000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_#000000] active:translate-y-[2px] active:shadow-[2px_2px_0px_#000000] transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+            title="Bypass cache and force rerun committee debate"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span>Force Refresh</span>
           </button>
           
           <button

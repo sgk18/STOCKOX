@@ -307,6 +307,9 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 			"delete_latency_ms":     deleteLatency,
 			"hit_latency_ms":        hitLatency,
 			"hit_test_success":      hitSuccess,
+			"average_api_time_ms":   cacheStats.AverageAPITimeMs,
+			"average_cache_time_ms": cacheStats.AverageCacheTimeMs,
+			"top_requested_stocks":  cacheStats.TopRequestedStocks,
 		},
 		"market_providers": []gin.H{
 			{

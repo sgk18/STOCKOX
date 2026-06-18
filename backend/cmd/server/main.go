@@ -79,7 +79,7 @@ func main() {
 	if rdb != nil {
 		var list []models.StockMetadata
 		if err := db.Find(&list).Error; err == nil {
-			if errIndex := cacheClient.SetJSON(context.Background(), "search_index", list, 0); errIndex == nil {
+			if errIndex := cacheClient.SetJSON(context.Background(), "search_index", list, cache.TTLStockMetadata); errIndex == nil {
 				log.Printf("[VALKEY-INFO] Loaded %d stock metadata entries into Valkey search_index", len(list))
 			} else {
 				log.Printf("[VALKEY-WARN] Failed to write search_index into Valkey: %v", errIndex)

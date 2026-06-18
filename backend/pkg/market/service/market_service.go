@@ -56,6 +56,7 @@ func (s *MarketService) SearchStocks(query string) ([]dto.SearchStockDTO, error)
 
 // GetQuote fetches latest price with a 60-second Valkey cache and stale-while-revalidate
 func (s *MarketService) GetQuote(ticker string) (*dto.QuoteDTO, error) {
+	cache.Shared.RecordStockRequest(ticker)
 	start := time.Now()
 	cacheKey := cache.KeyQuote(ticker)
 	var quote dto.QuoteDTO
@@ -97,6 +98,7 @@ func (s *MarketService) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 
 // GetCompanyProfile fetches metadata with a 24-hour Valkey cache and stale-while-revalidate
 func (s *MarketService) GetCompanyProfile(ticker string) (*dto.CompanyProfileDTO, error) {
+        cache.Shared.RecordStockRequest(ticker)
         start := time.Now()
         cacheKey := cache.KeyProfile(ticker)
         var profile dto.CompanyProfileDTO
