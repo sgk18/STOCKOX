@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWatchlistStore } from "@/lib/watchlistStore";
 
 import DashboardLayout from "@/app/dashboard/layout";
@@ -253,8 +253,158 @@ function SubAuditorsSkeleton() {
     </div>
   );
 }
+function LiveAnalysisStatusPanel({ 
+  sessionStatus, 
+  logs, 
+  error 
+}: { 
+  sessionStatus: any; 
+  logs: any[]; 
+  error: string | null; 
+}) {
+  const agentsList = [
+    "Research Agent",
+    "Technical Agent",
+    "News Agent",
+    "Risk Agent",
+    "Portfolio Agent",
+    "Committee Agent"
+  ];
 
+  const currentAgent = sessionStatus?.current_agent || "Research Agent";
+  const agentStatus = sessionStatus?.agent_status || "waiting";
+  const status = sessionStatus?.status || "pending";
+  const progressPercent = sessionStatus?.progress_percent ?? 0;
 
+  const currentIdx = agentsList.indexOf(currentAgent);
+
+  return (
+    <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-6 font-mono">
+      <div className="border-b-2 border-black pb-4">
+        <h3 className="text-xs font-black uppercase tracking-wider text-[#0F172A]">AI Committee Analysis Progress</h3>
+        <span className="text-[8px] font-black uppercase text-black/40 mt-1 block">Live Agent Coordination Pipeline</span>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="flex flex-col gap-2">
+        <div className="flex justify-between text-[10px] font-black">
+          <span className="uppercase text-[#64748B]">Consensus Completion</span>
+          <span className="text-[#2563EB]">{progressPercent}%</span>
+        </div>
+        <div className="w-full bg-black/5 border-2 border-black rounded-full h-5 overflow-hidden p-0.5">
+          <div 
+            className="bg-[#2563EB] h-full rounded-full transition-all duration-500 ease-out border-r border-black" 
+            style={{ width: `${progressPercent}%` }} 
+          />
+        </div>
+      </div>
+
+      {/* Agent Checklist */}
+      <div className="flex flex-col gap-3">
+        {agentsList.map((agentName, idx) => {
+          let state: "completed" | "running" | "failed" | "waiting" = "waiting";
+          
+          if (status === "completed") {
+            state = "completed";
+          } else if (status === "failed") {
+            if (agentName === currentAgent) {
+              state = "failed";
+            } else if (idx < currentIdx) {
+              state = "completed";
+            } else {
+              state = "waiting";
+            }
+          } else {
+            if (agentName === currentAgent) {
+              state = agentStatus === "completed" ? "completed" : "running";
+            } else if (idx < currentIdx) {
+              state = "completed";
+            } else {
+              state = "waiting";
+            }
+          }
+
+          return (
+            <div 
+              key={agentName}
+              className={`flex items-center justify-between border-2 p-3 rounded-xl transition-all ${
+                state === "completed" 
+                  ? "bg-green-50/50 border-green-500/30 text-green-800" 
+                  : state === "running"
+                  ? "bg-blue-50/50 border-blue-500 text-blue-800 animate-pulse shadow-[2px_2px_0px_#000000]"
+                  : state === "failed"
+                  ? "bg-red-50 border-red-500 text-red-800"
+                  : "bg-neutral-50/50 border-black/5 text-neutral-400"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className={`w-2 h-2 rounded-full ${
+                  state === "completed" ? "bg-green-500" : state === "running" ? "bg-blue-500" : state === "failed" ? "bg-red-500" : "bg-neutral-300"
+                }`} />
+                <span className="text-[10px] font-black uppercase">{agentName}</span>
+              </div>
+              <span className="text-[8px] font-black uppercase tracking-wider">
+                {state === "completed" && "✓ Complete"}
+                {state === "running" && "Running..."}
+                {state === "failed" && "✗ Failed"}
+                {state === "waiting" && "Waiting..."}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Live Logs Sub-Panel */}
+      <div className="border-t-2 border-black/5 pt-4">
+        <span className="text-[8px] font-black uppercase text-black/50 tracking-wider block mb-2">Live Agent Communications</span>
+        <div className="bg-[#F8FAFC] border-2 border-black p-3 rounded-xl max-h-[140px] overflow-y-auto flex flex-col gap-2 text-[8px] uppercase">
+          {logs && logs.length > 0 ? (
+            logs.map((log: any, i: number) => (
+              <div key={i} className="border-b border-black/5 pb-1 last:border-0 last:pb-0 font-medium">
+                <span className="font-black text-[#2563EB]">{log.agent_name || log.AgentName || "Agent"}: </span>
+                <span className="text-black/70">{log.message || log.Message}</span>
+              </div>
+            ))
+          ) : (
+            <span className="text-black/40 text-center font-bold py-2">Listening to agent signals...</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisPendingPanel({ 
+  symbol, 
+  onAnalyze, 
+  isPending 
+}: { 
+  symbol: string; 
+  onAnalyze: () => void; 
+  isPending: boolean; 
+}) {
+  return (
+    <div className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col items-center justify-center text-center gap-5 font-mono">
+      <div className="w-16 h-16 bg-[#2563EB]/10 border-4 border-black rounded-full flex items-center justify-center text-[#2563EB] shadow-[3px_3px_0px_#000000]">
+        <Bot className="w-8 h-8" />
+      </div>
+      <div>
+        <h3 className="text-sm font-black uppercase tracking-tight text-[#0F172A]">AI Committee Analysis Required</h3>
+        <p className="text-[10px] font-medium text-[#64748B] mt-2 leading-relaxed uppercase max-w-xs mx-auto">
+          No consensus recommendation has been compiled for {symbol} in the last 24 hours. Run the committee debate to synthesize agent views.
+        </p>
+      </div>
+      <button
+        onClick={onAnalyze}
+        disabled={isPending}
+        className="w-full flex items-center justify-center gap-2 border-3 border-black bg-[#2563EB] text-white hover:bg-[#1d4ed8] rounded-xl py-3 px-6 text-xs font-black uppercase shadow-[3px_3px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0.5 transition-all cursor-pointer disabled:opacity-50"
+      >
+        <Sparkles className="w-4.5 h-4.5" />
+        <span>{isPending ? "Starting Analysis..." : "Analyze Stock"}</span>
+      </button>
+    </div>
+  );
+}
 
 export default function ResearchPage({ params }: { params: any }) {
   const resolvedParams = params && typeof (params as any).then === "function"
@@ -277,6 +427,78 @@ export default function ResearchPage({ params }: { params: any }) {
   const [showReport, setShowReport] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportContent, setReportContent] = useState("");
+
+  const queryClient = useQueryClient();
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Poll active analysis session status
+  const { data: sessionStatus } = useQuery({
+    queryKey: ["analysis-session-status", activeSessionId],
+    queryFn: async () => {
+      if (!activeSessionId) return null;
+      const token = await getToken();
+      const res = await fetch(`/api/v1/analysis/${activeSessionId}/status`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load session status");
+      return res.json();
+    },
+    enabled: !!activeSessionId,
+    refetchInterval: (query) => {
+      const data = query.state.data as any;
+      if (data && (data.status === "completed" || data.status === "failed")) {
+        return false;
+      }
+      return 1500;
+    }
+  });
+
+  // Poll active analysis session logs
+  const { data: analysisLogs } = useQuery({
+    queryKey: ["analysis-session-logs", activeSessionId],
+    queryFn: async () => {
+      if (!activeSessionId) return [];
+      const token = await getToken();
+      const res = await fetch(`/api/v1/analysis/${activeSessionId}/logs?ticker=${symbol}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!activeSessionId,
+    refetchInterval: (query) => {
+      if (!activeSessionId) return false;
+      return 1500;
+    }
+  });
+
+  // Watch sessionStatus transitions to update GORM queries
+  useEffect(() => {
+    if (sessionStatus?.status === "completed") {
+      queryClient.invalidateQueries({ queryKey: ["committee-analysis", symbol] });
+      queryClient.invalidateQueries({ queryKey: ["research-terminal", symbol] });
+      setActiveSessionId(null);
+    } else if (sessionStatus?.status === "failed") {
+      setAnalysisError(sessionStatus.summary || "Analysis failed.");
+      setActiveSessionId(null);
+    }
+  }, [sessionStatus, symbol, queryClient]);
+
+  const getAnalysisTimeString = (createdAtStr: string) => {
+    if (!createdAtStr) return "";
+    const diffMs = Date.now() - new Date(createdAtStr).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    return new Date(createdAtStr).toLocaleDateString();
+  };
 
   // Debug Logging Effects (Step 9)
   useEffect(() => {
@@ -388,8 +610,12 @@ export default function ResearchPage({ params }: { params: any }) {
           "Authorization": `Bearer ${token}`
         }
       });
+      if (res.status === 404) {
+        return { analyzed: false };
+      }
       if (!res.ok) throw new Error(`Committee analysis for ${symbol.toUpperCase()} could not be resolved.`);
-      return res.json();
+      const data = await res.json();
+      return { ...data, analyzed: true };
     },
     enabled: isSignedIn && !!symbol,
     refetchInterval: 30000,
@@ -518,29 +744,35 @@ export default function ResearchPage({ params }: { params: any }) {
     };
   }, [filteredHistory]);
 
-  // Run AI Analysis: creates room and redirects to committee debate page
+  // Run AI Analysis: creates analysis session and starts background orchestration
   const startAnalysisMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
-      const res = await fetch("/api/v1/committee/start", {
+      const res = await fetch("/api/v1/analysis/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ ticker: symbol })
+        body: JSON.stringify({ symbol })
       });
-      if (!res.ok) throw new Error("Failed to start agent committee debate.");
+      if (!res.ok) {
+        if (res.status === 403) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Analysis limit reached for today.");
+        }
+        throw new Error("Failed to start agent committee analysis.");
+      }
       return res.json();
     },
     onSuccess: (data) => {
-      // Redirect to the newly created committee room
-      if (data && data.id) {
-        router.push(`/committee/${data.id}`);
+      if (data && data.session_id) {
+        setActiveSessionId(data.session_id);
+        setAnalysisError(null);
       }
     },
     onError: (err) => {
-      alert("Error starting multi-agent session: " + err.message);
+      setAnalysisError(err.message);
     }
   });
 
@@ -767,8 +999,60 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
               </div>
 
               <WatchlistButton ticker={researchData.symbol} companyName={researchData.company_name} />
+
+              {/* AI Committee Analysis CTA */}
+              <div className="font-mono flex items-center shrink-0">
+                {activeSessionId ? (
+                  <button
+                    disabled
+                    className="flex items-center gap-2 border-3 border-black bg-[#2563EB]/10 text-[#2563EB] rounded-xl py-2.5 px-4 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] opacity-80"
+                  >
+                    <div className="w-3.5 h-3.5 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+                    <span>Analyzing...</span>
+                  </button>
+                ) : committeeData?.analyzed ? (
+                  <div className="flex flex-col items-center lg:items-end gap-1">
+                    <button
+                      onClick={() => startAnalysisMutation.mutate()}
+                      disabled={startAnalysisMutation.isPending}
+                      className="flex items-center gap-2 border-3 border-black bg-[#FACC15] text-black hover:bg-[#d9b010] hover:-translate-y-0.5 active:translate-y-0.5 transition-all rounded-xl py-2.5 px-4 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] cursor-pointer"
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span>Refresh Analysis</span>
+                    </button>
+                    <span className="text-[8px] font-black uppercase text-[#64748B] font-mono">
+                      Generated {getAnalysisTimeString(committeeData.created_at)}
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => startAnalysisMutation.mutate()}
+                    disabled={startAnalysisMutation.isPending}
+                    className="flex items-center gap-2 border-3 border-black bg-[#2563EB] text-white hover:bg-[#1d4ed8] hover:-translate-y-0.5 active:translate-y-0.5 transition-all rounded-xl py-2.5 px-4 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Analyze Stock</span>
+                  </button>
+                )}
+              </div>
             </div>
           </section>
+        )}
+
+        {/* Error Alert for credit limits or failures */}
+        {analysisError && (
+          <div className="bg-red-50 border-4 border-black p-5 rounded-2xl shadow-[4px_4px_0px_#000000] flex items-center justify-between gap-4 font-mono text-xs text-red-700 uppercase animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <HelpCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <span className="font-black">{analysisError}</span>
+            </div>
+            <button 
+              onClick={() => setAnalysisError(null)} 
+              className="border-2 border-black bg-white hover:bg-neutral-100 text-black px-3 py-1 rounded font-black cursor-pointer shadow-[1.5px_1.5px_0px_#000000] hover:translate-y-[0.5px] transition-all"
+            >
+              Clear
+            </button>
+          </div>
         )}
 
         {/* 12-COLUMN MAIN LAYOUT GRID */}
@@ -1072,15 +1356,6 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 <WatchlistButton ticker={researchData.symbol} companyName={researchData.company_name} />
 
                 <button
-                  onClick={() => startAnalysisMutation.mutate()}
-                  disabled={startAnalysisMutation.isPending}
-                  className="flex items-center gap-2 border-3 border-black bg-white hover:bg-[#2563EB] hover:text-white rounded-xl py-2 px-5 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0.5 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Play className="w-4.5 h-4.5" />
-                  <span>{startAnalysisMutation.isPending ? "Configuring agents room..." : "Run AI Committee Debate"}</span>
-                </button>
-
-                <button
                   onClick={handleGenerateReport}
                   className="flex items-center gap-2 border-3 border-black bg-[#FACC15] hover:bg-[#E2B80D] rounded-xl py-2 px-5 text-xs font-black uppercase shadow-[2.5px_2.5px_0px_#000000] hover:-translate-y-0.5 active:translate-y-0.5 transition-all cursor-pointer"
                 >
@@ -1115,178 +1390,174 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
 
           {/* RIGHT COLUMN: Decisions, Agents, Timeline (4/12) */}
           <div className="lg:col-span-4 flex flex-col gap-8">
-            
-            {/* SECTION 5: FINAL COMMITTEE DECISION */}
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#2563EB]" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">Consensus decision output</h2>
-              </div>
-
               {isLoadingCommittee ? (
-                <CommitteeSkeleton />
-              ) : committeeError ? (
-                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] text-center p-8 text-xs font-mono text-[#EF4444] uppercase bg-red-50/50">
-                  <span className="font-black">Failed to load committee analysis</span>
-                </div>
-              ) : (
-                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5">
-                  <div className="text-center pb-4 border-b-2 border-black/10">
-                    <span className="text-[8px] font-black uppercase tracking-widest text-[#64748B] block mb-1">AUDIT SYMBOL</span>
-                    <span className="text-xl font-black font-mono bg-black text-[#FACC15] px-3.5 py-1.5 rounded-xl border-3 border-black shadow-[2px_2px_0px_#2563EB]">
-                      {committeeData.symbol}
-                    </span>
-                  </div>
-
-                  {/* Consensus Decision */}
-                  <div className="flex flex-col items-center py-5 bg-[#F8FAFC] border-3 border-black rounded-2xl shadow-[3.5px_3.5px_0px_#000000]">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 font-mono">COMMITTEE RECOMMENDATION</span>
-                    <span className={`text-4xl font-black tracking-tighter uppercase font-mono ${
-                      committeeData.recommendation === "BUY" ? "text-[#2563EB]" : committeeData.recommendation === "SELL" ? "text-[#EF4444]" : "text-amber-500"
-                    }`}>
-                      {committeeData.recommendation}
-                    </span>
-                    <span className="text-[9px] font-mono text-black/55 mt-2 uppercase font-black">Consensus target verified</span>
-                  </div>
-
-                  <div className="flex flex-col gap-4 font-mono">
-                    {/* Confidence */}
-                    <div>
-                      <div className="flex justify-between text-[10px] font-black mb-1">
-                        <span className="uppercase text-[#64748B]">Confidence Score</span>
-                        <span className="text-[#2563EB]">{committeeData.confidence}%</span>
-                      </div>
-                      <div className="w-full bg-black/5 border-2 border-black rounded-full h-4 overflow-hidden">
-                        <div 
-                          className="bg-[#2563EB] h-full rounded-full transition-all duration-300 border-r-2 border-black" 
-                          style={{ width: `${committeeData.confidence}%` }} 
-                        />
-                      </div>
+                <>
+                  <CommitteeSkeleton />
+                  <SubAuditorsSkeleton />
+                </>
+              ) : activeSessionId ? (
+                <LiveAnalysisStatusPanel 
+                  sessionStatus={sessionStatus} 
+                  logs={analysisLogs || []} 
+                  error={analysisError} 
+                />
+              ) : committeeData?.analyzed ? (
+                <>
+                  {/* SECTION 5: FINAL COMMITTEE DECISION */}
+                  <section className="flex flex-col gap-4 font-mono">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-[#2563EB]" />
+                      <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A]">Consensus decision output</h2>
                     </div>
 
-                    {/* Risk Score */}
-                    <div>
-                      <div className="flex justify-between text-[10px] font-black mb-1">
-                        <span className="uppercase text-[#64748B]">Portfolio Risk Rating</span>
-                        <span className="text-amber-500">{overallRiskScore}% (Moderate)</span>
-                      </div>
-                      <div className="w-full bg-black/5 border-2 border-black rounded-full h-4 overflow-hidden">
-                        <div 
-                          className="bg-amber-500 h-full rounded-full transition-all duration-300 border-r-2 border-black" 
-                          style={{ width: `${overallRiskScore}%` }} 
-                        />
-                      </div>
-                    </div>
-
-                    {/* Target Price & Vote */}
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-black/5 text-[10px]">
-                      <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
-                        <span className="font-bold text-[#64748B] uppercase block">Target Price</span>
-                        <span className="font-black text-[#0F172A] text-xs">
-                          ${(researchData.quote.current_price * (committeeData.recommendation === "BUY" ? 1.22 : committeeData.recommendation === "SELL" ? 0.88 : 1.02)).toFixed(2)}
+                    <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-5">
+                      <div className="text-center pb-4 border-b-2 border-black/10">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#64748B] block mb-1">AUDIT SYMBOL</span>
+                        <span className="text-xl font-black font-mono bg-black text-[#FACC15] px-3.5 py-1.5 rounded-xl border-3 border-black shadow-[2px_2px_0px_#2563EB]">
+                          {committeeData.symbol}
                         </span>
                       </div>
-                      <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
-                        <span className="font-bold text-[#64748B] uppercase block">Committee Vote</span>
-                        <span className="font-black text-[#0F172A] text-xs">
-                          {committeeData.votes.buy}/5 Buy
+
+                      {/* Consensus Decision */}
+                      <div className="flex flex-col items-center py-5 bg-[#F8FAFC] border-3 border-black rounded-2xl shadow-[3.5px_3.5px_0px_#000000]">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B] mb-2 font-mono">COMMITTEE RECOMMENDATION</span>
+                        <span className={`text-4xl font-black tracking-tighter uppercase font-mono ${
+                          committeeData.recommendation === "BUY" ? "text-[#2563EB]" : committeeData.recommendation === "SELL" ? "text-[#EF4444]" : "text-amber-500"
+                        }`}>
+                          {committeeData.recommendation}
                         </span>
+                        <span className="text-[9px] font-mono text-black/55 mt-2 uppercase font-black">Consensus target verified</span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </section>
 
-            {/* SECTION 4: AI COMMITTEE ANALYSIS */}
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Bot className="w-5 h-5 text-[#2563EB]" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">AI Committee Sub-Auditors</h2>
-              </div>
-
-              {isLoadingCommittee ? (
-                <SubAuditorsSkeleton />
-              ) : committeeError ? (
-                <div className="bg-white border-4 border-black p-6 rounded-[24px] shadow-[4px_4px_0px_#000000] text-center p-8 text-xs font-mono text-[#EF4444] uppercase bg-red-50/50">
-                  <span className="font-black">Failed to load sub-agents</span>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {committeeData.agents.map((agent: any, idx: number) => (
-                    <div key={idx} className="bg-white border-4 border-black p-4 rounded-[24px] shadow-[4px_4px_0px_#000000] hover:-translate-y-0.5 transition-all">
-                      <div className="flex items-center justify-between border-b border-black/5 pb-2 mb-2 font-mono text-[9px] font-black uppercase">
-                        <span className="text-[#0F172A]">{agent.name}</span>
-                        <span className="text-[#2563EB]">{agent.status}</span>
-                      </div>
-                      <p className="text-[10px] font-medium text-[#64748B] leading-relaxed font-mono mb-3 uppercase">
-                        {agent.reasoning}
-                      </p>
-                      <div className="flex items-center justify-between border-t border-black/5 pt-2 font-mono text-[9px] text-[#64748B]">
-                        <span>SIGNAL: <span className={`border px-1.5 py-0.5 rounded font-black ml-1 ${
-                          agent.output.includes("Bullish") || agent.output.includes("Low Risk") || agent.output.includes("Undervalued") ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-amber-500/10 text-amber-600 border-amber-500/25"
-                        }`}>{agent.output}</span></span>
-                        <span>CONFIDENCE: <span className="font-black text-[#2563EB]">{agent.confidence}%</span></span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* SECTION 11: AGENT ROOM */}
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Bot className="w-5 h-5 text-[#2563EB]" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A] font-mono">AI Committee Live Agent Room</h2>
-              </div>
-
-              <div className="bg-white border-4 border-black p-5 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-4">
-                <div className="flex items-center justify-between border-b border-black/5 pb-2 mb-1">
-                  <span className="text-[9px] font-black uppercase text-[#64748B] tracking-wider font-mono">Consensus Debates Feed</span>
-                  <span className="w-2 h-2 bg-[#2563EB] border border-black rounded-full animate-ping" />
-                </div>
-                
-                <div className="flex flex-col gap-3.5 max-h-[300px] overflow-y-auto pr-1">
-                  {isLoadingCommittee ? (
-                    <div className="p-8 text-center text-xs font-mono text-black/40 uppercase animate-pulse">
-                      Analyzing ticker streams...
-                    </div>
-                  ) : committeeError ? (
-                    <div className="p-8 text-center text-xs font-mono text-[#EF4444] uppercase">
-                      Feed unavailable
-                    </div>
-                  ) : committeeData && committeeData.agents && committeeData.agents.length > 0 ? (
-                    <div className="flex flex-col gap-3">
-                      {committeeData.agents.map((agent: any, idx: number) => (
-                        <div key={idx} className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
-                          <div className="flex items-center justify-between border-b border-black/5 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-black/50">
-                            <span>{agent.name}</span>
-                            <span>Audit Completed</span>
+                      <div className="flex flex-col gap-4 font-mono">
+                        {/* Confidence */}
+                        <div>
+                          <div className="flex justify-between text-[10px] font-black mb-1">
+                            <span className="uppercase text-[#64748B]">Confidence Score</span>
+                            <span className="text-[#2563EB]">{committeeData.confidence}%</span>
                           </div>
-                          <p className="text-[10px] font-medium text-black/75 leading-relaxed font-mono uppercase">
-                            Resolved signal as {agent.output} with {agent.confidence}% confidence.
+                          <div className="w-full bg-black/5 border-2 border-black rounded-full h-4 overflow-hidden">
+                            <div 
+                              className="bg-[#2563EB] h-full rounded-full transition-all duration-300 border-r-2 border-black" 
+                              style={{ width: `${committeeData.confidence}%` }} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* Risk Score */}
+                        <div>
+                          <div className="flex justify-between text-[10px] font-black mb-1">
+                            <span className="uppercase text-[#64748B]">Portfolio Risk Rating</span>
+                            <span className="text-amber-500">{overallRiskScore}% (Moderate)</span>
+                          </div>
+                          <div className="w-full bg-black/5 border-2 border-black rounded-full h-4 overflow-hidden">
+                            <div 
+                              className="bg-amber-500 h-full rounded-full transition-all duration-300 border-r-2 border-black" 
+                              style={{ width: `${overallRiskScore}%` }} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* Target Price & Vote */}
+                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-black/5 text-[10px]">
+                          <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
+                            <span className="font-bold text-[#64748B] uppercase block">Target Price</span>
+                            <span className="font-black text-[#0F172A] text-xs">
+                              ${(researchData.quote.current_price * (committeeData.recommendation === "BUY" ? 1.22 : committeeData.recommendation === "SELL" ? 0.88 : 1.02)).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="border-2 border-black bg-[#F8FAFC] p-3 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
+                            <span className="font-bold text-[#64748B] uppercase block">Committee Vote</span>
+                            <span className="font-black text-[#0F172A] text-xs">
+                              {committeeData.votes.buy}/5 Buy
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* SECTION 4: AI COMMITTEE SUB-AUDITORS */}
+                  <section className="flex flex-col gap-4 font-mono">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-[#2563EB]" />
+                      <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A]">AI Committee Sub-Auditors</h2>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      {committeeData.agents.map((agent: any, idx: number) => (
+                        <div key={idx} className="bg-white border-4 border-black p-4 rounded-[24px] shadow-[4px_4px_0px_#000000] hover:-translate-y-0.5 transition-all">
+                          <div className="flex items-center justify-between border-b border-black/5 pb-2 mb-2 font-mono text-[9px] font-black uppercase">
+                            <span className="text-[#0F172A]">{agent.name}</span>
+                            <span className="text-[#2563EB]">{agent.status}</span>
+                          </div>
+                          <p className="text-[10px] font-medium text-[#64748B] leading-relaxed font-mono mb-3 uppercase">
+                            {agent.reasoning}
                           </p>
+                          <div className="flex items-center justify-between border-t border-black/5 pt-2 font-mono text-[9px] text-[#64748B]">
+                            <span>SIGNAL: <span className={`border px-1.5 py-0.5 rounded font-black ml-1 ${
+                              agent.output.includes("Bullish") || agent.output.includes("Low Risk") || agent.output.includes("Undervalued") ? "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/25" : "bg-amber-500/10 text-amber-600 border-amber-500/25"
+                            }`}>{agent.output}</span></span>
+                            <span>CONFIDENCE: <span className="font-black text-[#2563EB]">{agent.confidence}%</span></span>
+                          </div>
                         </div>
                       ))}
-                      <div className="bg-[#2563EB]/5 border-2 border-[#2563EB]/40 p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#2563EB] animate-fadeIn">
-                        <div className="flex items-center justify-between border-b border-[#2563EB]/10 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-[#2563EB]">
-                          <span>Committee Synthesizer</span>
-                          <span>Consensus Resolved</span>
-                        </div>
-                        <p className="text-[10px] font-black text-[#2563EB] leading-relaxed font-mono uppercase">
-                          Reached final consensus of {committeeData.recommendation} ({committeeData.votes.buy} Buy, {committeeData.votes.hold} Hold, {committeeData.votes.sell} Sell) with {committeeData.confidence}% confidence.
-                        </p>
+                    </div>
+                  </section>
+
+                  {/* SECTION 11: AGENT ROOM */}
+                  <section className="flex flex-col gap-4 font-mono">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-[#2563EB]" />
+                      <h2 className="text-sm font-black uppercase tracking-wider text-[#0F172A]">AI Committee Live Agent Room</h2>
+                    </div>
+
+                    <div className="bg-white border-4 border-black p-5 rounded-[24px] shadow-[4px_4px_0px_#000000] flex flex-col gap-4">
+                      <div className="flex items-center justify-between border-b border-black/5 pb-2 mb-1">
+                        <span className="text-[9px] font-black uppercase text-[#64748B] tracking-wider">Consensus Debates Feed</span>
+                        <span className="w-2 h-2 bg-[#2563EB] border border-black rounded-full animate-ping" />
+                      </div>
+                      
+                      <div className="flex flex-col gap-3.5 max-h-[300px] overflow-y-auto pr-1">
+                        {committeeData && committeeData.agents && committeeData.agents.length > 0 ? (
+                          <div className="flex flex-col gap-3">
+                            {committeeData.agents.map((agent: any, idx: number) => (
+                              <div key={idx} className="bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#000000]">
+                                <div className="flex items-center justify-between border-b border-black/5 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-black/50">
+                                  <span>{agent.name}</span>
+                                  <span>Audit Completed</span>
+                                </div>
+                                <p className="text-[10px] font-medium text-black/75 leading-relaxed font-mono uppercase">
+                                  Resolved signal as {agent.output} with {agent.confidence}% confidence.
+                                </p>
+                              </div>
+                            ))}
+                            <div className="bg-[#2563EB]/5 border-2 border-[#2563EB]/40 p-3.5 rounded-xl shadow-[1.5px_1.5px_0px_#2563EB] animate-fadeIn">
+                              <div className="flex items-center justify-between border-b border-[#2563EB]/10 pb-1.5 mb-2 font-mono text-[8px] font-black uppercase text-[#2563EB]">
+                                <span>Committee Synthesizer</span>
+                                <span>Consensus Resolved</span>
+                              </div>
+                              <p className="text-[10px] font-black text-[#2563EB] leading-relaxed font-mono uppercase">
+                                Reached final consensus of {committeeData.recommendation} ({committeeData.votes.buy} Buy, {committeeData.votes.hold} Hold, {committeeData.votes.sell} Sell) with {committeeData.confidence}% confidence.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-xs font-mono text-black/40 uppercase">
+                            No active logs registered in room.
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-8 text-center text-xs font-mono text-black/40 uppercase">
-                      No active logs registered in room.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
+                  </section>
+                </>
+              ) : (
+                <AnalysisPendingPanel 
+                  symbol={symbol} 
+                  onAnalyze={() => startAnalysisMutation.mutate()} 
+                  isPending={startAnalysisMutation.isPending} 
+                />
+              )}
 
             {/* SECTION 7: RISK ANALYSIS */}
             <section className="flex flex-col gap-4">

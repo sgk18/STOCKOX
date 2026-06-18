@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stockox-backend/database/models"
+	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/eventbus"
 
 	"github.com/google/uuid"
@@ -27,13 +28,21 @@ func NewBandOrchestrator(db *gorm.DB, client *BandClient) *BandOrchestrator {
 	}
 }
 
-func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
-	log.Printf("[BAND-ORCHESTRATOR] Starting multi-agent coordination workflow for symbol: %s", symbol)
+func (o *BandOrchestrator) RunWorkflow(sessionID uuid.UUID, userID string, symbol string) (string, error) {
+	log.Printf("[BAND-ORCHESTRATOR] Starting multi-agent coordination workflow for symbol: %s (session: %s, user: %s)", symbol, sessionID, userID)
 
 	// 1. Create a room name analysis-{symbol}
 	roomName := fmt.Sprintf("analysis-%s", symbol)
 	roomID, err := o.client.CreateRoom(roomName, symbol)
 	if err != nil {
+		if o.db != nil {
+			o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+				"status":       "failed",
+				"agent_status": "failed",
+				"summary":      "Failed to create Band room: " + err.Error(),
+				"updated_at":   time.Now(),
+			})
+		}
 		return "", fmt.Errorf("failed to create Band room: %w", err)
 	}
 
@@ -50,6 +59,15 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 	go func() {
 		ctx := context.Background()
 
+		// Update GORM status to running
+		if o.db != nil {
+			o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+				"status":       "running",
+				"agent_status": "thinking",
+				"updated_at":   time.Now(),
+			})
+		}
+
 		// Publish analysis_started event
 		o.bus.Publish("analysis_events", eventbus.NewEvent("analysis_started", map[string]interface{}{
 			"room_id":    roomID,
@@ -65,14 +83,23 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 		}
 
 		// Sequential agent execution
-		for _, a := range agentsList {
-			// A. Broadcast agent_started event
+		for idx, a := range agentsList {
+			// A. Broadcast agent_started event and update session state
 			o.bus.Publish("agent_events", eventbus.NewEvent("agent_started", map[string]interface{}{
 				"room_id":    roomID,
 				"agent_name": a.Name(),
 				"status":     "thinking",
 				"timestamp":  time.Now(),
 			}))
+
+			if o.db != nil {
+				o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+					"current_agent":    a.Name(),
+					"agent_status":     "thinking",
+					"progress_percent": idx * 20,
+					"updated_at":       time.Now(),
+				})
+			}
 
 			// Sleep to simulate computational latency for UI visualization
 			time.Sleep(1200 * time.Millisecond)
@@ -84,6 +111,14 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 			analysis, vote, confidence, err := a.Analyze(ctx, symbol, history)
 			if err != nil {
 				log.Printf("[BAND-ORCHESTRATOR-ERR] Agent %s failed: %v", a.Name(), err)
+				if o.db != nil {
+					o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+						"status":       "failed",
+						"agent_status": "failed",
+						"summary":      fmt.Sprintf("Agent %s failed: %s", a.Name(), err.Error()),
+						"updated_at":   time.Now(),
+					})
+				}
 				o.bus.Publish("agent_events", eventbus.NewEvent("agent_error", map[string]interface{}{
 					"room_id":    roomID,
 					"agent_name": a.Name(),
@@ -129,7 +164,7 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 				"timestamp":       time.Now(),
 			}))
 
-			// G. Broadcast agent_completed event
+			// G. Broadcast agent_completed event and update GORM
 			o.bus.Publish("agent_events", eventbus.NewEvent("agent_completed", map[string]interface{}{
 				"room_id":    roomID,
 				"agent_name": a.Name(),
@@ -137,6 +172,13 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 				"result":     vote,
 				"timestamp":  time.Now(),
 			}))
+
+			if o.db != nil {
+				o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+					"agent_status": "completed",
+					"updated_at":   time.Now(),
+				})
+			}
 
 			time.Sleep(400 * time.Millisecond)
 		}
@@ -153,6 +195,14 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 
 		if lastMsg == nil {
 			log.Printf("[BAND-ORCHESTRATOR-ERR] Failed to extract Committee final message")
+			if o.db != nil {
+				o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+					"status":       "failed",
+					"agent_status": "failed",
+					"summary":      "Failed to extract Committee consensus message",
+					"updated_at":   time.Now(),
+				})
+			}
 			return
 		}
 
@@ -161,6 +211,13 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 		finalConf := lastMsg.Confidence
 		finalReasoning := lastMsg.Analysis
 
+		currentPrice = 150.0
+		if o.db != nil {
+			var snap models.MarketSnapshot
+			if err := o.db.First(&snap, "symbol = ?", symbol).Error; err == nil && snap.Price > 0 {
+				currentPrice = snap.Price
+			}
+		}
 		targetPrice := GenerateTargetPrice(symbol, currentPrice, finalRec)
 
 		// 1. Save to recommendations table
@@ -201,6 +258,22 @@ func (o *BandOrchestrator) RunWorkflow(symbol string) (string, error) {
 				CreatedAt:         time.Now(),
 			}
 			_ = o.db.Create(&commAnalysis).Error
+
+			// 3. Update GORM analysis_sessions table to completed
+			o.db.Model(&models.AnalysisSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+				"status":           "completed",
+				"progress_percent": 100,
+				"current_agent":    "Committee Agent",
+				"agent_status":     "completed",
+				"recommendation":   finalRec,
+				"confidence_score": finalConf,
+				"summary":          finalReasoning,
+				"updated_at":       time.Now(),
+			})
+
+			// Invalidate caches
+			_ = cache.Shared.Delete(ctx, fmt.Sprintf("committee:%s", symbol))
+			_ = cache.Shared.Delete(ctx, cache.KeyAnalysis(symbol))
 		}
 
 		// Broadcast final recommendation_generated event
