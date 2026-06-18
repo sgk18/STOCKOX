@@ -28,7 +28,8 @@ import {
   Sliders,
   Menu,
   X,
-  Zap
+  Zap,
+  Brain
 } from "lucide-react";
 import AgentFeed from "@/components/dashboard/AgentFeed";
 
@@ -158,6 +159,7 @@ export default function DashboardLayout({
     { name: "Portfolio", path: "/dashboard/portfolio", icon: PieChart },
     { name: "AI Committee", path: "/dashboard/ai-committee", icon: Bot },
     { name: "War Room", path: "/dashboard/war-room", icon: Zap },
+    { name: "AI Copilot", path: "/dashboard/copilot", icon: Brain },
     { name: "Agent Activity", path: "/dashboard/agent-activity", icon: Activity },
     { name: "Research Terminal", path: "/dashboard/research-terminal", icon: Terminal },
     { name: "News & Events", path: "/dashboard/news-events", icon: Newspaper },

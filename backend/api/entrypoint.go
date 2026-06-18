@@ -10,10 +10,11 @@ import (
 	marketdataProviders "stockox-backend/internal/marketdata/providers"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
+	"stockox-backend/pkg/cache"
+	"stockox-backend/pkg/copilot"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/health"
-	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/routes"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
@@ -97,6 +98,7 @@ func init() {
 	portSrv := portfolioService.NewPortfolioService(db)
 	portBroker := portfolioBroker.NewDemoBroker(db, mdSrv)
 	portCtrl := portfolioController.NewPortfolioController(db, portfolioRepo, portBroker, portSrv, noopCache)
+	copilotCtrl := copilot.NewCopilotController(db, portfolioRepo, noopCache)
 
 	// 7. Setup Gin Engine
 	gin.SetMode(gin.ReleaseMode)
@@ -112,6 +114,7 @@ func init() {
 		v1Ctrl,
 		commCtrl,
 		warRoomCtrl,
+		copilotCtrl,
 		marketCtrl,
 		webhookCtrl,
 		portCtrl,

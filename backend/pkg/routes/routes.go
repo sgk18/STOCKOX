@@ -4,13 +4,14 @@ import (
 	"stockox-backend/database/repositories"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
+	"stockox-backend/pkg/cache"
+	"stockox-backend/pkg/copilot"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/health"
 	"stockox-backend/pkg/middleware"
 	"stockox-backend/pkg/websocket"
 	marketController "stockox-backend/pkg/market/controller"
 	portfolioController "stockox-backend/pkg/portfolio/controller"
-	"stockox-backend/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -26,6 +27,7 @@ func SetupRoutes(
 	v1Ctrl *analysis.V1Controller,
 	commCtrl *analysis.CommitteeController,
 	warRoomCtrl *analysis.WarRoomController,
+	copilotCtrl *copilot.CopilotController,
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
 	portCtrl *portfolioController.PortfolioController,
@@ -61,24 +63,17 @@ func SetupRoutes(
 	r.GET("/health/redis", healthCtrl.HealthRedis)
 	r.GET("/api/debug/dashboard", dbCtrl.GetDebugDashboard)
 
-	// WebSocket Endpoints (No Auth wrapper required to prevent client-side header upgrade blockages,
-	// though they will be subject to global middlewares and local origin checks)
-	r.GET("/api/dashboard/ws", func(c *gin.Context) {
-		websocket.ServeWS(wsHub, c)
-	})
-	r.GET("/api/ws", func(c *gin.Context) {
-		websocket.ServeWS(wsHub, c)
-	})
-	r.GET("/ws", func(c *gin.Context) {
-		websocket.ServeWS(wsHub, c)
-	})
+	// WebSocket Endpoints
+	r.GET("/api/dashboard/ws", func(c *gin.Context) { websocket.ServeWS(wsHub, c) })
+	r.GET("/api/ws", func(c *gin.Context) { websocket.ServeWS(wsHub, c) })
+	r.GET("/ws", func(c *gin.Context) { websocket.ServeWS(wsHub, c) })
 
 	// Authenticated API Group
 	api := r.Group("/api")
 	api.Use(middleware.Auth(jwtSecret, userRepo, portfolioRepo, watchlistRepo))
 	api.Use(middleware.EnsureUserSynced(userRepo, portfolioRepo, watchlistRepo))
 	{
-		// Clerk Sync Callback
+		// Auth
 		api.POST("/auth/sync", syncCtrl.SyncUser)
 
 		// Profile & Onboarding routes
@@ -87,6 +82,7 @@ func SetupRoutes(
 		api.POST("/onboarding", profileCtrl.CompleteOnboarding)
 		api.POST("/profile/switch-mode", profileCtrl.SwitchMode)
 
+		// Dashboard
 		api.GET("/dashboard", dbCtrl.GetDashboard)
 		api.GET("/dashboard/portfolio", dbCtrl.GetPortfolioSummary)
 		api.GET("/dashboard/watchlist", dbCtrl.GetWatchlist)
@@ -95,7 +91,7 @@ func SetupRoutes(
 		api.GET("/dashboard/analyses", dbCtrl.GetRecentAnalyses)
 		api.GET("/dashboard/opportunities", dbCtrl.GetOpportunities)
 
-		// Portfolio Management & Simulated Trading Endpoints (Module 7)
+		// Portfolio Management & Simulated Trading (Module 7)
 		api.GET("/portfolio", portCtrl.GetPortfolioOverview)
 		api.GET("/portfolio/holdings", portCtrl.GetHoldings)
 		api.GET("/portfolio/history", portCtrl.GetHistory)
@@ -114,7 +110,7 @@ func SetupRoutes(
 			c.JSON(200, cache.Shared.GetStats(c.Request.Context()))
 		})
 
-		// Search and Curated Asset Universe endpoints (Module 3.8)
+		// Search and Curated Asset Universe (Module 3.8)
 		api.GET("/search", dbCtrl.SearchAssets)
 		api.GET("/assets/popular", dbCtrl.GetPopularAssets)
 		api.GET("/assets/india", dbCtrl.GetIndianAssets)
@@ -167,6 +163,16 @@ func SetupRoutes(
 			// War Room Endpoints (Module 8)
 			v1.GET("/war-room/session/:id", warRoomCtrl.GetWarRoomSession)
 			v1.GET("/war-room/history", warRoomCtrl.GetWarRoomHistory)
+
+			// AI Copilot Endpoints (Module 9)
+			v1.GET("/copilot/health", copilotCtrl.GetHealth)
+			v1.GET("/copilot/audit", copilotCtrl.GetAudit)
+			v1.GET("/copilot/sectors", copilotCtrl.GetSectors)
+			v1.GET("/copilot/positions", copilotCtrl.GetPositions)
+			v1.GET("/copilot/alerts", copilotCtrl.GetAlerts)
+			v1.GET("/copilot/brief", copilotCtrl.GetBrief)
+			v1.POST("/copilot/rebalance", copilotCtrl.PostRebalance)
+			v1.POST("/copilot/simulate", copilotCtrl.PostSimulate)
 		}
 
 		// Compatibility endpoints mapping directly to frontend queries

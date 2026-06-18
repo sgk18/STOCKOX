@@ -15,6 +15,7 @@ import (
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/analysis"
 	"stockox-backend/pkg/auth"
+	"stockox-backend/pkg/copilot"
 	"stockox-backend/pkg/dashboard/controller"
 	"stockox-backend/pkg/dashboard/service"
 	"stockox-backend/pkg/health"
@@ -151,6 +152,7 @@ func main() {
 	portSrv := portfolioService.NewPortfolioService(db)
 	portBroker := portfolioBroker.NewDemoBroker(db, mdSrv)
 	portCtrl := portfolioController.NewPortfolioController(db, portfolioRepo, portBroker, portSrv, cacheClient)
+	copilotCtrl := copilot.NewCopilotController(db, portfolioRepo, cacheClient)
 
 	// 8. Create Gin Engine (gin.New is used because custom recovery/logger middlewares are registered in SetupRoutes)
 	gin.SetMode(gin.ReleaseMode)
@@ -166,6 +168,7 @@ func main() {
 		v1Ctrl,
 		commCtrl,
 		warRoomCtrl,
+		copilotCtrl,
 		marketCtrl,
 		webhookCtrl,
 		portCtrl,
