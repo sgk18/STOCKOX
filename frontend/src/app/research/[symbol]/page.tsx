@@ -489,9 +489,14 @@ export default function ResearchPage({ params }: { params: any }) {
     }
   }, [sessionStatus, symbol, queryClient]);
 
+  const [currentMs, setCurrentMs] = useState<number>(0);
+  useEffect(() => {
+    setCurrentMs(Date.now());
+  }, []);
+
   const getAnalysisTimeString = (createdAtStr: string) => {
-    if (!createdAtStr) return "";
-    const diffMs = Date.now() - new Date(createdAtStr).getTime();
+    if (!createdAtStr || currentMs === 0) return "";
+    const diffMs = currentMs - new Date(createdAtStr).getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return "just now";
     if (diffMin < 60) return `${diffMin}m ago`;

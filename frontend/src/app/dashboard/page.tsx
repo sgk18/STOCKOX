@@ -71,8 +71,12 @@ export default function DashboardPage() {
   const isDemoMode = useDashboardStore((state) => state.isDemoMode);
   
   // Performance measurement references
-  const mountTime = useRef(performance.now());
+  const mountTime = useRef(0);
   const logRenderTimeRef = useRef(false);
+
+  useEffect(() => {
+    mountTime.current = performance.now();
+  }, []);
 
   // 3-second timeout safety protection
   useEffect(() => {
