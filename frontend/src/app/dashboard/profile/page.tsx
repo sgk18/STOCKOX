@@ -434,19 +434,46 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-8 border-t-2 border-black/10 pt-6">
-            <div className="text-[10px] font-medium text-[#64748B] mb-2 leading-relaxed">
-              Managing secure API tokens and connection layers. Sign out from your terminal session safely.
+            <div className="text-[10px] font-medium text-[#64748B] mb-4 leading-relaxed">
+              Verify your connection to the LLM agent network, or sign out from your terminal session safely.
             </div>
-            <button
-              onClick={async () => {
-                await signOut();
-                window.location.href = "/";
-              }}
-              className="py-2.5 px-4 bg-white hover:bg-red-50 text-[#EF4444] border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000000] flex items-center gap-2 cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>SIGNOUT FROM TERMINAL</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const token = await getToken();
+                    const res = await fetch("/api/v1/analysis/test-agent", {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert(`AGENT DIAGNOSTIC SUCCESS:\n${data.message}\nMock mode: ${data.mock}`);
+                    } else {
+                      alert(`AGENT DIAGNOSTIC FAILURE:\n${data.message}`);
+                    }
+                  } catch (err: any) {
+                    alert(`DIAGNOSTIC CONNECTION ERROR:\n${err.message}`);
+                  }
+                }}
+                className="py-2.5 px-4 bg-white hover:bg-blue-50 text-[#2563EB] border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000000] flex items-center gap-2 cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all"
+              >
+                <Sliders className="w-4 h-4" />
+                <span>Test Agent Connection</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  window.location.href = "/";
+                }}
+                className="py-2.5 px-4 bg-white hover:bg-red-50 text-[#EF4444] border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000000] flex items-center gap-2 cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>SIGNOUT FROM TERMINAL</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

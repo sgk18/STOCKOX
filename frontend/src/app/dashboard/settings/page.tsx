@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings, UserCheck, Bot } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { Settings, UserCheck, Bot, Sliders } from "lucide-react";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 
 export default function SettingsPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const [apiKeys] = useState({
     sec: "••••••••••••••••••••••••••••",
     finnhub: "••••••••••••••••••••••••••••",
@@ -85,6 +86,30 @@ export default function SettingsPage() {
                 className="w-full bg-[#F8FAFC] border-2 border-black rounded-lg py-1.5 px-3 font-mono text-xs text-black/60 focus:outline-none"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const token = await getToken();
+                  const res = await fetch("/api/v1/analysis/test-agent", {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    alert(`AGENT DIAGNOSTIC SUCCESS:\n${data.message}\nMock mode: ${data.mock}`);
+                  } else {
+                    alert(`AGENT DIAGNOSTIC FAILURE:\n${data.message}`);
+                  }
+                } catch (err: any) {
+                  alert(`DIAGNOSTIC CONNECTION ERROR:\n${err.message}`);
+                }
+              }}
+              className="mt-2 py-2.5 w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black text-xs uppercase rounded-xl border-3 border-black shadow-[2px_2px_0px_#000000] cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all flex items-center justify-center gap-2"
+            >
+              <Sliders className="w-4 h-4 text-white" />
+              <span>Test Agent Connection</span>
+            </button>
           </div>
         </section>
 

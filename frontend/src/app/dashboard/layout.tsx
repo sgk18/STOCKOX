@@ -258,6 +258,33 @@ export default function DashboardLayout({
             <Sliders className="w-3.5 h-3.5 text-white shrink-0" />
           </Link>
 
+          {/* Test AI Agent connection button */}
+          <button
+            onClick={async () => {
+              try {
+                const token = await getToken();
+                const res = await fetch("/api/v1/analysis/test-agent", {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`AGENT DIAGNOSTIC SUCCESS:\n${data.message}\nMock mode: ${data.mock}`);
+                } else {
+                  alert(`AGENT DIAGNOSTIC FAILURE:\n${data.message}`);
+                }
+              } catch (err: any) {
+                alert(`DIAGNOSTIC CONNECTION ERROR:\n${err.message}`);
+              }
+            }}
+            title="Test AI Agent Connectivity"
+            className={`flex items-center justify-between border-2 border-black bg-white hover:bg-gray-50 text-black rounded-lg px-2.5 py-1.5 shadow-[2px_2px_0px_#000000] font-black text-center uppercase tracking-wider transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 text-[10px] cursor-pointer ${
+              sidebarCollapsed ? "justify-center w-10 h-10 p-0 rounded-xl" : "w-full"
+            }`}
+          >
+            {!sidebarCollapsed && <span>Test AI Agent</span>}
+            <Bot className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+          </button>
+
           {!sidebarCollapsed ? (
             <>
               {/* Market Status */}

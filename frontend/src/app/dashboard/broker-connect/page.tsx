@@ -673,7 +673,7 @@ export default function BrokerConnectPage() {
     loadDetail(selectedAccountId, detailTab);
   }, [selectedAccountId, detailTab, authToken]);
 
-  const loadDetail = async (accountId: string, tab: string) => {
+  async function loadDetail(accountId: string, tab: string) {
     setDetailLoading(true);
     try {
       if (tab === "holdings") {
@@ -694,9 +694,9 @@ export default function BrokerConnectPage() {
       }
     } catch {}
     finally { setDetailLoading(false); }
-  };
+  }
 
-  const handleSync = async (accountId: string, isAuto = false) => {
+  async function handleSync(accountId: string, isAuto = false) {
     if (!authToken) return;
     store.setSyncStatus(accountId, "syncing");
     store.updateAccount(accountId, { status: "syncing" });
@@ -711,7 +711,7 @@ export default function BrokerConnectPage() {
       store.setSyncStatus(accountId, "error");
       store.updateAccount(accountId, { status: "error" });
     }
-  };
+  }
 
   const handleDisconnect = async (accountId: string) => {
     if (!authToken) return;

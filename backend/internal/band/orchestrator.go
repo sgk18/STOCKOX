@@ -580,3 +580,11 @@ func (o *BandOrchestrator) handleAgentError(sessionID uuid.UUID, roomID string, 
 		"timestamp":  time.Now(),
 	}))
 }
+
+func (o *BandOrchestrator) TestConnection() (string, error) {
+	return o.client.CreateRoom("terminal-test-ping", "PING")
+}
+
+func (o *BandOrchestrator) IsMockMode() bool {
+	return o.client.Mock
+}

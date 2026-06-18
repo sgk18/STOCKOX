@@ -167,6 +167,22 @@ export default function WarRoomPage() {
     getToken().then(t => connectSocket(t));
   }, [isSignedIn, getToken, connectSocket]);
 
+  /* ── Session Query ── */
+  const sessionQuery = useQuery<WarRoomSessionResponse>({
+    queryKey: ["war-room-session", activeSessionId],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/v1/war-room/session/${activeSessionId}`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load session");
+      return res.json();
+    },
+    enabled: !!activeSessionId && !!isSignedIn,
+    refetchInterval: liveDone ? false : 3000,
+    staleTime: 0,
+  });
+
   /* ── WS event subscriptions ── */
   useEffect(() => {
     if (!socketConnected || !activeSessionId) return;
@@ -210,22 +226,6 @@ export default function WarRoomPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [liveMessages]);
-
-  /* ── Session Query ── */
-  const sessionQuery = useQuery<WarRoomSessionResponse>({
-    queryKey: ["war-room-session", activeSessionId],
-    queryFn: async () => {
-      const token = await getToken();
-      const res = await fetch(`/api/v1/war-room/session/${activeSessionId}`, {
-        headers: { "Authorization": `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load session");
-      return res.json();
-    },
-    enabled: !!activeSessionId && !!isSignedIn,
-    refetchInterval: liveDone ? false : 3000,
-    staleTime: 0,
-  });
 
   /* ── History Query ── */
   const historyQuery = useQuery<HistorySession[]>({

@@ -136,6 +136,7 @@ func SetupRoutes(
 
 			v1.POST("/analysis/start", v1Ctrl.StartAnalysis)
 			v1.GET("/analysis/history", v1Ctrl.GetAnalysisHistory)
+			v1.GET("/analysis/test-agent", v1Ctrl.TestAgentConnection)
 			v1.GET("/analysis/:id", v1Ctrl.GetAnalysisDetails)
 			v1.GET("/analysis/:id/report", v1Ctrl.GetAnalysisReport)
 			v1.GET("/analysis/:id/logs", v1Ctrl.GetAnalysisLogs)

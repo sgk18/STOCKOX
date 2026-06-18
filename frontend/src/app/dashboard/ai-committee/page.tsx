@@ -96,7 +96,7 @@ export default function AICommitteePage() {
     }
   }, [isSignedIn, ticker]);
 
-  const fetchHistory = async () => {
+  async function fetchHistory() {
     try {
       const token = await getToken();
       const res = await fetch(`/api/v1/analysis/history?ticker=${ticker.toUpperCase()}`, {
@@ -109,9 +109,9 @@ export default function AICommitteePage() {
     } catch (err) {
       console.error("Failed to fetch history:", err);
     }
-  };
+  }
 
-  const fetchLogs = async (id: string) => {
+  async function fetchLogs(id: string) {
     try {
       const token = await getToken();
       const res = await fetch(`/api/v1/analysis/${id}/logs?ticker=${ticker.toUpperCase()}`, {
@@ -124,9 +124,9 @@ export default function AICommitteePage() {
     } catch (err) {
       console.error("Failed to fetch logs:", err);
     }
-  };
+  }
 
-  const fetchReport = async (id: string) => {
+  async function fetchReport(id: string) {
     try {
       const token = await getToken();
       const res = await fetch(`/api/v1/analysis/${id}/report?ticker=${ticker.toUpperCase()}`, {
@@ -140,9 +140,9 @@ export default function AICommitteePage() {
     } catch (err) {
       console.error("Failed to fetch report:", err);
     }
-  };
+  }
 
-  const pollStatus = (id: string) => {
+  function pollStatus(id: string) {
     const interval = setInterval(async () => {
       try {
         const token = await getToken();
@@ -176,7 +176,7 @@ export default function AICommitteePage() {
         setIsAnalyzing(false);
       }
     }, 1500);
-  };
+  }
 
   const handleStartAnalysis = async (customTicker?: string) => {
     const targetTicker = (customTicker || ticker).toUpperCase();

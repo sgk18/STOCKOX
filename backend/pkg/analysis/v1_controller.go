@@ -441,6 +441,27 @@ func (ctrl *V1Controller) GetAnalysisHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
+// TestAgentConnection handles GET /api/v1/analysis/test-agent
+func (ctrl *V1Controller) TestAgentConnection(c *gin.Context) {
+	// Call Band API to create a test room
+	roomID, err := ctrl.bandOrch.TestConnection()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Band API connection failed: " + err.Error(),
+			"mock":    ctrl.bandOrch.IsMockMode(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Successfully connected to Band API. Test room ID: " + roomID,
+		"mock":    ctrl.bandOrch.IsMockMode(),
+	})
+}
+
+
 // GetRecentAnalyses handles GET /api/v1/analysis/recent
 func (ctrl *V1Controller) GetRecentAnalyses(c *gin.Context) {
 	var recs []models.Recommendation
