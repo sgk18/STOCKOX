@@ -213,10 +213,13 @@ type DashboardResponse struct {
 }
 
 type SearchAssetResponse struct {
-	Symbol    string `json:"symbol"`
-	Company   string `json:"company"`
-	Exchange  string `json:"exchange"`
-	Country   string `json:"country"`
-	AssetType string `json:"assetType"`
-	LogoURL   string `json:"logo_url"`
+	Symbol    string  `json:"symbol"`
+	Company   string  `json:"company"`
+	Exchange  string  `json:"exchange"`
+	Country   string  `json:"country"`
+	AssetType string  `json:"assetType"`
+	LogoURL   string  `json:"logo_url"`
+	Price     float64 `json:"price"`
+	Change    float64 `json:"change"`
+	Sector    string  `json:"sector"`
 }

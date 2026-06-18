@@ -147,7 +147,7 @@ export default function DashboardPage() {
   }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken]);
 
   // 1. Fetch dynamic dashboard aggregates via React Query (with caching)
-  const { data: dashboardData, isLoading: isDashLoading, error: dashError } = useQuery({
+  const { data: dashboardData, isLoading: isDashLoading, error: dashError, refetch: refetchDashboard } = useQuery({
     queryKey: ["dashboard-aggregate", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
@@ -161,12 +161,14 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 30000,
-    staleTime: 5 * 60 * 1000, // Cache for 5 mins
-    gcTime: 15 * 60 * 1000,   // GC after 15 mins
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
   });
 
   // 2. Fetch dynamic risk center metrics (with caching)
-  const { data: riskMetrics, isLoading: isRiskLoading, error: riskError } = useQuery({
+  const { data: riskMetrics, isLoading: isRiskLoading, error: riskError, refetch: refetchRisk } = useQuery({
     queryKey: ["dashboard-risk-metrics", isDemoMode],
     queryFn: async () => {
       const token = await getToken();
@@ -180,12 +182,14 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 30000,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch recent agent rooms (with caching)
-  const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError } = useQuery({
+  const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError, refetch: refetchRooms } = useQuery({
     queryKey: ["recent-rooms"],
     queryFn: async () => {
       const token = await getToken();
@@ -199,8 +203,10 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 15000,
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
   });
 
   // Console logging React Query variables
@@ -252,7 +258,8 @@ export default function DashboardPage() {
   }, [isAuthLoaded, isUserLoaded, isSignedIn, router]);
 
   const isLoaded = isAuthLoaded && isUserLoaded;
-  const showSkeletons = isDashLoading || !isLoaded || !isSynced;
+  // Only show skeletons while genuinely loading — bypass skeleton on error so users see the error state
+  const showSkeletons = (isDashLoading && !dashError) || !isLoaded || !isSynced;
 
   const portfolio = dashboardData?.portfolio || { value: 100000, change_percent: 0, change_amount: 0, cash_balance: 100000 };
   const watchlist: WatchlistItem[] = dashboardData?.watchlist || [];

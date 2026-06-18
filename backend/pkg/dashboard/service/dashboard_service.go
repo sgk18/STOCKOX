@@ -1128,7 +1128,7 @@ func (s *dashboardService) SearchAssets(query string) ([]dto.SearchAssetResponse
 			return results[i].Symbol < results[j].Symbol
 		})
 		log.Printf("[VALKEY-INFO] SearchAssets query '%s' resolved from search_index cache with %d matches", query, len(results))
-		return convertToSearchAssetResponse(results), nil
+		return s.convertToSearchAssetResponse(results), nil
 	}
 
 	// 2. Database Fallback (Cache Miss)
@@ -1141,7 +1141,7 @@ func (s *dashboardService) SearchAssets(query string) ([]dto.SearchAssetResponse
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
 func (s *dashboardService) GetPopularAssets() ([]dto.SearchAssetResponse, error) {
@@ -1153,7 +1153,7 @@ func (s *dashboardService) GetPopularAssets() ([]dto.SearchAssetResponse, error)
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
 func (s *dashboardService) GetIndianAssets() ([]dto.SearchAssetResponse, error) {
@@ -1165,7 +1165,7 @@ func (s *dashboardService) GetIndianAssets() ([]dto.SearchAssetResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
 func (s *dashboardService) GetUSAssets() ([]dto.SearchAssetResponse, error) {
@@ -1177,7 +1177,7 @@ func (s *dashboardService) GetUSAssets() ([]dto.SearchAssetResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
 func (s *dashboardService) GetCryptoAssets() ([]dto.SearchAssetResponse, error) {
@@ -1189,7 +1189,7 @@ func (s *dashboardService) GetCryptoAssets() ([]dto.SearchAssetResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
 func (s *dashboardService) GetIndicesAssets() ([]dto.SearchAssetResponse, error) {
@@ -1201,12 +1201,39 @@ func (s *dashboardService) GetIndicesAssets() ([]dto.SearchAssetResponse, error)
 	if err != nil {
 		return nil, err
 	}
-	return convertToSearchAssetResponse(results), nil
+	return s.convertToSearchAssetResponse(results), nil
 }
 
-func convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAssetResponse {
+func (s *dashboardService) convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAssetResponse {
+	symbols := make([]string, len(results))
+	for i, r := range results {
+		symbols[i] = r.Symbol
+	}
+
+	var snapshots []models.MarketSnapshot
+	if len(symbols) > 0 {
+		s.db.Where("symbol IN ?", symbols).Find(&snapshots)
+	}
+
+	snapshotMap := make(map[string]models.MarketSnapshot)
+	for _, snap := range snapshots {
+		snapshotMap[snap.Symbol] = snap
+	}
+
 	res := make([]dto.SearchAssetResponse, len(results))
 	for i, r := range results {
+		price := 150.0 // fallback price
+		change := 0.0
+		if snap, found := snapshotMap[r.Symbol]; found {
+			price = snap.Price
+			change = snap.ChangePercent
+		}
+		
+		sector := r.Sector
+		if sector == "" {
+			sector = "Other"
+		}
+
 		res[i] = dto.SearchAssetResponse{
 			Symbol:    r.Symbol,
 			Company:   r.CompanyName,
@@ -1214,6 +1241,9 @@ func convertToSearchAssetResponse(results []models.StockMetadata) []dto.SearchAs
 			Country:   r.Country,
 			AssetType: r.AssetType,
 			LogoURL:   r.LogoURL,
+			Price:     price,
+			Change:    change,
+			Sector:    sector,
 		}
 	}
 	return res

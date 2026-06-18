@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 
+import ErrorCard from "@/components/ErrorCard";
+
 interface WatchlistItem {
   ticker: string;
   company_name: string;
@@ -22,7 +24,7 @@ export default function WatchlistsPage() {
   const router = useRouter();
 
   // Fetch watchlist data dynamically from database endpoint
-  const { data: watchlist = [], isLoading, error } = useQuery<WatchlistItem[]>({
+  const { data: watchlist = [], isLoading, error, refetch } = useQuery<WatchlistItem[]>({
     queryKey: ["watchlist-data"],
     queryFn: async () => {
       const token = await getToken();
@@ -35,7 +37,10 @@ export default function WatchlistsPage() {
       return res.json();
     },
     enabled: isSignedIn,
-    refetchInterval: 30000,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false
   });
 
   React.useEffect(() => {
@@ -58,8 +63,8 @@ export default function WatchlistsPage() {
 
   if (error) {
     return (
-      <div className="p-8 border-4 border-black bg-red-50 text-[#EF4444] rounded-[24px] shadow-[4px_4px_0px_#000000] font-mono text-xs uppercase">
-        <span className="font-black">Error:</span> Failed to retrieve terminal database records.
+      <div className="max-w-7xl mx-auto my-12">
+        <ErrorCard message={error.message || "Failed to retrieve watchlist data."} onRetry={() => refetch()} />
       </div>
     );
   }

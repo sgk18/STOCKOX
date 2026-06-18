@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Globe, Search, Landmark, Coins, TrendingUp, Sparkles, HelpCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import ErrorCard from "@/components/ErrorCard";
 
 interface AssetUniverseItem {
   symbol: string;
@@ -14,6 +15,9 @@ interface AssetUniverseItem {
   country: string;
   assetType: string;
   logo_url: string;
+  price: number;
+  change: number;
+  sector: string;
 }
 
 export default function MarketIntelligencePage() {
@@ -22,8 +26,16 @@ export default function MarketIntelligencePage() {
   const [activeTab, setActiveTab] = useState<"india" | "us" | "crypto" | "indices">("india");
   const [localSearch, setLocalSearch] = useState("");
 
+  const queryOptions = {
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false,
+    enabled: isSignedIn
+  };
+
   // Queries for each asset category
-  const { data: indiaAssets = [], isLoading: isLoadingIndia } = useQuery<AssetUniverseItem[]>({
+  const { data: indiaAssets = [], isLoading: isLoadingIndia, isError: isErrorIndia, error: errorIndia, refetch: refetchIndia } = useQuery<AssetUniverseItem[]>({
     queryKey: ["assets-india"],
     queryFn: async () => {
       const token = await getToken();
@@ -33,10 +45,10 @@ export default function MarketIntelligencePage() {
       if (!res.ok) throw new Error("Failed to load Indian asset universe");
       return res.json();
     },
-    enabled: isSignedIn
+    ...queryOptions
   });
 
-  const { data: usAssets = [], isLoading: isLoadingUS } = useQuery<AssetUniverseItem[]>({
+  const { data: usAssets = [], isLoading: isLoadingUS, isError: isErrorUS, error: errorUS, refetch: refetchUS } = useQuery<AssetUniverseItem[]>({
     queryKey: ["assets-us"],
     queryFn: async () => {
       const token = await getToken();
@@ -46,10 +58,10 @@ export default function MarketIntelligencePage() {
       if (!res.ok) throw new Error("Failed to load US asset universe");
       return res.json();
     },
-    enabled: isSignedIn
+    ...queryOptions
   });
 
-  const { data: cryptoAssets = [], isLoading: isLoadingCrypto } = useQuery<AssetUniverseItem[]>({
+  const { data: cryptoAssets = [], isLoading: isLoadingCrypto, isError: isErrorCrypto, error: errorCrypto, refetch: refetchCrypto } = useQuery<AssetUniverseItem[]>({
     queryKey: ["assets-crypto"],
     queryFn: async () => {
       const token = await getToken();
@@ -59,10 +71,10 @@ export default function MarketIntelligencePage() {
       if (!res.ok) throw new Error("Failed to load Crypto asset universe");
       return res.json();
     },
-    enabled: isSignedIn
+    ...queryOptions
   });
 
-  const { data: indicesAssets = [], isLoading: isLoadingIndices } = useQuery<AssetUniverseItem[]>({
+  const { data: indicesAssets = [], isLoading: isLoadingIndices, isError: isErrorIndices, error: errorIndices, refetch: refetchIndices } = useQuery<AssetUniverseItem[]>({
     queryKey: ["assets-indices"],
     queryFn: async () => {
       const token = await getToken();
@@ -72,15 +84,15 @@ export default function MarketIntelligencePage() {
       if (!res.ok) throw new Error("Failed to load Global indices universe");
       return res.json();
     },
-    enabled: isSignedIn
+    ...queryOptions
   });
 
   // Map tabs to data & load state
   const tabDataMap = {
-    india: { data: indiaAssets, loading: isLoadingIndia, label: "Indian Equities", icon: Landmark, color: "#2563EB" },
-    us: { data: usAssets, loading: isLoadingUS, label: "US Equities", icon: Globe, color: "#10B981" },
-    crypto: { data: cryptoAssets, loading: isLoadingCrypto, label: "Crypto Assets", icon: Coins, color: "#F59E0B" },
-    indices: { data: indicesAssets, loading: isLoadingIndices, label: "Global Indices", icon: TrendingUp, color: "#EC4899" }
+    india: { data: indiaAssets, loading: isLoadingIndia, error: isErrorIndia ? errorIndia : null, refetch: refetchIndia, label: "Indian Equities", icon: Landmark, color: "#2563EB" },
+    us: { data: usAssets, loading: isLoadingUS, error: isErrorUS ? errorUS : null, refetch: refetchUS, label: "US Equities", icon: Globe, color: "#10B981" },
+    crypto: { data: cryptoAssets, loading: isLoadingCrypto, error: isErrorCrypto ? errorCrypto : null, refetch: refetchCrypto, label: "Crypto Assets", icon: Coins, color: "#F59E0B" },
+    indices: { data: indicesAssets, loading: isLoadingIndices, error: isErrorIndices ? errorIndices : null, refetch: refetchIndices, label: "Global Indices", icon: TrendingUp, color: "#EC4899" }
   };
 
   const currentCategory = tabDataMap[activeTab];
@@ -89,10 +101,10 @@ export default function MarketIntelligencePage() {
   const filteredAssets = currentCategory.data.filter((asset) => {
     const term = localSearch.toLowerCase();
     return (
-      asset.symbol.toLowerCase().includes(term) ||
-      asset.company.toLowerCase().includes(term) ||
-      asset.exchange.toLowerCase().includes(term) ||
-      asset.country.toLowerCase().includes(term)
+      (asset.symbol || "").toLowerCase().includes(term) ||
+      (asset.company || "").toLowerCase().includes(term) ||
+      (asset.exchange || "").toLowerCase().includes(term) ||
+      (asset.country || "").toLowerCase().includes(term)
     );
   });
 
@@ -105,7 +117,7 @@ export default function MarketIntelligencePage() {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="flex flex-col gap-8 animate-fadeIn max-w-7xl mx-auto"
+      className="flex flex-col gap-8 animate-fadeIn max-w-7xl mx-auto pb-12"
     >
       {/* Page Header */}
       <section className="bg-white border-4 border-black p-8 rounded-[24px] shadow-[6px_6px_0px_#000000] flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">
@@ -170,9 +182,14 @@ export default function MarketIntelligencePage() {
       {currentCategory.loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, idx) => (
-            <div key={idx} className="h-36 bg-black/5 border-4 border-black rounded-[20px] animate-pulse" />
+            <div key={idx} className="h-44 bg-black/5 border-4 border-black rounded-[20px] animate-pulse" />
           ))}
         </div>
+      ) : currentCategory.error ? (
+        <ErrorCard 
+          message={currentCategory.error.message || "Failed to load asset universe data."} 
+          onRetry={() => currentCategory.refetch()} 
+        />
       ) : filteredAssets.length === 0 ? (
         <div className="glass-brutal-card p-16 text-center flex flex-col items-center gap-3">
           <HelpCircle className="w-10 h-10 text-[#64748B] animate-bounce" />
@@ -189,37 +206,50 @@ export default function MarketIntelligencePage() {
               onClick={() => handleCardClick(asset.symbol)}
               className="glass-brutal-card p-5 bg-white flex flex-col justify-between hover:shadow-[5px_5px_0px_#000000] hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex flex-col">
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-[#64748B] font-mono">
-                    {asset.exchange} · {asset.country}
-                  </span>
-                  <h3 className="text-lg font-black text-[#0F172A] group-hover:text-[#2563EB] transition-colors mt-1">
-                    {asset.symbol}
-                  </h3>
-                  <p className="text-xs font-bold text-black/60 truncate mt-0.5 max-w-[160px]">
-                    {asset.company}
-                  </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex flex-col">
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-[#64748B] font-mono">
+                      {asset.exchange} · {asset.country}
+                    </span>
+                    <h3 className="text-lg font-black text-[#0F172A] group-hover:text-[#2563EB] transition-colors mt-1">
+                      {asset.symbol}
+                    </h3>
+                    <p className="text-xs font-bold text-black/60 truncate mt-0.5 max-w-[160px]" title={asset.company}>
+                      {asset.company}
+                    </p>
+                  </div>
+
+                  {asset.logo_url ? (
+                    <img
+                      src={asset.logo_url}
+                      alt={asset.symbol}
+                      className="w-10 h-10 rounded-lg border-2 border-black object-contain bg-white p-0.5 shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${asset.symbol}`;
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg border-2 border-black bg-[#2563EB]/10 text-[#2563EB] font-black text-xs flex items-center justify-center shrink-0 uppercase">
+                      {asset.symbol.slice(0, 2)}
+                    </div>
+                  )}
                 </div>
 
-                {asset.logo_url ? (
-                  <img
-                    src={asset.logo_url}
-                    alt={asset.symbol}
-                    className="w-10 h-10 rounded-lg border-2 border-black object-contain bg-white p-0.5 shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${asset.symbol}`;
-                    }}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-lg border-2 border-black bg-[#2563EB]/10 text-[#2563EB] font-black text-xs flex items-center justify-center shrink-0 uppercase">
-                    {asset.symbol.slice(0, 2)}
-                  </div>
-                )}
+                <span className="px-2 py-0.5 border border-black rounded text-[9px] font-mono font-black uppercase bg-gray-50 self-start">
+                  {asset.sector || "Other"}
+                </span>
+
+                <div className="mt-2 flex items-baseline justify-between border-t border-black/5 pt-2">
+                  <span className="text-sm font-black font-mono">${(asset.price ?? 150).toFixed(2)}</span>
+                  <span className={`text-[10px] font-mono font-black ${asset.change >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {asset.change >= 0 ? "+" : ""}{(asset.change ?? 0).toFixed(2)}%
+                  </span>
+                </div>
               </div>
 
               {/* Action Button */}
-              <div className="mt-5 pt-3 border-t border-black/5 flex items-center justify-between text-[9px] font-black uppercase tracking-wider font-mono">
+              <div className="mt-4 pt-3 border-t border-black/5 flex items-center justify-between text-[9px] font-black uppercase tracking-wider font-mono">
                 <span className="text-black/40">Advisory Node</span>
                 <span className="text-[#2563EB] group-hover:underline flex items-center gap-0.5">
                   Launch Audit &rarr;

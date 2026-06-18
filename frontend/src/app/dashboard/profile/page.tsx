@@ -20,6 +20,8 @@ import {
   LogOut
 } from "lucide-react";
 import { useDashboardStore } from "@/lib/store";
+import { useQuery } from "@tanstack/react-query";
+import ErrorCard from "@/components/ErrorCard";
 
 export default function ProfilePage() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -30,9 +32,7 @@ export default function ProfilePage() {
   const isDemoStoreMode = useDashboardStore((state) => state.isDemoMode);
   const setStoreDemoMode = useDashboardStore((state) => state.setDemoMode);
 
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Editable Form State
   const [name, setName] = useState("");
@@ -47,8 +47,10 @@ export default function ProfilePage() {
   const [targetMode, setTargetMode] = useState<"demo" | "live" | null>(null);
   const [switching, setSwitching] = useState(false);
 
-  async function fetchProfile() {
-    try {
+  // Fetch profile via TanStack Query
+  const { data: profile, isLoading: loading, error, refetch: fetchProfile } = useQuery({
+    queryKey: ["profile-details"],
+    queryFn: async () => {
       const token = await getToken();
       const res = await fetch("/api/profile?stats=true", {
         headers: {
@@ -58,25 +60,23 @@ export default function ProfilePage() {
       if (!res.ok) {
         throw new Error("Failed to retrieve user profile");
       }
-      const data = await res.json();
-      setProfile(data);
-      setName(data.name || "");
-      setExperienceLevel(data.experience_level || "Professional Advisor");
-      setRiskPreference(data.risk_preference || "Moderate");
-      setInvestmentGoal(data.investment_goal || "Aggressive Growth");
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to load user profile");
-    } finally {
-      setLoading(false);
-    }
-  }
+      return res.json();
+    },
+    enabled: isLoaded && isSignedIn,
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 2,
+    refetchOnWindowFocus: false
+  });
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      fetchProfile();
+    if (profile) {
+      setName(profile.name || "");
+      setExperienceLevel(profile.experience_level || "Professional Advisor");
+      setRiskPreference(profile.risk_preference || "Moderate");
+      setInvestmentGoal(profile.investment_goal || "Aggressive Growth");
     }
-  }, [isLoaded, isSignedIn]);
+  }, [profile]);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -108,20 +108,11 @@ export default function ProfilePage() {
 
   if (error || !profile) {
     return (
-      <div className="bg-red-50 border-3 border-black p-6 rounded-2xl shadow-[4px_4px_0px_#000000] flex items-start gap-4">
-        <AlertTriangle className="w-6 h-6 text-[#EF4444] shrink-0 mt-0.5" />
-        <div>
-          <h3 className="text-sm font-black uppercase text-[#EF4444] tracking-wide mb-1">
-            System Failure
-          </h3>
-          <p className="text-xs text-[#EF4444] font-bold uppercase">{error || "Failed to parse profile payload"}</p>
-          <button 
-            onClick={() => { setLoading(true); fetchProfile(); }} 
-            className="mt-4 px-4 py-2 border-2 border-black bg-white hover:bg-[#F8FAFC] font-black text-xs uppercase rounded-lg active:translate-y-0.5"
-          >
-            Retry Connection
-          </button>
-        </div>
+      <div className="max-w-7xl mx-auto my-12">
+        <ErrorCard 
+          message={error ? (error as Error).message : "Failed to parse profile payload"} 
+          onRetry={() => fetchProfile()} 
+        />
       </div>
     );
   }
@@ -132,7 +123,7 @@ export default function ProfilePage() {
 
     setFormSaving(true);
     setFormSuccess(null);
-    setError(null);
+    setSubmitError(null);
 
     try {
       const token = await getToken();
@@ -159,7 +150,7 @@ export default function ProfilePage() {
       fetchProfile();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Failed to save advisor settings");
+      setSubmitError(err.message || "Failed to save advisor settings");
     } finally {
       setFormSaving(false);
     }
@@ -173,7 +164,7 @@ export default function ProfilePage() {
   const handleConfirmSwitch = async () => {
     if (!targetMode) return;
     setSwitching(true);
-    setError(null);
+    setSubmitError(null);
 
     try {
       const token = await getToken();
@@ -202,7 +193,7 @@ export default function ProfilePage() {
       window.location.reload();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Failed to switch terminal environment");
+      setSubmitError(err.message || "Failed to switch terminal environment");
       setShowSwitchModal(false);
     } finally {
       setSwitching(false);

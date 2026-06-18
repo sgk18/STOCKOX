@@ -26,7 +26,8 @@ import {
   Sparkles,
   LogOut,
   Sliders,
-  Menu
+  Menu,
+  X
 } from "lucide-react";
 import AgentFeed from "@/components/dashboard/AgentFeed";
 
@@ -181,7 +182,7 @@ export default function DashboardLayout({
 
       {/* LEFT SIDEBAR - Permanent Desktop Sidebar */}
       <aside 
-        className={`hidden lg:flex flex-col border-r-4 border-black bg-white select-none relative z-30 shrink-0 h-full transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex flex-col border-r-4 border-black bg-white select-none relative z-30 shrink-0 h-full transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? "w-[88px]" : "w-[280px]"
         }`}
       >
@@ -287,7 +288,7 @@ export default function DashboardLayout({
       </aside>
 
       {/* MOBILE HEADER BAR */}
-      <div className="lg:hidden w-full bg-white border-b-4 border-black fixed top-0 left-0 right-0 h-16 px-4 flex items-center justify-between z-40 select-none">
+      <div className="md:hidden w-full bg-white border-b-4 border-black fixed top-0 left-0 right-0 h-16 px-4 flex items-center justify-between z-40 select-none">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -311,7 +312,7 @@ export default function DashboardLayout({
 
       {/* MOBILE NAVIGATION OVERLAY */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 md:hidden" onClick={() => setMobileMenuOpen(false)}>
           <div
             className="w-[280px] bg-white h-full border-r-4 border-black flex flex-col animate-slideRight"
             onClick={(e) => e.stopPropagation()}
@@ -351,7 +352,7 @@ export default function DashboardLayout({
       )}
 
       {/* MAIN CONTAINER */}
-      <div className="flex-grow flex flex-col min-w-0 pt-16 lg:pt-0 relative z-10 animate-fadeIn h-full overflow-hidden">
+      <div className="flex-grow flex flex-col min-w-0 pt-16 md:pt-0 relative z-10 animate-fadeIn h-full overflow-hidden">
         
         {/* TOP BAR */}
         <header className="h-[72px] border-b-4 border-black bg-white/75 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-30 select-none">
@@ -447,7 +448,7 @@ export default function DashboardLayout({
             <button
               onClick={() => setShowAgentFeed(!showAgentFeed)}
               title="Toggle AI Activity Feed"
-              className={`hidden lg:flex p-2 border-3 border-black bg-white rounded-xl hover:-translate-y-0.5 active:translate-y-0 shadow-[2px_2px_0px_#000000] transition-all cursor-pointer ${
+              className={`hidden md:flex p-2 border-3 border-black bg-white rounded-xl hover:-translate-y-0.5 active:translate-y-0 shadow-[2px_2px_0px_#000000] transition-all cursor-pointer ${
                 showAgentFeed ? "bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]" : "text-black hover:bg-[#F8FAFC]"
               }`}
             >
@@ -534,16 +535,21 @@ export default function DashboardLayout({
         </header>
 
         {/* CONTENT ROW */}
-        <div className="flex-grow flex flex-col lg:flex-row relative overflow-hidden h-full">
+        <div className="flex-grow flex flex-col md:flex-row relative overflow-hidden h-full">
           
           {/* FLUID RESPONSIVE CONTENT AREA */}
-          <main className="flex-grow p-6 lg:p-8 min-w-0 overflow-y-auto h-full">
+          <main className="flex-grow p-6 md:p-8 min-w-0 overflow-y-auto h-full">
             {children}
           </main>
 
+          {/* Mobile backdrop for bottom drawer */}
+          {showAgentFeed && (
+            <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setShowAgentFeed(false)} />
+          )}
+
           {/* COLLAPSIBLE RIGHT PANEL - AI ACTIVITY FEED */}
           {showAgentFeed && (
-            <aside className="w-full lg:w-[360px] border-t-4 lg:border-t-0 lg:border-l-4 border-black bg-white select-none shrink-0 relative z-20 flex flex-col h-[500px] lg:h-full">
+            <aside className="w-full h-[60vh] fixed bottom-0 left-0 right-0 border-t-4 border-black z-50 flex flex-col md:relative md:h-full md:w-[280px] md:border-t-0 md:border-l-4 md:z-20 md:bottom-auto md:left-auto md:right-auto lg:w-[320px] select-none shrink-0 bg-white">
               <div className="flex-grow flex flex-col overflow-hidden h-full">
                 {/* Custom Wrapper to display AgentFeed */}
                 <div className="flex-grow overflow-hidden flex flex-col h-full bg-[#F8FAFC]">
@@ -553,10 +559,19 @@ export default function DashboardLayout({
                       <Sparkles className="w-5 h-5 text-[#2563EB]" />
                       <span className="text-xs font-black uppercase tracking-wider text-[#0F172A]">AI Comm Link</span>
                     </div>
-                    <span className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider ${socketConnected ? "text-[#2563EB]" : "text-amber-500"}`}>
-                      <span className={`w-2 h-2 rounded-full border border-black ${socketConnected ? "bg-[#2563EB] animate-ping" : "bg-amber-500 animate-pulse"}`} />
-                      {socketConnected ? "Live Connection" : "Simulated"}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider ${socketConnected ? "text-[#2563EB]" : "text-amber-500"}`}>
+                        <span className={`w-2 h-2 rounded-full border border-black ${socketConnected ? "bg-[#2563EB] animate-ping" : "bg-amber-500 animate-pulse"}`} />
+                        {socketConnected ? "Live Connection" : "Simulated"}
+                      </span>
+                      {/* Close button for mobile bottom drawer */}
+                      <button 
+                        onClick={() => setShowAgentFeed(false)}
+                        className="md:hidden border-2 border-black p-1 bg-white hover:bg-black hover:text-white rounded transition-colors cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex-grow overflow-y-auto p-4 flex flex-col h-full bg-[#F8FAFC] custom-agent-feed-container">
