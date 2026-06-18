@@ -16,6 +16,24 @@ export default function LoginPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  useEffect(() => {
+    const handleLoginClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isSocialClick = target.closest("button")?.classList.contains("cl-socialButtonsBlockButton") || 
+                           target.closest(".cl-socialButtonsBlockButton");
+      const isFormSubmit = target.closest("form") || target.closest("button[type='submit']");
+      
+      if (isSocialClick || isFormSubmit) {
+        sessionStorage.setItem("login_start_time", performance.now().toString());
+        sessionStorage.setItem("auth_start_time", Date.now().toString());
+        console.log("[PERFORMANCE] Capturing login/auth initiation timestamp.");
+      }
+    };
+
+    window.addEventListener("click", handleLoginClick);
+    return () => window.removeEventListener("click", handleLoginClick);
+  }, []);
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">

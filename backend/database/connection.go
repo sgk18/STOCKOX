@@ -87,6 +87,7 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		&models.Recommendation{},
 		&models.CommitteeAnalysis{},
 		&models.AnalysisLog{},
+		&models.AnalysisSession{},
 	}
 	for _, model := range migrateModels {
 		if err := db.AutoMigrate(model); err != nil {
@@ -108,6 +109,7 @@ func InitializeDatabase(cfg *config.Config) (*gorm.DB, error) {
 		"portfolio_snapshots",
 		"committee_analyses",
 		"analysis_logs",
+		"analysis_sessions",
 	}
 
 	missingTables := false

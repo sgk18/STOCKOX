@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
@@ -59,15 +59,38 @@ const MOCK_EVENTS = [
   { title: "Microsoft Corp. Earnings Call", date: "July 22, 2026", type: "EARNINGS", badgeColor: "bg-[#2563EB]/15 text-[#2563EB]" }
 ];
 
+const Skeleton = ({ className = "h-6 w-full" }: { className?: string }) => (
+  <div className={`bg-slate-200 animate-pulse border border-black/10 rounded-lg ${className}`} />
+);
+
 export default function DashboardPage() {
   const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useAuth();
   const { isLoaded: isUserLoaded, user } = useUser();
   const router = useRouter();
-  const [isSynced, setIsSynced] = useState(true);
+  const [isSynced, setIsSynced] = useState(false);
   const isDemoMode = useDashboardStore((state) => state.isDemoMode);
+  
+  // Performance measurement references
+  const mountTime = useRef(performance.now());
+  const logRenderTimeRef = useRef(false);
 
-  // Synchronize User profile with local DB on load
+  // 3-second timeout safety protection
   useEffect(() => {
+    if (isAuthLoaded && isSignedIn) {
+      const timer = setTimeout(() => {
+        console.warn("[SYNC-TIMEOUT] Provisioning sync exceeded 3s timeout. Forcing UI hydration.");
+        setIsSynced(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthLoaded, isSignedIn]);
+
+  // Synchronize User profile with local DB on load with retry mechanism
+  useEffect(() => {
+    let active = true;
+    let retryCount = 0;
+    const maxRetries = 3;
+
     async function syncProfile() {
       const isLoaded = isAuthLoaded && isUserLoaded;
       if (isLoaded && isSignedIn) {
@@ -77,6 +100,10 @@ export default function DashboardPage() {
           const name = user?.fullName || user?.username || user?.firstName || "Adviser";
           const email = user?.primaryEmailAddress?.emailAddress || "";
           const avatarUrl = user?.imageUrl || "";
+
+          if (retryCount === 0) {
+            sessionStorage.setItem("provision_start_time", Date.now().toString());
+          }
 
           const res = await fetch("/api/v1/auth/sync-user", {
             method: "POST",
@@ -90,22 +117,32 @@ export default function DashboardPage() {
               avatar_url: avatarUrl
             })
           });
+
           if (res.ok) {
-            setIsSynced(true);
+            sessionStorage.setItem("provision_end_time", Date.now().toString());
+            if (active) setIsSynced(true);
           } else {
-            console.error("[SYNC] Sync endpoint returned error status:", res.status);
-            setIsSynced(true);
+            throw new Error(`Sync API status ${res.status}`);
           }
         } catch (err) {
-          console.error("[SYNC-ERR] Failed to contact sync endpoint:", err);
-          setIsSynced(true);
+          console.error(`[SYNC-ERR] Failed to sync profile (Attempt ${retryCount + 1}/${maxRetries}):`, err);
+          if (retryCount < maxRetries && active) {
+            retryCount++;
+            setTimeout(syncProfile, 2000);
+          } else {
+            if (active) setIsSynced(true); // Proceed anyway to keep UI interactive
+          }
         }
       }
     }
+    
     syncProfile();
+    return () => {
+      active = false;
+    };
   }, [isAuthLoaded, isUserLoaded, isSignedIn, user, getToken]);
 
-  // 1. Fetch dynamic dashboard aggregates via React Query
+  // 1. Fetch dynamic dashboard aggregates via React Query (with caching)
   const { data: dashboardData, isLoading: isDashLoading, error: dashError } = useQuery({
     queryKey: ["dashboard-aggregate", isDemoMode],
     queryFn: async () => {
@@ -120,9 +157,11 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 30000,
+    staleTime: 5 * 60 * 1000, // Cache for 5 mins
+    gcTime: 15 * 60 * 1000,   // GC after 15 mins
   });
 
-  // 2. Fetch dynamic risk center metrics
+  // 2. Fetch dynamic risk center metrics (with caching)
   const { data: riskMetrics, isLoading: isRiskLoading, error: riskError } = useQuery({
     queryKey: ["dashboard-risk-metrics", isDemoMode],
     queryFn: async () => {
@@ -137,9 +176,11 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 30000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch recent agent rooms
+  // Fetch recent agent rooms (with caching)
   const { data: recentRooms, isLoading: isRoomsLoading, error: roomsError } = useQuery({
     queryKey: ["recent-rooms"],
     queryFn: async () => {
@@ -154,9 +195,11 @@ export default function DashboardPage() {
     },
     enabled: isSignedIn && isSynced,
     refetchInterval: 15000,
+    staleTime: 1 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
-  // Console logging React Query variables (Step 5)
+  // Console logging React Query variables
   useEffect(() => {
     console.log("[REACT-QUERY-AGGREGATE] Status:", {
       isLoading: isDashLoading,
@@ -175,6 +218,27 @@ export default function DashboardPage() {
     });
   }, [isRiskLoading, riskError, riskMetrics]);
 
+  // Performance audit logger
+  useEffect(() => {
+    const isLoaded = isAuthLoaded && isUserLoaded;
+    if (isLoaded && !isDashLoading && isSynced && !logRenderTimeRef.current) {
+      logRenderTimeRef.current = true;
+      const authStartTime = sessionStorage.getItem("auth_start_time");
+      const provisionStartTime = sessionStorage.getItem("provision_start_time");
+      const provisionEndTime = sessionStorage.getItem("provision_end_time");
+      
+      const authTime = authStartTime ? `${Date.now() - parseInt(authStartTime)}ms` : "N/A (already authenticated)";
+      const provisionTime = (provisionStartTime && provisionEndTime) ? `${parseInt(provisionEndTime) - parseInt(provisionStartTime)}ms` : "N/A";
+      const renderTime = `${Math.round(performance.now() - mountTime.current)}ms`;
+
+      console.info(
+        `%c[PERFORMANCE AUDIT] Dashboard loaded in ${renderTime}%c\n- Auth Time: ${authTime}\n- Provision Time: ${provisionTime}\n- Total Render Time: ${renderTime}`,
+        "color: #10B981; font-weight: bold; font-size: 13px;",
+        "color: inherit; font-size: 11px;"
+      );
+    }
+  }, [isAuthLoaded, isUserLoaded, isDashLoading, isSynced]);
+
   // Redirect if not signed in
   useEffect(() => {
     const isLoaded = isAuthLoaded && isUserLoaded;
@@ -184,20 +248,7 @@ export default function DashboardPage() {
   }, [isAuthLoaded, isUserLoaded, isSignedIn, router]);
 
   const isLoaded = isAuthLoaded && isUserLoaded;
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-        <div className="flex flex-col items-center gap-4 animate-pulse">
-          <div className="w-12 h-12 rounded-2xl bg-[#2563EB] border-4 border-black shadow-[4px_4px_0px_#000000] animate-bounce flex items-center justify-center font-black text-white text-lg">
-            SO
-          </div>
-          <span className="font-mono text-xs uppercase tracking-widest text-[#64748B]">
-            Syncing Terminal Credentials...
-          </span>
-        </div>
-      </div>
-    );
-  }
+  const showSkeletons = isDashLoading || !isLoaded || !isSynced;
 
   const portfolio = dashboardData?.portfolio || { value: 100000, change_percent: 0, change_amount: 0, cash_balance: 100000 };
   const watchlist: WatchlistItem[] = dashboardData?.watchlist || [];
@@ -227,8 +278,8 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Total Assets (USD)</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {isDashLoading ? (
-                  "Loading..."
+                {showSkeletons ? (
+                  <Skeleton className="h-8 w-36" />
                 ) : dashError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
@@ -238,7 +289,13 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center justify-between mt-4 border-t border-black/5 pt-3">
               <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#2563EB]/15 text-[#2563EB] border border-[#2563EB]/20">
-                {isDashLoading ? "..." : dashError ? "Error" : `${portfolio.change_percent >= 0 ? "+" : ""}${portfolio.change_percent.toFixed(2)}% today`}
+                {showSkeletons ? (
+                  <Skeleton className="h-4 w-20" />
+                ) : dashError ? (
+                  "Error"
+                ) : (
+                  `${portfolio.change_percent >= 0 ? "+" : ""}${portfolio.change_percent.toFixed(2)}% today`
+                )}
               </span>
               <svg className="w-16 h-8 text-[#2563EB]" viewBox="0 0 100 30" fill="none">
                 <path d="M0,25 L20,23 L40,18 L60,19 L80,10 L100,5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
@@ -251,8 +308,8 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Today&apos;s P&L</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {isDashLoading ? (
-                  "Loading..."
+                {showSkeletons ? (
+                  <Skeleton className="h-8 w-32" />
                 ) : dashError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
@@ -275,8 +332,8 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Liquid Cash Balance</span>
               <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">
-                {isDashLoading ? (
-                  "Loading..."
+                {showSkeletons ? (
+                  <Skeleton className="h-8 w-32" />
                 ) : dashError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load portfolio</span>
                 ) : (
@@ -299,8 +356,8 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Portfolio Beta</span>
               <h3 className="text-2xl font-black tracking-tight text-[#0F172A] font-mono">
-                {isRiskLoading ? (
-                  "Loading..."
+                {isRiskLoading || !isLoaded || !isSynced ? (
+                  <Skeleton className="h-8 w-24" />
                 ) : riskError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load risk</span>
                 ) : (
@@ -311,10 +368,18 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-1.5 mt-4 border-t border-black/5 pt-3">
               <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-[#64748B]">
                 <span>Risk Score</span>
-                <span className="text-[#2563EB]">{isRiskLoading ? "..." : riskError ? "Error" : `${riskMetrics?.risk_score || 24} / 100`}</span>
+                <span className="text-[#2563EB]">
+                  {isRiskLoading || !isLoaded || !isSynced ? (
+                    <Skeleton className="h-3 w-10 inline-block" />
+                  ) : riskError ? (
+                    "Error"
+                  ) : (
+                    `${riskMetrics?.risk_score || 24} / 100`
+                  )}
+                </span>
               </div>
               <div className="w-full bg-black/5 border border-black rounded-full h-2 overflow-hidden">
-                <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${isRiskLoading || riskError ? 0 : (riskMetrics?.risk_score || 24)}%` }} />
+                <div className="bg-[#2563EB] h-full rounded-full" style={{ width: `${isRiskLoading || !isLoaded || !isSynced || riskError ? 0 : (riskMetrics?.risk_score || 24)}%` }} />
               </div>
             </div>
           </div>
@@ -324,8 +389,8 @@ export default function DashboardPage() {
             <div>
               <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider block mb-1">Diversification Score</span>
               <h3 className="text-2xl font-black tracking-tight text-[#2563EB] font-mono">
-                {isRiskLoading ? (
-                  "Loading..."
+                {isRiskLoading || !isLoaded || !isSynced ? (
+                  <Skeleton className="h-8 w-24" />
                 ) : riskError ? (
                   <span className="text-xs text-[#EF4444] font-black">Failed to load risk</span>
                 ) : (
@@ -353,39 +418,54 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          {isDashLoading ? (
-            <div className="col-span-5 text-center font-mono text-xs uppercase py-8 text-[#64748B] animate-pulse bg-white border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
-              Loading committee statuses...
-            </div>
+          {showSkeletons ? (
+            Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="glass-brutal-card p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <Skeleton className="h-3.5 w-20" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-200 border border-black animate-pulse" />
+                  </div>
+                  <Skeleton className="h-5 w-28 mb-3" />
+                  <Skeleton className="h-3 w-full mb-1.5" />
+                  <Skeleton className="h-3 w-3/4" />
+                </div>
+                <div className="mt-4 pt-3 border-t border-black/5 flex flex-col gap-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              </div>
+            ))
           ) : dashError ? (
             <div className="col-span-5 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
               Failed to load committee data
             </div>
           ) : (
             agentStatuses.map((agent: { agent_name: string; status: string }) => (
-            <div key={agent.agent_name} className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[9px] font-black uppercase text-[#64748B] tracking-widest">Committee Agent</span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB] border border-black animate-pulse" />
+              <div key={agent.agent_name} className="glass-brutal-card p-5 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-[7px_7px_0px_#000000] transition-all duration-200">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[9px] font-black uppercase text-[#64748B] tracking-widest">Committee Agent</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB] border border-black animate-pulse" />
+                  </div>
+                  <h3 className="text-sm font-black uppercase text-[#0F172A]">{agent.agent_name}</h3>
+                  <p className="text-[10px] font-mono font-bold text-[#64748B] mt-2 line-clamp-2 leading-relaxed">
+                    Executing advanced Multi-Agent consensus routines in background.
+                  </p>
                 </div>
-                <h3 className="text-sm font-black uppercase text-[#0F172A]">{agent.agent_name}</h3>
-                <p className="text-[10px] font-mono font-bold text-[#64748B] mt-2 line-clamp-2 leading-relaxed">
-                  Executing advanced Multi-Agent consensus routines in background.
-                </p>
+                <div className="mt-4 pt-3 border-t border-black/5 flex flex-col gap-2 font-mono text-[9px]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#64748B]">STATUS:</span>
+                    <span className="font-black text-[#2563EB] uppercase">{agent.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#64748B]">CONFIDENCE:</span>
+                    <span className="font-black text-[#2563EB]">85%</span>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-black/5 flex flex-col gap-2 font-mono text-[9px]">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#64748B]">STATUS:</span>
-                  <span className="font-black text-[#2563EB] uppercase">{agent.status}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#64748B]">CONFIDENCE:</span>
-                  <span className="font-black text-[#2563EB]">85%</span>
-                </div>
-              </div>
-            </div>
-          )))}
+            ))
+          )}
         </div>
       </section>
 
@@ -397,10 +477,19 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
-          {isDashLoading ? (
-            <div className="col-span-6 text-center font-mono text-xs uppercase py-8 text-[#64748B] animate-pulse bg-white border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
-              Loading market data...
-            </div>
+          {showSkeletons ? (
+            Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="glass-brutal-card p-4 flex flex-col justify-between">
+                <div>
+                  <Skeleton className="h-3.5 w-16 mb-2" />
+                  <Skeleton className="h-5 w-24" />
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-2 border-t border-black/5">
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-5 w-10" />
+                </div>
+              </div>
+            ))
           ) : dashError ? (
             <div className="col-span-6 text-center font-mono text-xs uppercase py-8 text-[#EF4444] bg-red-50 border-3 border-black rounded-[24px] shadow-[4px_4px_0px_#000000]">
               Failed to load market data
@@ -468,12 +557,32 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {isDashLoading ? (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
-                          Loading watchlist snapshot...
-                        </td>
-                      </tr>
+                    {showSkeletons ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <tr key={idx} className="animate-pulse">
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-12" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-32" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-16" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-5 w-14 rounded-lg" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-2 w-16 rounded-full" />
+                              <Skeleton className="h-3 w-8" />
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            <Skeleton className="h-7 w-16 ml-auto" />
+                          </td>
+                        </tr>
+                      ))
                     ) : dashError ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
@@ -547,12 +656,26 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {isRoomsLoading ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
-                          Loading recent agent rooms...
-                        </td>
-                      </tr>
+                    {(showSkeletons || isRoomsLoading) ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <tr key={idx} className="animate-pulse">
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-4 w-16" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-5 w-16 rounded-lg" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-3.5 w-32" />
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            <Skeleton className="h-7 w-20 ml-auto" />
+                          </td>
+                        </tr>
+                      ))
                     ) : roomsError ? (
                       <tr>
                         <td colSpan={4} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
@@ -623,12 +746,26 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-black/5 font-sans text-xs">
-                    {isDashLoading ? (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#64748B] animate-pulse">
-                          Loading recent recommendations...
-                        </td>
-                      </tr>
+                    {showSkeletons ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <tr key={idx} className="animate-pulse">
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-12" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-5 w-14 rounded-lg" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-10" />
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <Skeleton className="h-4 w-16" />
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            <Skeleton className="h-3.5 w-16 ml-auto" />
+                          </td>
+                        </tr>
+                      ))
                     ) : dashError ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center font-mono text-xs uppercase text-[#EF4444] bg-red-50/50">
@@ -678,10 +815,22 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {isDashLoading ? (
-                <div className="p-8 border-3 border-black text-center font-mono text-xs uppercase text-[#64748B] rounded-[24px] bg-white animate-pulse">
-                  Loading research feed...
-                </div>
+              {showSkeletons ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <div key={idx} className="glass-brutal-card p-5 animate-pulse flex flex-col gap-3">
+                    <div className="flex items-center justify-between border-b border-black/5 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-14 rounded-lg" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                      <Skeleton className="h-3.5 w-12" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-5/6" />
+                    </div>
+                  </div>
+                ))
               ) : dashError ? (
                 <div className="p-8 border-3 border-black text-center font-mono text-xs uppercase text-[#EF4444] rounded-[24px] bg-red-50">
                   Failed to load research feed
@@ -725,9 +874,20 @@ export default function DashboardPage() {
             </div>
 
             <div className="glass-brutal-card p-5 flex flex-col gap-4 bg-white">
-              {isDashLoading ? (
-                <div className="text-center font-mono text-xs uppercase py-4 text-[#64748B] animate-pulse">
-                  Loading recommendations...
+              {showSkeletons ? (
+                <div className="flex flex-col gap-3">
+                  {Array.from({ length: 3 }).map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center justify-between bg-[#F8FAFC] border-2 border-black p-3.5 rounded-xl shadow-[2px_2px_0px_#000000] animate-pulse"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-5 w-14 rounded-lg" />
+                      </div>
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  ))}
                 </div>
               ) : dashError ? (
                 <div className="text-center font-mono text-xs uppercase py-4 text-[#EF4444]">
@@ -782,7 +942,13 @@ export default function DashboardPage() {
                     <span className="text-xs font-black uppercase">Low Volatility</span>
                   </div>
                   <span className="font-mono text-xs font-black text-[#2563EB]">
-                    {isRiskLoading ? "..." : riskError ? "Error" : (riskMetrics?.volatility_score || 1.18).toFixed(2)}
+                    {(isRiskLoading || !isLoaded || !isSynced) ? (
+                      <Skeleton className="h-4 w-10 inline-block" />
+                    ) : riskError ? (
+                      "Error"
+                    ) : (
+                      (riskMetrics?.volatility_score || 1.18).toFixed(2)
+                    )}
                   </span>
                 </div>
               </div>
@@ -792,18 +958,22 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider font-sans mb-1">Portfolio Exposure Limits</span>
                 <div className="flex justify-between border-b border-black/5 pb-2">
                   <span className="font-bold text-[#64748B]">Diversification Score:</span>
-                  <span className="font-black text-[#2563EB]">{isRiskLoading ? "..." : riskError ? "Error" : `${riskMetrics?.diversification_score || 88} / 100`}</span>
+                  <span className="font-black text-[#2563EB]">
+                    {(isRiskLoading || !isLoaded || !isSynced) ? (
+                      <Skeleton className="h-4 w-12 inline-block" />
+                    ) : riskError ? (
+                      "Error"
+                    ) : (
+                      `${riskMetrics?.diversification_score || 88} / 100`
+                    )}
+                  </span>
                 </div>
                 <div className="flex justify-between border-b border-black/5 pb-2">
                   <span className="font-bold text-[#64748B]">Daily Value at Risk (VaR):</span>
                   <span className="font-black text-[#2563EB]">
-                    {isRiskLoading ? (
-                      "..."
-                    ) : riskError ? (
-                      "Error"
-                    ) : isDashLoading ? (
-                      "..."
-                    ) : dashError ? (
+                    {(isRiskLoading || showSkeletons) ? (
+                      <Skeleton className="h-4 w-16 inline-block" />
+                    ) : (riskError || dashError) ? (
                       "Error"
                     ) : (
                       `$${((portfolio.value * 0.038) || 4820).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -820,8 +990,18 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-3 border-t border-black/5 pt-4">
                 <span className="text-[10px] font-black uppercase text-[#64748B] tracking-wider">Sector Exposure</span>
                 <div className="flex flex-col gap-2.5">
-                  {isRiskLoading ? (
-                    <span className="font-mono text-[9px] text-[#64748B] uppercase animate-pulse">Loading sector exposure...</span>
+                  {(isRiskLoading || !isLoaded || !isSynced) ? (
+                    <div className="flex flex-col gap-2.5">
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <div key={idx} className="animate-pulse flex flex-col gap-1.5">
+                          <div className="flex justify-between">
+                            <Skeleton className="h-3 w-20" />
+                            <Skeleton className="h-3 w-8" />
+                          </div>
+                          <Skeleton className="h-2 w-full rounded-full" />
+                        </div>
+                      ))}
+                    </div>
                   ) : riskError ? (
                     <span className="font-mono text-[9px] text-[#EF4444] uppercase">Failed to load sector metrics</span>
                   ) : riskMetrics?.sector_exposure && riskMetrics.sector_exposure.length > 0 ? (

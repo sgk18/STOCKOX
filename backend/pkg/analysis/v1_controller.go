@@ -1,21 +1,22 @@
 package analysis
 
 import (
-        "net/http"
-        "strings"
-        "time"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 
-        "stockox-backend/database/models"
-        "stockox-backend/database/repositories"
-        "stockox-backend/pkg/agents"
-        "stockox-backend/pkg/errors"
-        "stockox-backend/pkg/cache"
-        "stockox-backend/pkg/utils"
-        "stockox-backend/pkg/websocket"
+	"stockox-backend/database/models"
+	"stockox-backend/database/repositories"
+	"stockox-backend/internal/band"
+	"stockox-backend/pkg/agents"
+	"stockox-backend/pkg/cache"
+	"stockox-backend/pkg/errors"
+	"stockox-backend/pkg/utils"
+	"stockox-backend/pkg/websocket"
 
-        "github.com/gin-gonic/gin"
-        "github.com/google/uuid"
-        "gorm.io/gorm"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // StockMockData defines financial details of a stock
@@ -242,6 +243,7 @@ type V1Controller struct {
 	agentRepo     repositories.AgentRepository
 	wsHub         *websocket.Hub
 	agentMgr      *agents.AgentManager
+	bandOrch      *band.BandOrchestrator
 }
 
 func NewV1Controller(
@@ -251,6 +253,9 @@ func NewV1Controller(
 	agentRepo repositories.AgentRepository,
 	wsHub *websocket.Hub,
 ) *V1Controller {
+	bandClient := band.NewBandClient(os.Getenv("BAND_API_KEY"), os.Getenv("BAND_BASE_URL"))
+	bandOrch := band.NewBandOrchestrator(db, bandClient)
+
 	return &V1Controller{
 		db:            db,
 		analysisRepo:  analysisRepo,
@@ -258,6 +263,7 @@ func NewV1Controller(
 		agentRepo:     agentRepo,
 		wsHub:         wsHub,
 		agentMgr:      agents.NewAgentManager(db),
+		bandOrch:      bandOrch,
 	}
 }
 
@@ -324,37 +330,40 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 	}
 
 	var req struct {
-		Ticker string `json:"ticker" binding:"required"`
+		Ticker string `json:"ticker"`
+		Symbol string `json:"symbol"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		errors.BadRequestError(c, "Valid ticker parameter is required in request body")
+		errors.BadRequestError(c, "Valid ticker or symbol parameter is required in request body")
 		return
 	}
 
-	ticker := strings.ToUpper(req.Ticker)
+	ticker := req.Symbol
+	if ticker == "" {
+		ticker = req.Ticker
+	}
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+	if ticker == "" {
+		errors.BadRequestError(c, "Symbol is required")
+		return
+	}
+
 	stock, exists := StockCatalog[ticker]
 	if !exists {
 		errors.BadRequestError(c, "Requested stock ticker is not in catalog: "+ticker)
 		return
 	}
 
-	sessionID := uuid.New()
-
 	// Invalidate cache
 	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyAnalysis(ticker))
 	_ = cache.Shared.Delete(c.Request.Context(), cache.KeyDashboard(userID))
 
-	// Start simulation goroutine through AgentManager orchestrator
-	go ctrl.agentMgr.RunSimulatedCommittee(
-		sessionID,
-		ticker,
-		models.MarketSnapshot{Price: stock.CurrentPrice},
-		stock.CompanyName,
-		stock.AIScore,
-		stock.Recommendation,
-		stock.DebtRatio,
-		stock.PERatio,
-	)
+	// Start multi-agent workflow orchestration via Band
+	sessionID, err := ctrl.bandOrch.RunWorkflow(ticker)
+	if err != nil {
+		errors.InternalServerError(c, "Failed to initiate Band orchestration: "+err.Error())
+		return
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":       "started",
@@ -366,23 +375,101 @@ func (ctrl *V1Controller) StartAnalysis(c *gin.Context) {
 
 // GetAnalysisDetails handles GET /api/v1/analysis/:id
 func (ctrl *V1Controller) GetAnalysisDetails(c *gin.Context) {
+	id := c.Param("id")
 	ticker := strings.ToUpper(c.Query("ticker"))
+	if ticker == "" {
+		if room, exists := band.GlobalRegistry.GetRoom(id); exists {
+			ticker = room.Ticker
+		}
+	}
 	if ticker == "" {
 		ticker = "NVDA"
 	}
+
 	stock, _ := StockCatalog[ticker]
+
+	var analysis models.CommitteeAnalysis
+	err := ctrl.db.Order("created_at desc").First(&analysis, "ticker = ?", ticker).Error
+	if err == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"id":               id,
+			"ticker":           ticker,
+			"status":           "completed",
+			"company_name":     stock.CompanyName,
+			"recommendation":   analysis.Recommendation,
+			"confidence_score": analysis.ConfidenceScore,
+			"risk_level":       "MEDIUM",
+			"summary":          analysis.ResearchSummary,
+			"created_at":       analysis.CreatedAt,
+			"updated_at":       analysis.CreatedAt,
+			"research_vote":    analysis.ResearchVote,
+			"technical_vote":   analysis.TechnicalVote,
+			"news_vote":        analysis.NewsVote,
+			"risk_vote":        analysis.RiskVote,
+			"valuation_vote":   analysis.ValuationVote,
+			"research_summary":  analysis.ResearchSummary,
+			"technical_summary": analysis.TechnicalSummary,
+			"news_summary":      analysis.NewsSummary,
+			"risk_summary":      analysis.RiskSummary,
+			"valuation_summary": analysis.ValuationSummary,
+		})
+		return
+	}
+
+	// Fallback to stock catalog if not analyzed yet
 	c.JSON(http.StatusOK, gin.H{
-		"id":               c.Param("id"),
+		"id":               id,
 		"ticker":           ticker,
+		"status":           "running",
 		"company_name":     stock.CompanyName,
 		"recommendation":   stock.Recommendation,
 		"confidence_score": stock.AIScore,
 		"risk_level":       "MEDIUM",
-		"summary":          "Multi-agent committee analysis complete.",
+		"summary":          "Multi-agent committee analysis in progress.",
 		"created_at":       time.Now(),
 		"updated_at":       time.Now(),
 	})
 }
+
+// GetAnalysisLogs handles GET /api/v1/analysis/:id/logs
+func (ctrl *V1Controller) GetAnalysisLogs(c *gin.Context) {
+	id := c.Param("id")
+	ticker := strings.ToUpper(c.Query("ticker"))
+	if ticker == "" {
+		if room, exists := band.GlobalRegistry.GetRoom(id); exists {
+			ticker = room.Ticker
+		}
+	}
+	if ticker == "" {
+		ticker = "NVDA"
+	}
+
+	var messages []models.AnalysisLog
+	err := ctrl.db.Order("created_at asc").Find(&messages, "ticker = ?", ticker).Error
+	if err != nil {
+		errors.InternalServerError(c, "Failed to retrieve analysis logs: "+err.Error())
+		return
+	}
+
+	// If no DB logs yet, but we have in-memory room messages, return them formatted
+	if len(messages) == 0 {
+		if room, exists := band.GlobalRegistry.GetRoom(id); exists && len(room.Messages) > 0 {
+			for _, m := range room.Messages {
+				messages = append(messages, models.AnalysisLog{
+					Ticker:          m.Symbol,
+					AgentName:       m.Agent,
+					Message:         m.Analysis,
+					MessageType:     m.Recommendation,
+					ConfidenceScore: m.Confidence,
+					CreatedAt:       m.Timestamp,
+				})
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, messages)
+}
+
 
 // GetAgentMessages handles GET /api/v1/analysis/:id/agents
 func (ctrl *V1Controller) GetAgentMessages(c *gin.Context) {

@@ -256,6 +256,9 @@ func TestHandleClerkWebhook_UserCreated(t *testing.T) {
 	assert.Equal(t, "Test User", user.Name)
 	assert.Equal(t, "https://img.clerk.com/test.jpg", user.AvatarURL)
 
+	// Wait for background goroutine to finish provisioning portfolio and watchlist
+	time.Sleep(100 * time.Millisecond)
+
 	// Verify portfolio is seeded
 	portfolio, err := portfolioRepo.GetByUserID("user_2tXyV6z5oW83qT1OFmBnTmaoOtA")
 	assert.NoError(t, err)

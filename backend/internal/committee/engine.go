@@ -70,10 +70,10 @@ func (e *CommitteeEngine) GetAnalysis(symbol string) (*CommitteeAnalysisResponse
 		return &cachedResponse, nil
 	}
 
-	// Check DB for recent records (within 15 minutes)
+	// Check DB for recent records (within 24 hours)
 	var dbRecord models.CommitteeAnalysis
 	if e.db != nil {
-		cutoff := time.Now().Add(-15 * time.Minute)
+		cutoff := time.Now().Add(-24 * time.Hour)
 		err := e.db.Where("ticker = ? AND created_at >= ?", symbol, cutoff).Order("created_at desc").First(&dbRecord).Error
 		if err == nil && dbRecord.Ticker != "" {
 			log.Printf("[COMMITTEE-DB-HIT] Loaded committee analysis for %s from database", symbol)
@@ -84,50 +84,9 @@ func (e *CommitteeEngine) GetAnalysis(symbol string) (*CommitteeAnalysisResponse
 		}
 	}
 
-	// Dynamic calculation
-	response, err := e.GenerateAnalysis(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save to DB
-	if e.db != nil {
-		mapVote := func(output string) string {
-			out := strings.ToLower(strings.TrimSpace(output))
-			if strings.Contains(out, "bullish") || strings.Contains(out, "undervalued") || strings.Contains(out, "low risk") {
-				return "BUY"
-			}
-			if strings.Contains(out, "bearish") || strings.Contains(out, "overvalued") || strings.Contains(out, "high risk") {
-				return "SELL"
-			}
-			return "HOLD"
-		}
-
-		dbRecord = models.CommitteeAnalysis{
-			Ticker:            response.Symbol,
-			Recommendation:    response.Recommendation,
-			ConfidenceScore:   response.Confidence,
-			ResearchVote:      mapVote(response.Agents[0].Output),
-			NewsVote:          mapVote(response.Agents[1].Output),
-			TechnicalVote:     mapVote(response.Agents[2].Output),
-			RiskVote:          mapVote(response.Agents[3].Output),
-			ValuationVote:     mapVote(response.Agents[4].Output),
-			ResearchSummary:   response.Agents[0].Reasoning,
-			NewsSummary:       response.Agents[1].Reasoning,
-			TechnicalSummary:  response.Agents[2].Reasoning,
-			RiskSummary:       response.Agents[3].Reasoning,
-			ValuationSummary:  response.Agents[4].Reasoning,
-			CreatedAt:         response.CreatedAt,
-		}
-		if errDb := e.db.Create(&dbRecord).Error; errDb != nil {
-			log.Printf("[COMMITTEE-DB-ERR] Failed to save committee analysis to DB: %v", errDb)
-		}
-	}
-
-	// Cache in Valkey for 15 minutes
-	_ = e.cache.SetJSON(ctx, cacheKey, response, 15*time.Minute)
-
-	return response, nil
+	// DO NOT run GenerateAnalysis automatically!
+	// Return gorm.ErrRecordNotFound so that controllers can return a 404 response
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (e *CommitteeEngine) reconstructFromDB(dbRecord *models.CommitteeAnalysis) *CommitteeAnalysisResponse {

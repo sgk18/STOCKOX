@@ -289,6 +289,13 @@ func (ctrl *DashboardController) GetCommitteeAnalysis(c *gin.Context) {
 	}
 	resp, err := ctrl.srv.GetCommitteeAnalysis(symbol)
 	if err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":    "Analysis not found",
+				"analyzed": false,
+			})
+			return
+		}
 		errors.InternalServerError(c, "Failed to retrieve committee analysis: "+err.Error())
 		return
 	}

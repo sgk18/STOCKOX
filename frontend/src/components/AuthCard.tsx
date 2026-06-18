@@ -34,14 +34,14 @@ export default function AuthCard() {
       {isSignUp ? (
         <SignUp
           routing="hash"
-          forceRedirectUrl="/auth-callback"
+          forceRedirectUrl="/dashboard"
           signInUrl="/"
           appearance={brutalistAppearance}
         />
       ) : (
         <SignIn
           routing="hash"
-          forceRedirectUrl="/auth-callback"
+          forceRedirectUrl="/dashboard"
           signUpUrl="/?signup=true"
           appearance={brutalistAppearance}
         />
