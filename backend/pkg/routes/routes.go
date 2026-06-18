@@ -25,6 +25,7 @@ func SetupRoutes(
 	profileCtrl *auth.ProfileController,
 	v1Ctrl *analysis.V1Controller,
 	commCtrl *analysis.CommitteeController,
+	warRoomCtrl *analysis.WarRoomController,
 	marketCtrl *marketController.MarketController,
 	webhookCtrl *auth.WebhookController,
 	portCtrl *portfolioController.PortfolioController,
@@ -162,6 +163,10 @@ func SetupRoutes(
 			v1.GET("/committee/:id/messages", commCtrl.GetMessages)
 			v1.POST("/committee/:id/message", commCtrl.PostMessage)
 			v1.GET("/committee/:id/decision", commCtrl.GetDecision)
+
+			// War Room Endpoints (Module 8)
+			v1.GET("/war-room/session/:id", warRoomCtrl.GetWarRoomSession)
+			v1.GET("/war-room/history", warRoomCtrl.GetWarRoomHistory)
 		}
 
 		// Compatibility endpoints mapping directly to frontend queries

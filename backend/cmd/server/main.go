@@ -134,6 +134,7 @@ func main() {
 	profileCtrl := auth.NewProfileController(db, userRepo, portfolioRepo, watchlistRepo)
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 	commCtrl := analysis.NewCommitteeController(db, roomRepo, wsHub)
+	warRoomCtrl := analysis.NewWarRoomController(db)
 	webhookCtrl := auth.NewWebhookController(userRepo, portfolioRepo, watchlistRepo, cfg.Clerk.WebhookSecret)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
@@ -164,6 +165,7 @@ func main() {
 		profileCtrl,
 		v1Ctrl,
 		commCtrl,
+		warRoomCtrl,
 		marketCtrl,
 		webhookCtrl,
 		portCtrl,

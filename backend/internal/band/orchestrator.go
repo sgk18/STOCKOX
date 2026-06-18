@@ -70,6 +70,7 @@ func (o *BandOrchestrator) RunWorkflow(sessionID uuid.UUID, userID string, symbo
 
 		// Publish analysis_started event
 		o.bus.Publish("analysis_events", eventbus.NewEvent("analysis_started", map[string]interface{}{
+			"session_id": sessionID.String(),
 			"room_id":    roomID,
 			"ticker":     symbol,
 			"timestamp":  time.Now(),
@@ -86,7 +87,9 @@ func (o *BandOrchestrator) RunWorkflow(sessionID uuid.UUID, userID string, symbo
 		for idx, a := range agentsList {
 			// A. Broadcast agent_started event and update session state
 			o.bus.Publish("agent_events", eventbus.NewEvent("agent_started", map[string]interface{}{
+				"session_id": sessionID.String(),
 				"room_id":    roomID,
+				"ticker":     symbol,
 				"agent_name": a.Name(),
 				"status":     "thinking",
 				"timestamp":  time.Now(),
@@ -142,8 +145,10 @@ func (o *BandOrchestrator) RunWorkflow(sessionID uuid.UUID, userID string, symbo
 
 			// E. Persist message in database analysis_logs
 			if o.db != nil {
+				sid := sessionID
 				logRec := &models.AnalysisLog{
 					ID:              uuid.New(),
+					SessionID:       &sid,
 					Ticker:          symbol,
 					AgentName:       a.Name(),
 					Message:         analysis,
@@ -156,17 +161,21 @@ func (o *BandOrchestrator) RunWorkflow(sessionID uuid.UUID, userID string, symbo
 
 			// F. Broadcast agent_message event
 			o.bus.Publish("agent_events", eventbus.NewEvent("agent_message", map[string]interface{}{
-				"room_id":         roomID,
-				"agent_name":      a.Name(),
-				"message":         analysis,
-				"message_type":    vote,
+				"session_id":       sessionID.String(),
+				"room_id":          roomID,
+				"ticker":           symbol,
+				"agent_name":       a.Name(),
+				"message":          analysis,
+				"message_type":     vote,
 				"confidence_score": confidence,
-				"timestamp":       time.Now(),
+				"timestamp":        time.Now(),
 			}))
 
 			// G. Broadcast agent_completed event and update GORM
 			o.bus.Publish("agent_events", eventbus.NewEvent("agent_completed", map[string]interface{}{
+				"session_id": sessionID.String(),
 				"room_id":    roomID,
+				"ticker":     symbol,
 				"agent_name": a.Name(),
 				"status":     "completed",
 				"result":     vote,

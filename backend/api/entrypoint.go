@@ -81,6 +81,7 @@ func init() {
 	wsHub := websocket.NewHub()
 	v1Ctrl := analysis.NewV1Controller(db, analysisRepo, watchlistRepo, agentRepo, wsHub)
 	commCtrl := analysis.NewCommitteeController(db, roomRepo, wsHub)
+	warRoomCtrl := analysis.NewWarRoomController(db)
 	marketCtrl := marketController.NewMarketController(marketSrv)
 
 	// Phase 4 & Module 7 dependency replication
@@ -110,6 +111,7 @@ func init() {
 		profileCtrl,
 		v1Ctrl,
 		commCtrl,
+		warRoomCtrl,
 		marketCtrl,
 		webhookCtrl,
 		portCtrl,

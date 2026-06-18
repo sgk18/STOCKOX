@@ -8,13 +8,14 @@ import (
 )
 
 type AnalysisLog struct {
-	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	Ticker          string    `gorm:"type:varchar(10);index;not null" json:"ticker"`
-	AgentName       string    `gorm:"type:varchar(100);not null" json:"agent_name"`
-	Message         string    `gorm:"type:text;not null" json:"message"`
-	MessageType     string    `gorm:"type:varchar(50);not null;default:'analysis'" json:"message_type"`
-	ConfidenceScore int       `gorm:"type:integer;default:0" json:"confidence_score"`
-	CreatedAt       time.Time `gorm:"not null" json:"created_at"`
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	SessionID       *uuid.UUID `gorm:"type:uuid;index" json:"session_id,omitempty"` // Links to AnalysisSession
+	Ticker          string     `gorm:"type:varchar(10);index;not null" json:"ticker"`
+	AgentName       string     `gorm:"type:varchar(100);not null" json:"agent_name"`
+	Message         string     `gorm:"type:text;not null" json:"message"`
+	MessageType     string     `gorm:"type:varchar(50);not null;default:'analysis'" json:"message_type"`
+	ConfidenceScore int        `gorm:"type:integer;default:0" json:"confidence_score"`
+	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 }
 
 func (al *AnalysisLog) BeforeCreate(tx *gorm.DB) (err error) {
