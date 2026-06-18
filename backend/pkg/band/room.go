@@ -47,6 +47,12 @@ func (r *RoomRegistry) GetRoom(id string) (*BandRoom, bool) {
 	return room, exists
 }
 
+func (r *RoomRegistry) DeleteRoom(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.rooms, id)
+}
+
 func (r *RoomRegistry) GetRoomByTicker(ticker string) (*BandRoom, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -58,3 +64,4 @@ func (r *RoomRegistry) GetRoomByTicker(ticker string) (*BandRoom, bool) {
 	}
 	return nil, false
 }
+

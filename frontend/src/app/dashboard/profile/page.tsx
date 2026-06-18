@@ -440,26 +440,13 @@ export default function ProfilePage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    const token = await getToken();
-                    const res = await fetch("/api/v1/analysis/test-agent", {
-                      headers: { Authorization: `Bearer ${token}` }
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      alert(`AGENT DIAGNOSTIC SUCCESS:\n${data.message}\nMock mode: ${data.mock}`);
-                    } else {
-                      alert(`AGENT DIAGNOSTIC FAILURE:\n${data.message}`);
-                    }
-                  } catch (err: any) {
-                    alert(`DIAGNOSTIC CONNECTION ERROR:\n${err.message}`);
-                  }
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("trigger-diagnostics"));
                 }}
                 className="py-2.5 px-4 bg-white hover:bg-blue-50 text-[#2563EB] border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000000] flex items-center gap-2 cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all"
               >
                 <Sliders className="w-4 h-4" />
-                <span>Test Agent Connection</span>
+                <span>Run Diagnostics</span>
               </button>
 
               <button

@@ -216,6 +216,8 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 	cacheConnected := valkeyHealthy == "Healthy"
 	cacheStats := cache.Shared.GetStats(context.Background())
 	memoryUsage := "N/A"
+	var writeLatency, readLatency, deleteLatency, hitLatency float64
+	hitSuccess := false
 	if cacheConnected && ctrl.rdb != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		info, err := ctrl.rdb.Info(ctx, "memory").Result()
@@ -228,8 +230,33 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 				}
 			}
 		}
+
+		// Write Test
+		t1 := time.Now()
+		errWrite := ctrl.rdb.Set(ctx, "dev_diagnostics_crud_key", "valkey_test_val", 1*time.Minute).Err()
+		writeLatency = float64(time.Since(t1).Microseconds()) / 1000.0
+
+		// Read Test
+		t2 := time.Now()
+		val, errRead := ctrl.rdb.Get(ctx, "dev_diagnostics_crud_key").Result()
+		readLatency = float64(time.Since(t2).Microseconds()) / 1000.0
+
+		// Hit Test
+		hitSuccess = (errWrite == nil && errRead == nil && val == "valkey_test_val")
+
+		// Hit Latency Test
+		t3 := time.Now()
+		_, _ = ctrl.rdb.Get(ctx, "dev_diagnostics_crud_key").Result()
+		hitLatency = float64(time.Since(t3).Microseconds()) / 1000.0
+
+		// Delete Test
+		t4 := time.Now()
+		_ = ctrl.rdb.Del(ctx, "dev_diagnostics_crud_key").Err()
+		deleteLatency = float64(time.Since(t4).Microseconds()) / 1000.0
+
 		cancel()
 	}
+
 
 	// 4. Env Variables Existence
 	envs := []map[string]string{
@@ -268,13 +295,18 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 			},
 		},
 		"cache": gin.H{
-			"connected":    cacheConnected,
-			"provider":     "Valkey",
-			"hits":         cacheStats.Hits,
-			"misses":       cacheStats.Misses,
-			"hit_rate":     cacheStats.HitRate,
-			"keys":         cacheStats.Keys,
-			"memory_usage": memoryUsage,
+			"connected":             cacheConnected,
+			"provider":              "Valkey",
+			"hits":                  cacheStats.Hits,
+			"misses":                cacheStats.Misses,
+			"hit_rate":              cacheStats.HitRate,
+			"keys":                  cacheStats.Keys,
+			"memory_usage":          memoryUsage,
+			"write_latency_ms":      writeLatency,
+			"read_latency_ms":       readLatency,
+			"delete_latency_ms":     deleteLatency,
+			"hit_latency_ms":        hitLatency,
+			"hit_test_success":      hitSuccess,
 		},
 		"market_providers": []gin.H{
 			{

@@ -66,6 +66,8 @@ func SetupRoutes(
 	r.GET("/api/debug/dashboard", dbCtrl.GetDebugDashboard)
 	r.GET("/api/dev/diagnostics", healthCtrl.Diagnostics)
 	r.POST("/api/dev/diagnostics/clear-cache", healthCtrl.ClearCache)
+	r.POST("/api/dev/diagnostics/test-band", v1Ctrl.TestBand)
+
 
 	// WebSocket Endpoints
 	r.GET("/api/dashboard/ws", func(c *gin.Context) { websocket.ServeWS(wsHub, c) })
@@ -200,5 +202,11 @@ func SetupRoutes(
 		api.GET("/watchlist", dbCtrl.GetWatchlist)
 		api.GET("/market-overview", dbCtrl.GetMarketOverview)
 		api.GET("/agent-feed", dbCtrl.GetAgentActivity)
+		api.GET("/market-intelligence", dbCtrl.GetMarketOverview)
+		api.GET("/recommendations", dbCtrl.GetRecommendations)
+		api.GET("/committee", dbCtrl.GetCommitteeDecisions)
+		api.GET("/war-room", warRoomCtrl.GetWarRoomHistory)
+		api.GET("/copilot", copilotCtrl.GetHealth)
+
 	}
 }

@@ -461,6 +461,164 @@ func (ctrl *V1Controller) TestAgentConnection(c *gin.Context) {
 	})
 }
 
+// TestBand handles POST /api/dev/diagnostics/test-band
+func (ctrl *V1Controller) TestBand(c *gin.Context) {
+	if os.Getenv("NODE_ENV") == "production" || os.Getenv("APP_ENV") == "production" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Diagnostics disabled in production"})
+		return
+	}
+
+	start := time.Now()
+	ctx := c.Request.Context()
+
+	// 1. Agent Spawn (create temporary test room)
+	testRoomName := "diagnostics-test-nvda"
+	symbol := "NVDA"
+	
+	roomID, err := ctrl.bandOrch.Client().CreateRoom(testRoomName, symbol)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Failed to create test room: " + err.Error(),
+			"step":    "Agent Spawn",
+		})
+		return
+	}
+
+	// Clean up room in memory registry and GORM at the end
+	defer func() {
+		band.GlobalRegistry.DeleteRoom(roomID)
+	}()
+
+	// Invite agents to test room
+	agentsList := band.GetAgents()
+	for _, a := range agentsList {
+		_ = ctrl.bandOrch.Client().InviteAgent(roomID, a.Name())
+	}
+
+	// 2. Agent Response & Execution
+	stockCtx, exists := band.StockCatalog[symbol]
+	if !exists {
+		stockCtx = band.StockContext{
+			Ticker:       symbol,
+			CompanyName:  "NVIDIA Corporation",
+			CurrentPrice: 125.0,
+			AIScore:      88,
+		}
+	}
+
+	// Run round 1 synchronously for testing
+	var messages []band.BandMessage
+	for _, a := range agentsList {
+		if a.Name() == "Committee Agent" {
+			continue
+		}
+		output, err := a.Analyze(ctx, symbol, stockCtx, nil)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Agent %s failed: %v", a.Name(), err),
+				"step":    "Agent Response",
+			})
+			return
+		}
+		msg := &band.BandMessage{
+			Agent:          a.Name(),
+			Symbol:         symbol,
+			Analysis:       output.Reasoning,
+			Recommendation: output.Signal,
+			Confidence:     output.Confidence,
+			Timestamp:      time.Now(),
+			Round:          1,
+			Signal:         output.Signal,
+			Evidence:       output.Evidence,
+		}
+		_ = ctrl.bandOrch.Client().SendMessage(roomID, msg)
+		messages = append(messages, *msg)
+	}
+
+	// 3. Agent Voting
+	var votesBreakdown []band.AgentVote
+	weights := map[string]float64{
+		"Research Agent":  0.25,
+		"Technical Agent": 0.20,
+		"News Agent":      0.20,
+		"Risk Agent":      0.15,
+	}
+	for _, m := range messages {
+		w, ok := weights[m.Agent]
+		if ok {
+			votesBreakdown = append(votesBreakdown, band.AgentVote{
+				Agent:      m.Agent,
+				Signal:     m.Signal,
+				Confidence: m.Confidence,
+				Weight:     w,
+			})
+		}
+	}
+
+	voteResult := band.ComputeWeightedVote(votesBreakdown)
+	if len(votesBreakdown) == 0 || voteResult.Recommendation == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Failed to compute votes breakdown or no votes cast",
+			"step":    "Agent Voting",
+		})
+		return
+	}
+
+	// 4. Consensus Generation
+	commAgent := &band.CommitteeAgent{}
+	commOutput, err := commAgent.Analyze(ctx, symbol, stockCtx, messages)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Committee Agent failed to generate consensus: " + err.Error(),
+			"step":    "Consensus Generation",
+		})
+		return
+	}
+	
+	// 5. Store Results (Verify database sync/write works)
+	rec := models.Recommendation{
+		ID:              uuid.New(),
+		Ticker:          "NVDA_TEST",
+		Recommendation:  voteResult.Recommendation,
+		ConfidenceScore: voteResult.ConfidenceScore,
+		CreatedAt:       time.Now(),
+	}
+	
+	if err := ctrl.db.Create(&rec).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Failed to store recommendation: " + err.Error(),
+			"step":    "Store Results",
+		})
+		return
+	}
+	
+	// Clean up database records at the end
+	defer func() {
+		ctrl.db.Where("ticker = ?", "NVDA_TEST").Delete(&models.Recommendation{})
+	}()
+
+	latency := time.Since(start).Milliseconds()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":              true,
+		"room_id":              roomID,
+		"agent_spawn":          "PASS",
+		"agent_response":       "PASS",
+		"agent_voting":         "PASS",
+		"consensus_generation": "PASS",
+		"store_results":        "PASS",
+		"latency_ms":           latency,
+		"committee_decision":   commOutput.Signal,
+		"confidence":           commOutput.Confidence,
+	})
+}
+
+
 
 // GetRecentAnalyses handles GET /api/v1/analysis/recent
 func (ctrl *V1Controller) GetRecentAnalyses(c *gin.Context) {

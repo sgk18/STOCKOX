@@ -588,3 +588,7 @@ func (o *BandOrchestrator) TestConnection() (string, error) {
 func (o *BandOrchestrator) IsMockMode() bool {
 	return o.client.Mock
 }
+
+func (o *BandOrchestrator) Client() *BandClient {
+	return o.client
+}
