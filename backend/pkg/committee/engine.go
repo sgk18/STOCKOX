@@ -10,7 +10,7 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/pkg/cache"
-	"stockox-backend/internal/marketdata"
+	"stockox-backend/pkg/marketdata"
 
 	"gorm.io/gorm"
 )

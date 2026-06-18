@@ -17,9 +17,9 @@ import (
 	marketDto "stockox-backend/pkg/market/dto"
 	marketProviders "stockox-backend/pkg/market/providers"
 	marketService "stockox-backend/pkg/market/service"
-	"stockox-backend/internal/marketdata"
-	"stockox-backend/internal/marketdata/providers"
-	"stockox-backend/internal/committee"
+	"stockox-backend/pkg/marketdata"
+	"stockox-backend/pkg/marketdata/providers"
+	"stockox-backend/pkg/committee"
 
 	"gorm.io/gorm"
 )

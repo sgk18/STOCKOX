@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"stockox-backend/internal/marketdata"
+	"stockox-backend/pkg/marketdata"
 	"stockox-backend/pkg/market/dto"
 )
 

@@ -9,7 +9,7 @@ import (
 
 	"stockox-backend/database/models"
 	"stockox-backend/database/repositories"
-	"stockox-backend/internal/band"
+	"stockox-backend/pkg/band"
 	"stockox-backend/pkg/agents"
 	"stockox-backend/pkg/cache"
 	"stockox-backend/pkg/errors"

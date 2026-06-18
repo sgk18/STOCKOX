@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"stockox-backend/database/models"
-	"stockox-backend/internal/marketdata"
+	"stockox-backend/pkg/marketdata"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
