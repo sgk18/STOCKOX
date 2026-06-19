@@ -162,15 +162,21 @@ func (ctrl *HealthController) auditDatabase() DatabaseAuditResult {
 		Tables: make(map[string]TableAudit),
 	}
 
-	// 1. Check DATABASE_URL env
-	if os.Getenv("DATABASE_URL") == "" {
+	// 1. Check DATABASE_URL env or DB_HOST env (local config)
+	dbURL := os.Getenv("DATABASE_URL")
+	dbHost := os.Getenv("DB_HOST")
+	if dbURL == "" && dbHost == "" {
 		result.EnvCheck = "Missing"
 		result.Status = "Failed"
 		result.ErrorClass = "Connection Error"
-		result.Detail = "DATABASE_URL environment variable is not set"
+		result.Detail = "Neither DATABASE_URL nor DB_HOST environment variable is set"
 		return result
 	}
-	result.EnvCheck = "Found"
+	if dbURL != "" {
+		result.EnvCheck = "Found (DATABASE_URL)"
+	} else {
+		result.EnvCheck = "Found (DB_HOST: " + dbHost + ")"
+	}
 
 	// 2. Verify GORM connection
 	sqlDB, err := ctrl.db.DB()
@@ -261,7 +267,7 @@ type ValkeyAuditResult struct {
 func (ctrl *HealthController) auditValkey() ValkeyAuditResult {
 	result := ValkeyAuditResult{}
 
-	// 1. Env check
+	// 1. Env check — treat empty REDIS_HOST as intentionally absent (fallback mode)
 	host := os.Getenv("REDIS_HOST")
 	if host == "" {
 		host = os.Getenv("VALKEY_URL")
@@ -270,7 +276,7 @@ func (ctrl *HealthController) auditValkey() ValkeyAuditResult {
 		result.EnvCheck = "Missing"
 		result.Status = "Failed"
 		result.ErrorClass = "Connection Error"
-		result.Detail = "REDIS_HOST / VALKEY_URL environment variable is not set"
+		result.Detail = "REDIS_HOST / VALKEY_URL not configured — running in DB-direct fallback mode"
 		return result
 	}
 	result.EnvCheck = "Found"
@@ -807,7 +813,15 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 		{"name": "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "status": getEnvStatus("CLERK_PUBLISHABLE_KEY")},
 		{"name": "SUPABASE_URL", "status": getEnvStatus("SUPABASE_URL")},
 		{"name": "SUPABASE_ANON_KEY", "status": getEnvStatus("SUPABASE_ANON_KEY")},
-		{"name": "DATABASE_URL", "status": getEnvStatus("DATABASE_URL")},
+		{"name": "DATABASE_URL / DB_HOST", "status": func() string {
+			if getEnvStatus("DATABASE_URL") == "Found" {
+				return "Found"
+			}
+			if getEnvStatus("DB_HOST") == "Found" {
+				return "Found (local DB_HOST)"
+			}
+			return "Missing"
+		}()},
 		{"name": "VALKEY_URL / REDIS_HOST", "status": getEnvStatus("REDIS_HOST")},
 		{"name": "FINNHUB_API_KEY", "status": getEnvStatus("FINNHUB_API_KEY")},
 		{"name": "TWELVEDATA_API_KEY", "status": getEnvStatus("TWELVEDATA_API_KEY")},
