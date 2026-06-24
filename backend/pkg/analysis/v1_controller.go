@@ -495,11 +495,6 @@ func logDiagnosticFailure(c *gin.Context, module, function, errMsg string) {
 
 // TestBand handles POST /api/dev/diagnostics/test-band
 func (ctrl *V1Controller) TestBand(c *gin.Context) {
-	if os.Getenv("NODE_ENV") == "production" || os.Getenv("APP_ENV") == "production" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Diagnostics disabled in production"})
-		return
-	}
-
 	start := time.Now()
 	ctx := c.Request.Context()
 	symbol := "NVDA"

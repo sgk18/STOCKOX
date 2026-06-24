@@ -723,11 +723,6 @@ func getEnvStatus(key string) string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func (ctrl *HealthController) Diagnostics(c *gin.Context) {
-	if os.Getenv("NODE_ENV") == "production" || os.Getenv("APP_ENV") == "production" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Diagnostics disabled in production"})
-		return
-	}
-
 	reqID := c.GetHeader("X-Request-ID")
 	if reqID == "" {
 		reqID = uuid.New().String()
@@ -956,10 +951,6 @@ func (ctrl *HealthController) Diagnostics(c *gin.Context) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func (ctrl *HealthController) ClearCache(c *gin.Context) {
-	if os.Getenv("NODE_ENV") == "production" || os.Getenv("APP_ENV") == "production" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden in production"})
-		return
-	}
 	ctx := c.Request.Context()
 	err := cache.Shared.DeletePattern(ctx, "*")
 	if err != nil {

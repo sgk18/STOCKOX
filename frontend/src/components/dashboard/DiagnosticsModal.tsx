@@ -429,8 +429,10 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
   const clearValkeyCache = async () => {
     if (!confirm("Flush the entire Valkey cache?")) return;
     try {
+      const token = await getToken();
       const res = await fetch("/api/dev/diagnostics/clear-cache", {
-        method: "POST"
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
       });
       if (res.ok) {
         alert("Cache cleared successfully!");

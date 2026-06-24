@@ -64,9 +64,6 @@ func SetupRoutes(
 	r.GET("/health/database", healthCtrl.HealthDB)
 	r.GET("/health/redis", healthCtrl.HealthRedis)
 	r.GET("/api/debug/dashboard", dbCtrl.GetDebugDashboard)
-	r.GET("/api/dev/diagnostics", healthCtrl.Diagnostics)
-	r.POST("/api/dev/diagnostics/clear-cache", healthCtrl.ClearCache)
-	r.POST("/api/dev/diagnostics/test-band", v1Ctrl.TestBand)
 
 
 	// WebSocket Endpoints
@@ -79,6 +76,11 @@ func SetupRoutes(
 	api.Use(middleware.Auth(jwtSecret, userRepo, portfolioRepo, watchlistRepo))
 	api.Use(middleware.EnsureUserSynced(userRepo, portfolioRepo, watchlistRepo))
 	{
+		// Dev Diagnostics (Authenticated)
+		api.GET("/dev/diagnostics", healthCtrl.Diagnostics)
+		api.POST("/dev/diagnostics/clear-cache", healthCtrl.ClearCache)
+		api.POST("/dev/diagnostics/test-band", v1Ctrl.TestBand)
+
 		// Auth
 		api.POST("/auth/sync", syncCtrl.SyncUser)
 
