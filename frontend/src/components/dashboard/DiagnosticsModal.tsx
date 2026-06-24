@@ -22,7 +22,8 @@ import {
   Search,
   Gauge,
   HardDrive,
-  Clock
+  Clock,
+  Copy
 } from "lucide-react";
 
 interface DiagnosticsModalProps {
@@ -38,6 +39,7 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
   const [running, setRunning] = useState(false);
   const [testingBand, setTestingBand] = useState(false);
   const [bandTestResult, setBandTestResult] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
   
   // States for diagnostic results
   const [authStatus, setAuthStatus] = useState<any>(null);
@@ -355,7 +357,7 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
       const authScore = (clerkLoaded ? 20 : 0) + (clerkSigned ? 20 : 0) + (token ? 20 : 0) + (backendJwtOk ? 20 : 0) + (supabaseSynced ? 20 : 0);
       
       let queriesSucceeded = 0;
-      if (backendData?.database.connected) {
+      if (backendData?.database?.connected) {
         queriesSucceeded += 20;
         const counts = backendData.database.counts || {};
         if (counts.users !== undefined) queriesSucceeded += 16;
@@ -366,18 +368,18 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
       }
       const finalDbScore = Math.max(0, Math.min(100, queriesSucceeded));
 
-      const finalCacheScore = backendData?.cache.connected ? (
+      const finalCacheScore = backendData?.cache?.connected ? (
         20 + 
-        (backendData.cache.hit_test_success ? 20 : 0) +
-        (backendData.cache.write_latency_ms < 50 ? 20 : 0) +
-        (backendData.cache.read_latency_ms < 50 ? 20 : 0) +
-        (backendData.cache.delete_latency_ms < 50 ? 20 : 0)
+        (backendData.cache?.hit_test_success ? 20 : 0) +
+        ((backendData.cache?.write_latency_ms ?? 999) < 50 ? 20 : 0) +
+        ((backendData.cache?.read_latency_ms ?? 999) < 50 ? 20 : 0) +
+        ((backendData.cache?.delete_latency_ms ?? 999) < 50 ? 20 : 0)
       ) : 0;
       
-      const healthyMarkets = backendData?.market_providers.filter((p: any) => p.status === "Healthy").length || 0;
+      const healthyMarkets = backendData?.market_providers?.filter((p: any) => p.status === "Healthy")?.length || 0;
       const marketScore = Math.round((healthyMarkets / 3) * 100);
 
-      const agentScore = backendData?.agents.length > 0 ? 100 : 0;
+      const agentScore = (backendData?.agents?.length || 0) > 0 ? 100 : 0;
       
       const failedApis = apiResults.filter(a => a.status !== 200).length;
       const frontendScore = Math.round(((apiResults.length - failedApis) / apiResults.length) * 100);
@@ -441,7 +443,7 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
     }
   };
 
-  const exportDiagnosticsJson = () => {
+  const copyDiagnosisToClipboard = () => {
     const report = {
       exported_at: new Date().toISOString(),
       scores,
@@ -459,15 +461,15 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
       recentErrors
     };
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "stockox-diagnostics.json";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy diagnostics report: ", err);
+        alert("Failed to copy report to clipboard.");
+      });
   };
 
   useEffect(() => {
@@ -1081,11 +1083,11 @@ export default function DiagnosticsModal({ isOpen, onClose }: DiagnosticsModalPr
 
           <div className="flex gap-3">
             <button
-              onClick={exportDiagnosticsJson}
+              onClick={copyDiagnosisToClipboard}
               disabled={running || !authStatus}
               className="px-4 py-2 bg-white hover:bg-gray-50 text-black border-3 border-black rounded-xl font-black text-xs uppercase shadow-[3px_3px_0px_#000] active:translate-y-0.5 active:shadow-[1px_1px_0px_#000] cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5" /> Export Report
+              <Copy className="w-3.5 h-3.5" /> {copied ? "Copied!" : "Copy Diagnosis"}
             </button>
             <button
               onClick={runAllDiagnostics}

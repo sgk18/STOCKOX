@@ -102,7 +102,7 @@ export default function DashboardLayout({
   
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showAgentFeed, setShowAgentFeed] = useState(true);
+  const [showAgentFeed, setShowAgentFeed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -578,9 +578,27 @@ export default function DashboardLayout({
           )}
 
           {/* COLLAPSIBLE RIGHT PANEL - AI ACTIVITY FEED */}
-          {showAgentFeed && (
-            <aside className="w-full h-[60vh] fixed bottom-0 left-0 right-0 border-t-4 border-black z-50 flex flex-col md:relative md:h-full md:w-[280px] md:border-t-0 md:border-l-4 md:z-20 md:bottom-auto md:left-auto md:right-auto lg:w-[320px] select-none shrink-0 bg-white">
-              <div className="flex-grow flex flex-col overflow-hidden h-full">
+          <aside className={`w-full h-[60vh] fixed bottom-0 left-0 right-0 border-t-4 border-black z-50 flex flex-col md:relative md:h-full md:border-t-0 md:z-20 md:bottom-auto md:left-auto md:right-auto select-none shrink-0 bg-white transition-all duration-300 ease-in-out ${
+            showAgentFeed 
+              ? "block md:w-[280px] lg:w-[320px] md:border-l-4 md:border-t-0 border-black" 
+              : "hidden md:flex md:w-0 md:border-l-0"
+          }`}>
+            {/* Collapse/Expand Toggle Button (Desktop only) */}
+            <button
+              onClick={() => setShowAgentFeed(!showAgentFeed)}
+              className="hidden md:flex absolute -left-4 top-20 w-8 h-8 rounded-full border-3 border-black bg-white hover:bg-[#F8FAFC] shadow-[-2px_2px_0px_#000000] items-center justify-center z-45 hover:scale-105 transition-transform active:translate-y-[1px] cursor-pointer"
+              title={showAgentFeed ? "Collapse Sidebar" : "Expand Sidebar"}
+            >
+              {showAgentFeed ? (
+                <ChevronRight className="w-4 h-4 text-black" />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-black" />
+              )}
+            </button>
+
+            {/* Inner Content Wrapper */}
+            <div className="w-full h-full overflow-hidden flex flex-col">
+              <div className="flex-grow flex flex-col overflow-hidden h-full w-[276px] lg:w-[316px]">
                 {/* Custom Wrapper to display AgentFeed */}
                 <div className="flex-grow overflow-hidden flex flex-col h-full bg-[#F8FAFC]">
                   {/* Reuse/render internal AgentFeed */}
@@ -609,8 +627,8 @@ export default function DashboardLayout({
                   </div>
                 </div>
               </div>
-            </aside>
-          )}
+            </div>
+          </aside>
 
         </div>
         <DiagnosticsModal isOpen={isDiagnosticsOpen} onClose={() => setIsDiagnosticsOpen(false)} />
