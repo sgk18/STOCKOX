@@ -77,6 +77,7 @@ func Auth(
 			clerk.SetKey(secretKey)
 			claims, err := clerkjwt.Verify(c.Request.Context(), &clerkjwt.VerifyParams{
 				Token: tokenStr,
+				Leeway: 30 * time.Second,
 				CustomClaimsConstructor: func(ctx context.Context) any {
 					return &ClerkCustomClaims{}
 				},
@@ -227,6 +228,7 @@ func VerifyJWTToken(tokenStr string) (string, string, error) {
 		clerk.SetKey(secretKey)
 		claims, err := clerkjwt.Verify(context.Background(), &clerkjwt.VerifyParams{
 			Token: tokenStr,
+			Leeway: 30 * time.Second,
 			CustomClaimsConstructor: func(ctx context.Context) any {
 				return &ClerkCustomClaims{}
 			},
