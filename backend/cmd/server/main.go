@@ -50,7 +50,7 @@ func main() {
 	// 3. Initialize Redis/Valkey Cache Layer with Safe Fallback
 	var rdb *redis.Client
 	var cacheClient cache.Cache
-	cacheClient = cache.NewNoopCache()
+	cacheClient = cache.NewMemoryCache()
 
 	if cfg.Redis.Host != "" && cfg.Redis.Port != "" {
 		redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
@@ -65,7 +65,7 @@ func main() {
 		defer cancel()
 
 		if err := rdb.Ping(ctx).Err(); err != nil {
-			log.Printf("[REDIS-WARN] Redis is unreachable at %s (%v). Proceeding without cache layer (direct DB reads).", redisAddr, err)
+			log.Printf("[REDIS-WARN] Redis is unreachable at %s (%v). Proceeding with MemoryCache fallback.", redisAddr, err)
 			rdb = nil
 		} else {
 			log.Printf("[REDIS-INFO] Redis cache connection established at %s", redisAddr)
@@ -75,17 +75,17 @@ func main() {
 
 	cache.Shared = cacheClient
 
-	// Preload search index into Valkey cache
-	if rdb != nil {
+	// Preload search index into cache
+	if cacheClient != nil {
 		var list []models.StockMetadata
 		if err := db.Find(&list).Error; err == nil {
 			if errIndex := cacheClient.SetJSON(context.Background(), "search_index", list, cache.TTLStockMetadata); errIndex == nil {
-				log.Printf("[VALKEY-INFO] Loaded %d stock metadata entries into Valkey search_index", len(list))
+				log.Printf("[CACHE-INFO] Loaded %d stock metadata entries into search_index", len(list))
 			} else {
-				log.Printf("[VALKEY-WARN] Failed to write search_index into Valkey: %v", errIndex)
+				log.Printf("[CACHE-WARN] Failed to write search_index into cache: %v", errIndex)
 			}
 		} else {
-			log.Printf("[VALKEY-WARN] Failed to load stock_metadata from DB for search_index: %v", err)
+			log.Printf("[CACHE-WARN] Failed to load stock_metadata from DB for search_index: %v", err)
 		}
 	}
 

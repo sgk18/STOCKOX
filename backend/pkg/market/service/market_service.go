@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -62,16 +64,33 @@ func (s *MarketService) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 	var quote dto.QuoteDTO
 
 	err := s.cache.GetStaleOrFetch(context.Background(), cacheKey, &quote, cache.TTLQuote, 10*time.Minute, func() (interface{}, error) {
+		resolvedTicker := ticker
+		if ticker == "NIFTY50" {
+			resolvedTicker = "^NSEI"
+		}
+
+		if s.IsIndianAsset(resolvedTicker) {
+			q, err := fetchYahooQuoteDirect(resolvedTicker)
+			if err == nil && q != nil {
+				q.Ticker = ticker // Map back to requested symbol
+				return q, nil
+			}
+			log.Printf("[OBSERVABILITY-WARN] Direct Yahoo Fetch failed for Indian Asset %s: %v. Trying default providers...", resolvedTicker, err)
+		}
+
 		p, err := s.factory.GetProvider("")
 		if err != nil {
 			return nil, err
 		}
-		q, err := p.GetQuote(ticker)
+		q, err := p.GetQuote(resolvedTicker)
 		if err != nil {
-			log.Printf("[OBSERVABILITY-WARN] GetQuote ticker %s failed on default provider: %v. Attempting Alpha Vantage fallback...", ticker, err)
+			log.Printf("[OBSERVABILITY-WARN] GetQuote ticker %s failed on default provider: %v. Attempting Alpha Vantage fallback...", resolvedTicker, err)
 			if fallbackProv, errFallback := s.factory.GetProvider("alphavantage"); errFallback == nil && fallbackProv != nil {
-				q, err = fallbackProv.GetQuote(ticker)
+				q, err = fallbackProv.GetQuote(resolvedTicker)
 			}
+		}
+		if q != nil {
+			q.Ticker = ticker // Map back to requested symbol
 		}
 		return q, err
 	})
@@ -94,6 +113,100 @@ func (s *MarketService) GetQuote(ticker string) (*dto.QuoteDTO, error) {
 
 	log.Printf("[OBSERVABILITY-GETQUOTE] Ticker: %s | Latency: %v", ticker, time.Since(start))
 	return &quote, nil
+}
+
+type yahooChartResult struct {
+	Chart struct {
+		Result []struct {
+			Meta struct {
+				RegularMarketPrice   float64 `json:"regularMarketPrice"`
+				ChartPreviousClose   float64 `json:"chartPreviousClose"`
+				RegularMarketDayHigh  float64 `json:"regularMarketDayHigh"`
+				RegularMarketDayLow   float64 `json:"regularMarketDayLow"`
+				RegularMarketOpen     float64 `json:"regularMarketOpen"`
+				RegularMarketVolume   int64   `json:"regularMarketVolume"`
+			} `json:"meta"`
+		} `json:"result"`
+		Error interface{} `json:"error"`
+	} `json:"chart"`
+}
+
+func fetchYahooQuoteDirect(ticker string) (*dto.QuoteDTO, error) {
+	u := fmt.Sprintf("https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1d", strings.ReplaceAll(ticker, "^", "%%5E"))
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Yahoo HTTP status: %d", resp.StatusCode)
+	}
+
+	var raw yahooChartResult
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	if len(raw.Chart.Result) == 0 {
+		return nil, fmt.Errorf("Yahoo returned empty result")
+	}
+
+	meta := raw.Chart.Result[0].Meta
+	price := meta.RegularMarketPrice
+	prevClose := meta.ChartPreviousClose
+	change := price - prevClose
+	changePercent := 0.0
+	if prevClose != 0 {
+		changePercent = (change / prevClose) * 100
+	}
+
+	high := meta.RegularMarketDayHigh
+	if high == 0 {
+		high = price
+	}
+	low := meta.RegularMarketDayLow
+	if low == 0 {
+		low = price
+	}
+	open := meta.RegularMarketOpen
+	if open == 0 {
+		open = price
+	}
+
+	return &dto.QuoteDTO{
+		Ticker:             ticker,
+		CurrentPrice:       price,
+		DailyChange:        change,
+		DailyChangePercent: changePercent,
+		HighPrice:          high,
+		LowPrice:           low,
+		OpenPrice:          open,
+		PrevClosePrice:     prevClose,
+		Volume:             meta.RegularMarketVolume,
+		AvgVolume:          meta.RegularMarketVolume,
+	}, nil
+}
+
+func (s *MarketService) IsIndianAsset(symbol string) bool {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if strings.HasSuffix(symbol, ".NS") || strings.HasSuffix(symbol, ".BO") || symbol == "^NSEI" || symbol == "NIFTY50" {
+		return true
+	}
+	if s.db != nil {
+		var count int64
+		s.db.Table("stock_metadata").Where("symbol = ? AND (country = 'India' OR exchange = 'NSE' OR exchange = 'BSE')", symbol).Count(&count)
+		return count > 0
+	}
+	return false
 }
 
 // GetCompanyProfile fetches metadata with a 24-hour Valkey cache and stale-while-revalidate

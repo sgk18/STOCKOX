@@ -90,24 +90,31 @@ func (a *MarketDataAggregator) fetchFreshQuote(symbol string) (*dto.QuoteDTO, er
 		var err error
 		var quote *dto.QuoteDTO
 
+		isIndian := a.IsIndianAsset(symbol)
+		apiSymbol := symbol
+		if symbol == "NIFTY50" {
+			apiSymbol = "^NSEI"
+		}
+
 		// Choose provider priority based on country
-		if a.IsIndianAsset(symbol) {
+		if isIndian {
 			// Indian stock priority: TwelveData -> Yahoo
-			quote, err = a.twelveData.GetQuote(symbol)
+			quote, err = a.twelveData.GetQuote(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetQuote failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				quote, err = a.yahoo.GetQuote(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetQuote failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				quote, err = a.yahoo.GetQuote(apiSymbol)
 			}
 		} else {
 			// US stock priority: Finnhub -> Yahoo
-			quote, err = a.finnhub.GetQuote(symbol)
+			quote, err = a.finnhub.GetQuote(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetQuote failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				quote, err = a.yahoo.GetQuote(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetQuote failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				quote, err = a.yahoo.GetQuote(apiSymbol)
 			}
 		}
 
 		if err == nil && quote != nil {
+			quote.Ticker = symbol
 			_ = a.cache.SetJSON(ctx, key, quote, TTLQuote)
 			return quote, nil
 		}
@@ -187,21 +194,28 @@ func (a *MarketDataAggregator) fetchFreshProfile(symbol string) (*dto.CompanyPro
 		var err error
 		var profile *dto.CompanyProfileDTO
 
-		if a.IsIndianAsset(symbol) {
-			profile, err = a.twelveData.GetCompanyProfile(symbol)
+		isIndian := a.IsIndianAsset(symbol)
+		apiSymbol := symbol
+		if symbol == "NIFTY50" {
+			apiSymbol = "^NSEI"
+		}
+
+		if isIndian {
+			profile, err = a.twelveData.GetCompanyProfile(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetCompanyProfile failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				profile, err = a.yahoo.GetCompanyProfile(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetCompanyProfile failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				profile, err = a.yahoo.GetCompanyProfile(apiSymbol)
 			}
 		} else {
-			profile, err = a.finnhub.GetCompanyProfile(symbol)
+			profile, err = a.finnhub.GetCompanyProfile(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetCompanyProfile failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				profile, err = a.yahoo.GetCompanyProfile(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetCompanyProfile failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				profile, err = a.yahoo.GetCompanyProfile(apiSymbol)
 			}
 		}
 
 		if err == nil && profile != nil {
+			profile.Ticker = symbol
 			_ = a.cache.SetJSON(ctx, key, profile, TTLProfile)
 			return profile, nil
 		}
@@ -241,17 +255,23 @@ func (a *MarketDataAggregator) fetchFreshCandles(symbol string, timeframe string
 		var err error
 		var candles []dto.CandleDTO
 
-		if a.IsIndianAsset(symbol) {
-			candles, err = a.twelveData.GetCandles(symbol, timeframe)
+		isIndian := a.IsIndianAsset(symbol)
+		apiSymbol := symbol
+		if symbol == "NIFTY50" {
+			apiSymbol = "^NSEI"
+		}
+
+		if isIndian {
+			candles, err = a.twelveData.GetCandles(apiSymbol, timeframe)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetCandles failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				candles, err = a.yahoo.GetCandles(symbol, timeframe)
+				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetCandles failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				candles, err = a.yahoo.GetCandles(apiSymbol, timeframe)
 			}
 		} else {
-			candles, err = a.finnhub.GetCandles(symbol, timeframe)
+			candles, err = a.finnhub.GetCandles(apiSymbol, timeframe)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetCandles failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				candles, err = a.yahoo.GetCandles(symbol, timeframe)
+				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetCandles failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				candles, err = a.yahoo.GetCandles(apiSymbol, timeframe)
 			}
 		}
 
@@ -308,17 +328,23 @@ func (a *MarketDataAggregator) fetchFreshNews(symbol string) ([]dto.NewsDTO, err
 		var err error
 		var news []dto.NewsDTO
 
-		if a.IsIndianAsset(symbol) {
-			news, err = a.twelveData.GetNews(symbol)
+		isIndian := a.IsIndianAsset(symbol)
+		apiSymbol := symbol
+		if symbol == "NIFTY50" {
+			apiSymbol = "^NSEI"
+		}
+
+		if isIndian {
+			news, err = a.twelveData.GetNews(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetNews failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				news, err = a.yahoo.GetNews(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetNews failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				news, err = a.yahoo.GetNews(apiSymbol)
 			}
 		} else {
-			news, err = a.finnhub.GetNews(symbol)
+			news, err = a.finnhub.GetNews(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetNews failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				news, err = a.yahoo.GetNews(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetNews failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				news, err = a.yahoo.GetNews(apiSymbol)
 			}
 		}
 
@@ -362,21 +388,28 @@ func (a *MarketDataAggregator) fetchFreshFundamentals(symbol string) (*dto.Finan
 		var err error
 		var metrics *dto.FinancialMetricsDTO
 
-		if a.IsIndianAsset(symbol) {
-			metrics, err = a.twelveData.GetFundamentals(symbol)
+		isIndian := a.IsIndianAsset(symbol)
+		apiSymbol := symbol
+		if symbol == "NIFTY50" {
+			apiSymbol = "^NSEI"
+		}
+
+		if isIndian {
+			metrics, err = a.twelveData.GetFundamentals(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetFundamentals failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				metrics, err = a.yahoo.GetFundamentals(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] TwelveData GetFundamentals failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				metrics, err = a.yahoo.GetFundamentals(apiSymbol)
 			}
 		} else {
-			metrics, err = a.finnhub.GetFundamentals(symbol)
+			metrics, err = a.finnhub.GetFundamentals(apiSymbol)
 			if err != nil {
-				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetFundamentals failed for %s: %v. Falling back to Yahoo...", symbol, err)
-				metrics, err = a.yahoo.GetFundamentals(symbol)
+				log.Printf("[MD-AGGREGATOR-WARN] Finnhub GetFundamentals failed for %s: %v. Falling back to Yahoo...", apiSymbol, err)
+				metrics, err = a.yahoo.GetFundamentals(apiSymbol)
 			}
 		}
 
 		if err == nil && metrics != nil {
+			metrics.Ticker = symbol
 			_ = a.cache.SetJSON(ctx, key, metrics, TTLFundamentals)
 			return metrics, nil
 		}

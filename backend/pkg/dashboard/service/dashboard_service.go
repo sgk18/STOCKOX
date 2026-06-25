@@ -420,6 +420,8 @@ func (s *dashboardService) GetMarketOverview() ([]dto.MarketOverviewResponse, er
 				ticker = "GLD"
 			case "BTC":
 				ticker = "BINANCE:BTCUSDT"
+			case "NIFTY50":
+				ticker = "^NSEI"
 			}
 			if ticker != "" {
 				if quote, errQuote := s.marketSrv.GetQuote(ticker); errQuote == nil && quote != nil {

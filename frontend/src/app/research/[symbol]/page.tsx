@@ -1075,11 +1075,11 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 <span>{(researchData as any).history_error}</span>
               </div>
             ) : (
-              <section className="bg-white border-4 border-black rounded-[24px] p-6 shadow-[4px_4px_0px_#000000]">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b-2 border-black pb-4 mb-6">
+              <section className="bg-slate-900 border-4 border-black rounded-[24px] p-6 shadow-[4px_4px_0px_#000000] text-white">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-800 pb-4 mb-6">
                   <div className="flex items-center gap-2">
-                    <LineChartIcon className="w-5 h-5 text-[#2563EB]" />
-                    <h2 className="text-xs font-black uppercase tracking-wider text-[#0F172A] font-mono">Live Price Timeline History</h2>
+                    <LineChartIcon className="w-5 h-5 text-slate-300" />
+                    <h2 className="text-xs font-black uppercase tracking-wider text-slate-200 font-mono">Live Price Timeline History</h2>
                   </div>
                   
                   {/* Timeframe Buttons */}
@@ -1090,8 +1090,8 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                         onClick={() => setTimeframe(t)}
                         className={`px-2.5 py-1 border-2 text-[9px] font-black uppercase rounded-lg transition-all ${
                           timeframe === t
-                            ? "bg-black text-white border-black shadow-[1px_1px_0px_#2563EB]"
-                            : "bg-white text-black/50 border-black/10 hover:border-black hover:text-black"
+                            ? `bg-white text-slate-900 border-white shadow-[1px_1px_0px_${dailyIsPositive ? "#10B981" : "#EF4444"}]`
+                            : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-slate-500"
                         }`}
                       >
                         {t}
@@ -1101,42 +1101,57 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 </div>
 
                 {filteredHistory.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-xs font-mono text-black/40 uppercase font-black">
+                  <div className="h-64 flex items-center justify-center text-xs font-mono text-slate-500 uppercase font-black">
                     No historical price data available
                   </div>
                 ) : (
-                  <div className="h-72 w-full font-mono">
+                  <div className="h-72 w-full font-mono text-slate-400">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={filteredHistory} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorPriceChart" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2563EB" stopOpacity={0.18}/>
-                            <stop offset="95%" stopColor="#2563EB" stopOpacity={0.01}/>
+                            <stop offset="5%" stopColor={dailyIsPositive ? "#10B981" : "#EF4444"} stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor={dailyIsPositive ? "#10B981" : "#EF4444"} stopOpacity={0.0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#000000" strokeOpacity={0.04} />
+                        <CartesianGrid vertical={false} stroke="#334155" strokeDasharray="3 3" opacity={0.2} />
                         <XAxis 
                           dataKey="time" 
-                          stroke="#0F172A" 
+                          stroke="#94A3B8" 
                           fontSize={8}
                           fontWeight="bold"
                           tickLine={false}
+                          axisLine={false}
                         />
                         <YAxis 
-                          stroke="#0F172A" 
+                          stroke="#94A3B8" 
                           fontSize={8}
                           fontWeight="bold"
                           tickLine={false}
                           axisLine={false}
                           domain={['auto', 'auto']}
-                          tickFormatter={(val) => `$${val.toFixed(2)}`}
+                          tickFormatter={(val) => val.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         />
-                        <Tooltip contentStyle={customTooltipStyle} />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-slate-800 border-2 border-slate-700 p-2.5 rounded-lg shadow-xl font-mono text-[9px] text-white">
+                                  <p className="font-bold text-slate-400">{payload[0].payload.time}</p>
+                                  <p className={`font-black text-xs mt-1 ${dailyIsPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    Price: {payload[0].value !== undefined && payload[0].value !== null ? Number(payload[0].value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "N/A"}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
                         <Area 
                           type="monotone" 
                           dataKey="value" 
-                          stroke="#2563EB" 
-                          strokeWidth={3} 
+                          stroke={dailyIsPositive ? "#10B981" : "#EF4444"} 
+                          strokeWidth={2.5} 
                           fillOpacity={1} 
                           fill="url(#colorPriceChart)" 
                         />
@@ -1146,48 +1161,48 @@ An operational multi-agent audit was deployed for ${researchData.symbol}. Based 
                 )}
 
                 {/* OHLC + Stats Breakdown */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-4 border-t-2 border-black pt-5 mt-6 font-mono text-[10px]">
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Open</span>
-                    <span className="font-black text-[#0F172A]">${chartStats.open ? chartStats.open.toFixed(2) : "N/A"}</span>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 border-t border-slate-800 pt-6 mt-6 font-mono text-xs text-slate-300">
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">Open</span>
+                    <span className="font-black text-white">{chartStats.open ? chartStats.open.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}</span>
                   </div>
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Prev Close</span>
-                    <span className="font-black text-[#0F172A]">${researchData.quote.prev_close_price ? researchData.quote.prev_close_price.toFixed(2) : "N/A"}</span>
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">High</span>
+                    <span className="font-black text-white">{chartStats.high ? chartStats.high.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}</span>
                   </div>
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Timeframe High</span>
-                    <span className="font-black text-[#0F172A]">${chartStats.high ? chartStats.high.toFixed(2) : "N/A"}</span>
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">Low</span>
+                    <span className="font-black text-white">{chartStats.low ? chartStats.low.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}</span>
                   </div>
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Timeframe Low</span>
-                    <span className="font-black text-[#0F172A]">${chartStats.low ? chartStats.low.toFixed(2) : "N/A"}</span>
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">Prev Close</span>
+                    <span className="font-black text-white">{researchData.quote.prev_close_price ? researchData.quote.prev_close_price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}</span>
                   </div>
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Volume</span>
-                    <span className="font-black text-[#0F172A]">{researchData.quote.volume ? researchData.quote.volume.toLocaleString() : "N/A"}</span>
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">Volume</span>
+                    <span className="font-black text-white">{researchData.quote.volume ? researchData.quote.volume.toLocaleString() : "N/A"}</span>
                   </div>
-                  <div>
-                    <span className="font-bold text-[#64748B] uppercase block">Avg Volume</span>
-                    <span className="font-black text-[#0F172A]">{researchData.quote.avg_volume ? researchData.quote.avg_volume.toLocaleString() : "N/A"}</span>
+                  <div className="flex justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-slate-400 uppercase">Avg Volume</span>
+                    <span className="font-black text-white">{researchData.quote.avg_volume ? researchData.quote.avg_volume.toLocaleString() : "N/A"}</span>
                   </div>
                 </div>
 
                 {/* 52-Week Range stat */}
-                <div className="mt-5 border-t border-black/5 pt-4 font-mono text-[10px] flex items-center justify-between">
-                  <span className="font-bold text-[#64748B] uppercase">52-Week Range:</span>
+                <div className="mt-6 border-t border-slate-800 pt-5 font-mono text-xs flex items-center justify-between">
+                  <span className="text-slate-400 uppercase">52-Week Range:</span>
                   <div className="flex items-center gap-3 w-3/4">
-                    <span className="font-black text-[#0F172A]">${(researchData.quote.low_price * 0.85).toFixed(2)}</span>
-                    <div className="flex-grow bg-black/5 border border-black/10 h-2 rounded-full overflow-hidden relative">
+                    <span className="font-black text-slate-300">{(researchData.quote.low_price * 0.85).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <div className="flex-grow bg-slate-800 h-2 border border-slate-700 rounded-full overflow-hidden relative">
                       {/* Mark current price position */}
                       <div 
-                        className="absolute h-full w-2 bg-[#2563EB] border border-black rounded" 
+                        className={`absolute h-full w-2 border border-slate-900 rounded ${dailyIsPositive ? 'bg-emerald-400' : 'bg-rose-400'}`} 
                         style={{ 
                           left: `${Math.min(100, Math.max(0, ((researchData.quote.current_price - (researchData.quote.low_price * 0.85)) / ((researchData.quote.high_price * 1.15) - (researchData.quote.low_price * 0.85))) * 100))}%` 
                         }} 
                       />
                     </div>
-                    <span className="font-black text-[#0F172A]">${(researchData.quote.high_price * 1.15).toFixed(2)}</span>
+                    <span className="font-black text-slate-300">{(researchData.quote.high_price * 1.15).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </section>

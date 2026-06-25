@@ -84,18 +84,19 @@ func (wc *WorkersCoordinator) collectMarketSnapshots() {
 
 	// Tick mappings: db_symbol -> finnhub_ticker
 	symbols := map[string]string{
-		"NVDA":   "NVDA",
-		"AAPL":   "AAPL",
-		"MSFT":   "MSFT",
-		"TSLA":   "TSLA",
-		"AMD":    "AMD",
-		"SP500":  "SPY",
-		"NASDAQ": "QQQ",
-		"SPY":    "SPY",
-		"QQQ":    "QQQ",
-		"GOLD":   "GLD",
-		"BTC":    "BINANCE:BTCUSDT",
-		"OIL":    "USO",
+		"NVDA":    "NVDA",
+		"AAPL":    "AAPL",
+		"MSFT":    "MSFT",
+		"TSLA":    "TSLA",
+		"AMD":     "AMD",
+		"SP500":   "SPY",
+		"NASDAQ":  "QQQ",
+		"SPY":     "SPY",
+		"QQQ":     "QQQ",
+		"GOLD":    "GLD",
+		"BTC":     "BINANCE:BTCUSDT",
+		"OIL":     "USO",
+		"NIFTY50": "^NSEI",
 	}
 
 	for dbSymbol, apiTicker := range symbols {
