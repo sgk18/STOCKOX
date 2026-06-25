@@ -441,7 +441,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent("trigger-diagnostics"));
+                  router.push("/dashboard/diagnostics");
                 }}
                 className="py-2.5 px-4 bg-white hover:bg-blue-50 text-[#2563EB] border-2 border-black font-black text-xs uppercase rounded-xl shadow-[2px_2px_0px_#000000] flex items-center gap-2 cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all"
               >

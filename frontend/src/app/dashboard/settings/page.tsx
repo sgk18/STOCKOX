@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Settings, UserCheck, Bot, Sliders } from "lucide-react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
@@ -87,16 +88,13 @@ export default function SettingsPage() {
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent("trigger-diagnostics"));
-              }}
-              className="mt-2 py-2.5 w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black text-xs uppercase rounded-xl border-3 border-black shadow-[2px_2px_0px_#000000] cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all flex items-center justify-center gap-2"
+            <Link
+              href="/dashboard/diagnostics"
+              className="mt-2 py-2.5 w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black text-xs uppercase rounded-xl border-3 border-black shadow-[2px_2px_0px_#000000] cursor-pointer active:translate-y-0.5 active:shadow-[1px_1px_0px_#000000] transition-all flex items-center justify-center gap-2 text-center"
             >
               <Sliders className="w-4 h-4 text-white" />
               <span>Run Diagnostics</span>
-            </button>
+            </Link>
           </div>
         </section>
 

@@ -33,7 +33,6 @@ import {
   Link2
 } from "lucide-react";
 import AgentFeed from "@/components/dashboard/AgentFeed";
-import DiagnosticsModal from "@/components/dashboard/DiagnosticsModal";
 
 export default function DashboardLayout({
   children,
@@ -48,17 +47,15 @@ export default function DashboardLayout({
   const [isOnboardingChecked, setIsOnboardingChecked] = useState(true);
   const isDemoMode = useDashboardStore((state) => state.isDemoMode);
   const setDemoMode = useDashboardStore((state) => state.setDemoMode);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
-
   useEffect(() => {
     const handleTriggerDiagnostics = () => {
-      setIsDiagnosticsOpen(true);
+      router.push("/dashboard/diagnostics");
     };
     window.addEventListener("trigger-diagnostics", handleTriggerDiagnostics);
     return () => {
       window.removeEventListener("trigger-diagnostics", handleTriggerDiagnostics);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let active = true;
@@ -141,6 +138,7 @@ export default function DashboardLayout({
 
   const commandResults = [
     { type: "shortcut", label: "Go to Dashboard Home", path: "/dashboard" },
+    { type: "shortcut", label: "Go to System Diagnostics Console", path: "/dashboard/diagnostics" },
     { type: "shortcut", label: "Go to Portfolio Command Center", path: "/dashboard/portfolio" },
     { type: "shortcut", label: "Go to AI Committee Panel", path: "/dashboard/ai-committee" },
     { type: "shortcut", label: "Go to Risk Analytics Dashboard", path: "/dashboard/risk-center" },
@@ -271,8 +269,8 @@ export default function DashboardLayout({
           </Link>
 
           {/* Run Diagnostics button */}
-          <button
-            onClick={() => setIsDiagnosticsOpen(true)}
+          <Link
+            href="/dashboard/diagnostics"
             title="Run Diagnostics"
             className={`flex items-center justify-between border-2 border-black bg-white hover:bg-gray-50 text-black rounded-lg px-2.5 py-1.5 shadow-[2px_2px_0px_#000000] font-black text-center uppercase tracking-wider transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 text-[10px] cursor-pointer ${
               sidebarCollapsed ? "justify-center w-10 h-10 p-0 rounded-xl" : "w-full"
@@ -280,7 +278,7 @@ export default function DashboardLayout({
           >
             {!sidebarCollapsed && <span>Run Diagnostics</span>}
             <Bot className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
-          </button>
+          </Link>
 
           {!sidebarCollapsed ? (
             <>
@@ -631,7 +629,6 @@ export default function DashboardLayout({
           </aside>
 
         </div>
-        <DiagnosticsModal isOpen={isDiagnosticsOpen} onClose={() => setIsDiagnosticsOpen(false)} />
       </div>
     </div>
   );
